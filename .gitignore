@@ -1,0 +1,9 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.xlsx
+*.csv
+.streamlit/secrets.toml
+test_pipeline.py
