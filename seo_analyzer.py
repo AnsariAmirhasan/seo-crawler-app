@@ -129,7 +129,10 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     if not html:
         return seo_info
 
-    soup = BeautifulSoup(html, "lxml" if "lxml" in BeautifulSoup.__dict__ else "html.parser")
+    try:
+        soup = BeautifulSoup(html, "lxml")
+    except Exception:
+        soup = BeautifulSoup(html, "html.parser")
 
     # 1. Page Titles
     title_tags = soup.find_all("title")
