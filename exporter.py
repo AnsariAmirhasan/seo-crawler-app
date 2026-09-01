@@ -37,9 +37,9 @@ def generate_excel_report(analysis_result: dict, start_url: str) -> bytes:
         if not df_issues.empty:
             df_issues.to_excel(writer, sheet_name='Issues & Fixes', index=False)
         if not df_links.empty:
-            df_links.head(5000).to_excel(writer, sheet_name='Discovered Links', index=False)
+            df_links.head(30000).to_excel(writer, sheet_name='Discovered Links', index=False)
         if not df_images.empty:
-            df_images.head(5000).to_excel(writer, sheet_name='Images & Alt', index=False)
+            df_images.head(30000).to_excel(writer, sheet_name='Images & Alt', index=False)
 
     return output.getvalue()
 

@@ -21,7 +21,6 @@ def normalize_url(url: str) -> str:
     if not url:
         return ""
     url, _ = urldefrag(url.strip())
-    # Strip unnecessary trailing slash for homepages if appropriate
     parsed = urlparse(url)
     if parsed.path == "":
         url = url + "/"
@@ -34,7 +33,6 @@ def is_internal_url(target_url: str, base_domain: str) -> bool:
         target_netloc = parsed_target.netloc.lower()
         base_netloc = base_domain.lower()
         
-        # Remove 'www.' prefix for comparison
         target_clean = re.sub(r"^www\.", "", target_netloc)
         base_clean = re.sub(r"^www\.", "", base_netloc)
         
@@ -58,9 +56,9 @@ class SEOSpider:
     def __init__(
         self,
         start_url: str,
-        max_pages: int = 50,
-        max_depth: int = 3,
-        concurrency: int = 5,
+        max_pages: int = 2000,
+        max_depth: int = 5,
+        concurrency: int = 10,
         user_agent_name: str = "Screaming Frog Spider / SEO Bot",
         respect_robots: bool = False,
         timeout: int = 10,
@@ -85,10 +83,12 @@ class SEOSpider:
         self.crawled_data = []
         self.all_links = []
         self.all_images = []
-        self.queue = [(self.start_url, 0, "")]  # (url, depth, source_url)
         self.stop_requested = False
 
         self.session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(pool_connections=concurrency * 2, pool_maxsize=concurrency * 2, max_retries=1)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
         self.session.headers.update({
             "User-Agent": self.user_agent,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -167,24 +167,21 @@ class SEOSpider:
         if not url or depth > self.max_depth:
             return False
         
-        # Check scheme
         parsed = urlparse(url)
         if parsed.scheme not in ["http", "https"]:
             return False
             
-        # Ignore media/file downloads from crawling as web pages
         non_html_extensions = (
             '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf',
-            '.zip', '.tar', '.gz', '.exe', '.mp4', '.mp3', '.css', '.js'
+            '.zip', '.tar', '.gz', '.exe', '.mp4', '.mp3', '.css', '.js',
+            '.woff', '.woff2', '.ttf', '.eot', '.ico'
         )
         if parsed.path.lower().endswith(non_html_extensions):
             return False
 
-        # Domain matching
         if not is_internal_url(url, self.base_domain):
             return False
 
-        # Regex filters
         if self.include_regex and not self.include_regex.search(url):
             return False
         if self.exclude_regex and self.exclude_regex.search(url):
@@ -193,12 +190,11 @@ class SEOSpider:
         return True
 
     def crawl(self, progress_callback=None):
-        """Execute the multi-threaded website crawl."""
+        """Execute high-speed multi-threaded crawl with memory optimizations."""
         visited_urls = set()
         to_visit = [(self.start_url, 0, "Initial Seed")]
 
         while to_visit and len(self.crawled_data) < self.max_pages and not self.stop_requested:
-            # Batch URLs up to concurrency limit
             batch = []
             while to_visit and len(batch) < self.concurrency and (len(self.crawled_data) + len(batch)) < self.max_pages:
                 current_url, current_depth, source_url = to_visit.pop(0)
@@ -210,7 +206,6 @@ class SEOSpider:
             if not batch:
                 break
 
-            # Execute batch requests in parallel
             with ThreadPoolExecutor(max_workers=min(self.concurrency, len(batch))) as executor:
                 future_to_info = {
                     executor.submit(self.fetch_single_url, item[0]): item
@@ -228,49 +223,52 @@ class SEOSpider:
                     
                     self.crawled_data.append(fetch_res)
 
-                    # Extract outgoing links and images if HTML
+                    # Extract outgoing links & images
                     if fetch_res.get("html"):
-                        soup = BeautifulSoup(fetch_res["html"], "lxml" if "lxml" in BeautifulSoup.__dict__ else "html.parser")
-                        
-                        # Extract Links
-                        for a_tag in soup.find_all("a", href=True):
-                            raw_href = a_tag["href"].strip()
-                            if not raw_href or raw_href.startswith(("#", "javascript:", "mailto:", "tel:")):
-                                continue
+                        try:
+                            soup = BeautifulSoup(fetch_res["html"], "html.parser")
                             
-                            abs_url = normalize_url(urljoin(fetch_res["final_url"], raw_href))
-                            is_internal = is_internal_url(abs_url, self.base_domain)
-                            rel_val = a_tag.get("rel", [])
-                            is_nofollow = "nofollow" in (rel_val if isinstance(rel_val, list) else [rel_val])
-                            anchor_text = a_tag.get_text(strip=True)[:100]
+                            # Extract Links
+                            for a_tag in soup.find_all("a", href=True):
+                                raw_href = a_tag["href"].strip()
+                                if not raw_href or raw_href.startswith(("#", "javascript:", "mailto:", "tel:")):
+                                    continue
+                                
+                                abs_url = normalize_url(urljoin(fetch_res["final_url"], raw_href))
+                                is_internal = is_internal_url(abs_url, self.base_domain)
+                                rel_val = a_tag.get("rel", [])
+                                is_nofollow = "nofollow" in (rel_val if isinstance(rel_val, list) else [rel_val])
+                                anchor_text = a_tag.get_text(strip=True)[:100]
 
-                            self.all_links.append({
-                                "source_url": url,
-                                "target_url": abs_url,
-                                "anchor_text": anchor_text,
-                                "is_internal": is_internal,
-                                "nofollow": is_nofollow,
-                                "rel": str(rel_val)
-                            })
+                                if len(self.all_links) < 30000:
+                                    self.all_links.append({
+                                        "source_url": url,
+                                        "target_url": abs_url,
+                                        "anchor_text": anchor_text,
+                                        "is_internal": is_internal,
+                                        "nofollow": is_nofollow,
+                                        "rel": str(rel_val)
+                                    })
 
-                            # Add to next depth queue if eligible
-                            if is_internal and self.should_crawl(abs_url, depth + 1):
-                                if abs_url not in visited_urls:
-                                    to_visit.append((abs_url, depth + 1, url))
+                                if is_internal and self.should_crawl(abs_url, depth + 1):
+                                    if abs_url not in visited_urls:
+                                        to_visit.append((abs_url, depth + 1, url))
 
-                        # Extract Images
-                        for img in soup.find_all("img"):
-                            src = img.get("src") or img.get("data-src") or img.get("data-lazy-src") or ""
-                            if src:
-                                img_abs = urljoin(fetch_res["final_url"], src)
-                                alt_text = img.get("alt", None)
-                                self.all_images.append({
-                                    "page_url": url,
-                                    "image_url": img_abs,
-                                    "alt": alt_text,
-                                    "has_alt": alt_text is not None and len(alt_text.strip()) > 0,
-                                    "loading": img.get("loading", "")
-                                })
+                            # Extract Images
+                            for img in soup.find_all("img"):
+                                src = img.get("src") or img.get("data-src") or img.get("data-lazy-src") or ""
+                                if src and len(self.all_images) < 30000:
+                                    img_abs = urljoin(fetch_res["final_url"], src)
+                                    alt_text = img.get("alt", None)
+                                    self.all_images.append({
+                                        "page_url": url,
+                                        "image_url": img_abs,
+                                        "alt": alt_text,
+                                        "has_alt": alt_text is not None and len(alt_text.strip()) > 0,
+                                        "loading": img.get("loading", "")
+                                    })
+                        except Exception:
+                            pass
 
                     if progress_callback:
                         progress_callback(

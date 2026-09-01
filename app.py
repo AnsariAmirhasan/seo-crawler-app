@@ -15,58 +15,43 @@ from visualizer import (
 )
 from exporter import generate_excel_report, generate_csv
 
-# Streamlit Page Configuration
+# 1. Streamlit Page Configuration - Must be first
 st.set_page_config(
-    page_title="ScreamingFrog / LibreCrawl Web SEO Spider",
+    page_title="Amir's SEO Spider",
     page_icon="🕷️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom High-End Styling (CSS)
+# 2. Modern Universal Theme Styling
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
-    
     .main-header {
         background: linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%);
         padding: 1.5rem 2rem;
         border-radius: 12px;
         margin-bottom: 1.5rem;
         border: 1px solid rgba(99, 102, 241, 0.3);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
     }
     .main-title {
         font-size: 2rem;
         font-weight: 800;
-        color: #FFFFFF;
+        color: #FFFFFF !important;
         margin: 0;
-        display: flex;
-        align-items: center;
-        gap: 12px;
     }
     .main-subtitle {
-        color: #C7D2FE;
+        color: #C7D2FE !important;
         font-size: 0.95rem;
         margin-top: 4px;
         margin-bottom: 0;
     }
-    
     .metric-card {
-        background: #1E293B;
+        background: rgba(30, 41, 59, 0.85);
         padding: 1.2rem;
         border-radius: 10px;
         border: 1px solid #334155;
         text-align: center;
-        transition: transform 0.2s ease, border-color 0.2s ease;
-    }
-    .metric-card:hover {
-        transform: translateY(-2px);
-        border-color: #6366F1;
     }
     .metric-value {
         font-size: 1.8rem;
@@ -75,16 +60,10 @@ st.markdown("""
     }
     .metric-label {
         font-size: 0.85rem;
-        color: #94A3B8;
+        color: #94A3B8 !important;
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
-    
-    .badge-error { background-color: #EF4444; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-    .badge-warning { background-color: #F59E0B; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-    .badge-notice { background-color: #3B82F6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-    .badge-success { background-color: #10B981; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-    
     .serp-preview-box {
         background: #FFFFFF;
         color: #202124;
@@ -95,38 +74,23 @@ st.markdown("""
         margin-top: 0.5rem;
     }
     .serp-title {
-        color: #1a0dab;
+        color: #1a0dab !important;
         font-size: 1.15rem;
         cursor: pointer;
         line-height: 1.3;
         margin-bottom: 2px;
+        font-weight: 500;
     }
     .serp-url {
-        color: #202124;
+        color: #202124 !important;
         font-size: 0.85rem;
         line-height: 1.3;
         margin-bottom: 4px;
     }
     .serp-desc {
-        color: #4d5156;
+        color: #4d5156 !important;
         font-size: 0.9rem;
         line-height: 1.4;
-    }
-    
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 6px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #1E293B;
-        border-radius: 8px 8px 0px 0px;
-        padding: 8px 16px;
-        color: #94A3B8;
-        font-weight: 500;
-        border: 1px solid #334155;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #6366F1 !important;
-        color: #FFFFFF !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -134,8 +98,8 @@ st.markdown("""
 # App Header
 st.markdown("""
 <div class="main-header">
-    <h1 class="main-title">🕷️ LibreCrawl / Screaming Frog SEO Spider</h1>
-    <p class="main-subtitle">Open-source technical SEO auditing, spidering & site health analytics web application.</p>
+    <h1 class="main-title">🕷️ Amir's SEO Spider</h1>
+    <p class="main-subtitle">High-speed technical SEO crawler & site audit web app — crawl up to 10,000+ URLs with zero limits!</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -151,19 +115,33 @@ if "single_inspect_result" not in st.session_state:
 with st.sidebar:
     st.header("⚙️ Crawl Configuration")
     
-    target_url = st.text_input("🌐 Target Website URL", value="https://example.com", help="Enter full URL starting with https:// or http://")
+    target_url = st.text_input("🌐 Target Website URL", value="https://example.com", help="Enter full website URL")
     
     col_c1, col_c2 = st.columns(2)
     with col_c1:
-        max_pages = st.number_input("Max Pages", min_value=1, max_value=500, value=30, step=10, help="Maximum number of URLs to crawl")
+        max_pages = st.number_input(
+            "Max Pages Limit",
+            min_value=1,
+            max_value=10000,
+            value=2000,
+            step=250,
+            help="Maximum URLs to crawl. You can increase up to 10,000 URLs!"
+        )
     with col_c2:
-        max_depth = st.number_input("Max Depth", min_value=1, max_value=10, value=3, step=1, help="Maximum link depth from seed URL")
+        max_depth = st.number_input(
+            "Max Depth",
+            min_value=1,
+            max_value=15,
+            value=5,
+            step=1,
+            help="Maximum link click depth"
+        )
 
     col_c3, col_c4 = st.columns(2)
     with col_c3:
-        concurrency = st.slider("Threads", min_value=1, max_value=15, value=5, help="Number of concurrent requests")
+        concurrency = st.slider("Threads / Speed", min_value=1, max_value=25, value=10, help="Number of concurrent requests")
     with col_c4:
-        timeout = st.slider("Timeout (s)", min_value=3, max_value=30, value=10, help="HTTP Request Timeout")
+        timeout = st.slider("Timeout (s)", min_value=3, max_value=30, value=8, help="Request timeout")
 
     with st.expander("🛠️ Advanced Crawl Settings", expanded=False):
         user_agent_choice = st.selectbox(
@@ -172,19 +150,17 @@ with st.sidebar:
             index=0
         )
         respect_robots = st.checkbox("Respect robots.txt directives", value=False)
-        include_regex = st.text_input("Include URL Regex", value="", help="Only crawl URLs matching this pattern")
-        exclude_regex = st.text_input("Exclude URL Regex", value="", help="Skip URLs matching this pattern (e.g. /tag/|/category/)")
+        include_regex = st.text_input("Include URL Regex", value="", help="Only crawl URLs matching pattern")
+        exclude_regex = st.text_input("Exclude URL Regex", value="", help="Skip URLs matching pattern")
 
     st.markdown("---")
-    
-    btn_start = st.button("🚀 Start SEO Crawl", type="primary", use_container_width=True)
-
+    btn_start = st.button("🚀 Start Unlimited SEO Crawl", type="primary", use_container_width=True)
     st.markdown("---")
     st.markdown("""
-    **💡 Quick Tips:**
-    - Deployable to **Streamlit Community Cloud (`streamlit.app`)**
-    - Free and open-source alternative to paid SEO spiders
-    - Export all data to multi-sheet **Excel (`.xlsx`)** or **CSV**
+    **🔥 Advantages over Screaming Frog Free:**
+    - **No 500 URL Limit**: Crawl 2,000 to 10,000+ pages!
+    - **Cloud Hosted**: Runs 24/7 on `streamlit.app`
+    - **Multi-Tab Excel & CSV**: 100% Free full export
     """)
 
 # Crawl Execution Logic
@@ -193,7 +169,7 @@ if btn_start:
         st.error("⚠️ Please enter a valid URL starting with http:// or https://")
     else:
         st.session_state["is_crawling"] = True
-        progress_bar = st.progress(0, text="Initializing SEO Spider Engine...")
+        progress_bar = st.progress(0, text="Initializing High-Speed SEO Spider Engine...")
         status_box = st.empty()
 
         spider = SEOSpider(
@@ -210,15 +186,15 @@ if btn_start:
 
         def on_progress(crawled_count, max_pages, current_url, status_code):
             pct = min(1.0, crawled_count / max_pages)
-            progress_bar.progress(pct, text=f"Crawling ({crawled_count}/{max_pages}): {current_url[:60]}...")
-            status_box.info(f"⚡ Crawling URL: `{current_url}` | Status: **{status_code}** | Pages: **{crawled_count}**")
+            progress_bar.progress(pct, text=f"Crawled ({crawled_count} / {max_pages} URLs): {current_url[:65]}...")
+            status_box.info(f"⚡ Crawling URL: `{current_url}` | Status: **{status_code}** | Total Crawled: **{crawled_count}**")
 
         start_time = time.time()
-        with st.spinner("Spider is crawling and extracting metadata..."):
+        with st.spinner("Spider is multi-threading through website structure..."):
             raw_crawl = spider.crawl(progress_callback=on_progress)
             elapsed = round(time.time() - start_time, 2)
 
-        progress_bar.progress(1.0, text=f"Crawl Completed in {elapsed}s! Analyzing technical SEO factors...")
+        progress_bar.progress(1.0, text=f"Crawl Completed: {len(raw_crawl['crawled_pages'])} pages in {elapsed}s! Analyzing technical factors...")
         
         with st.spinner("Computing SEO Health Score and Issue Aggregations..."):
             analysis = analyze_crawl_results(
@@ -254,29 +230,28 @@ results = st.session_state.get("crawl_results")
 # TAB 1: OVERVIEW & HEALTH AUDIT
 with tab_overview:
     if not results:
-        st.info("👈 Enter a URL in the sidebar and click **'Start SEO Crawl'** to run a complete technical audit.")
+        st.info("👈 Enter a URL in the sidebar and click **'Start Unlimited SEO Crawl'** to run a complete technical audit.")
         
-        # Sample Preview / Feature Cards
         col_f1, col_f2, col_f3 = st.columns(3)
         with col_f1:
             st.markdown("""
             <div class="metric-card">
-                <h3>⚡ High-Speed Spider</h3>
-                <p style="color:#94A3B8; font-size:0.9rem;">Multi-threaded crawling with custom depth, robots.txt support, and User-Agent spoofing.</p>
+                <h3 style="color:#6366F1; margin-top:0;">⚡ 2000+ URL Capacity</h3>
+                <p style="color:#94A3B8; font-size:0.9rem; margin-bottom:0;">No 500-page limits. Multi-threaded engine crawls large e-commerce and blogs easily.</p>
             </div>
             """, unsafe_allow_html=True)
         with col_f2:
             st.markdown("""
             <div class="metric-card">
-                <h3>🔍 50+ SEO Checks</h3>
-                <p style="color:#94A3B8; font-size:0.9rem;">Inspect Status Codes, Titles, H1/H2, Canonical tags, Schema, Open Graph, and Broken links.</p>
+                <h3 style="color:#10B981; margin-top:0;">🔍 50+ SEO Checks</h3>
+                <p style="color:#94A3B8; font-size:0.9rem; margin-bottom:0;">Inspect Status Codes, Titles, H1/H2, Canonical tags, Schema, Open Graph, and Broken links.</p>
             </div>
             """, unsafe_allow_html=True)
         with col_f3:
             st.markdown("""
             <div class="metric-card">
-                <h3>📦 Free & Exportable</h3>
-                <p style="color:#94A3B8; font-size:0.9rem;">Download full multi-tab Excel workbooks and CSV reports. 100% free with unlimited crawls.</p>
+                <h3 style="color:#F59E0B; margin-top:0;">📦 Free & Exportable</h3>
+                <p style="color:#94A3B8; font-size:0.9rem; margin-bottom:0;">Download full multi-tab Excel workbooks and CSV reports with no restrictions.</p>
             </div>
             """, unsafe_allow_html=True)
     else:
@@ -284,7 +259,6 @@ with tab_overview:
         df_pages = results["df_pages"]
         df_issues = results["df_issues"]
         
-        # Top KPI Metrics Cards
         col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
         with col_m1:
             st.markdown(f"""
@@ -324,7 +298,6 @@ with tab_overview:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Visual Charts
         col_g1, col_g2, col_g3 = st.columns([1, 1, 1.2])
         with col_g1:
             st.plotly_chart(create_health_gauge(summary["health_score"]), use_container_width=True)
@@ -334,8 +307,6 @@ with tab_overview:
             st.plotly_chart(create_issues_bar_chart(df_issues), use_container_width=True)
 
         st.markdown("---")
-        
-        # Download Buttons
         st.subheader("📥 Export Audit Data")
         col_d1, col_d2, col_d3 = st.columns([1, 1, 2])
         with col_d1:
@@ -407,7 +378,6 @@ with tab_pages:
                 display_df["title"].str.contains(search_query, case=False, na=False)
             ]
 
-        # Select columns to display
         columns_to_show = [
             "url", "status_code", "title", "meta_description", "h1",
             "word_count", "latency_ms", "size_kb", "canonical_status",
