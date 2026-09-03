@@ -31,121 +31,66 @@ SPIDER_ANIMATION = """
 @media (max-width: 768px) {
     #spider-show { display: none !important; }
 }
-
-/* Pendulum anchor — fixed at top center, rotates from top */
 .sa-anchor {
     position: fixed;
-    top: 0;
-    left: 50%;
+    top: 0; left: 50%;
     width: 0;
-    transform-origin: center top;
     display: flex;
     flex-direction: column;
     align-items: center;
-    will-change: transform, opacity;
-    animation: saPendulum 8s ease-in-out forwards;
+    animation: saSnap 0.01s 6s step-end forwards;
 }
-
-/* Silk thread — grows downward */
 .sa-thread {
-    width: 1px;
-    height: 0;
+    width: 1px; height: 0;
     background: linear-gradient(180deg,
         rgba(220,220,240,0.05) 0%,
-        rgba(220,220,240,0.45) 100%);
-    will-change: height;
-    animation: saThreadGrow 2s 0.2s cubic-bezier(0.33, 1, 0.68, 1) forwards;
+        rgba(220,220,240,0.4) 100%);
+    animation: saGrow 2.5s 0.3s cubic-bezier(0.33, 1, 0.68, 1) forwards;
 }
-
-/* Spider hanging at bottom of thread */
 .sa-spider {
     font-size: 44px;
     filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
     margin-top: -2px;
+    animation: saSpin 6s 2.8s linear infinite;
 }
-
-/* Snap flash — tiny burst when thread breaks */
-.sa-snap {
+.sa-flash {
     position: fixed;
-    top: 0;
-    left: 50%;
-    width: 8px; height: 8px;
-    margin-left: -4px;
+    top: 0; left: 50%;
+    width: 6px; height: 6px;
+    margin-left: -3px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.85);
     opacity: 0;
-    will-change: transform, opacity;
-    animation: saSnapBurst 0.4s 5.95s ease-out forwards;
+    animation: saFlashBurst 0.35s 5.98s ease-out forwards;
 }
-
-/* Fallen spider — appears when thread snaps, tumbles down */
 .sa-fallen {
     position: fixed;
     top: 44vh;
     left: calc(50% - 22px);
     font-size: 44px;
     opacity: 0;
-    will-change: transform, opacity;
     filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
-    animation: saFall 2s 6s cubic-bezier(0.4, 0, 1, 1) forwards;
+    animation: saFall 1.8s 6s cubic-bezier(0.4, 0, 1, 1) forwards;
 }
-
-/* Thread grows down to center */
-@keyframes saThreadGrow {
-    to { height: 44vh; }
-}
-
-/* Pendulum swing — starts gentle, gets WILD, then SNAP! */
-@keyframes saPendulum {
-    0%    { transform: rotate(0deg);    opacity: 1; }
-    25%   { transform: rotate(0deg);    }
-
-    29%   { transform: rotate(8deg);    }
-    33%   { transform: rotate(-8deg);   }
-
-    37%   { transform: rotate(16deg);   }
-    41%   { transform: rotate(-16deg);  }
-
-    45%   { transform: rotate(26deg);   }
-    49%   { transform: rotate(-26deg);  }
-
-    53%   { transform: rotate(35deg);   }
-    57%   { transform: rotate(-35deg);  }
-
-    61%   { transform: rotate(42deg);   }
-    65%   { transform: rotate(-42deg);  }
-
-    69%   { transform: rotate(46deg);   }
-    72%   { transform: rotate(-18deg);  }
-
-    74%   { transform: rotate(2deg);    opacity: 1; }
-
-    /* SNAP! Thread breaks! */
-    75%   { transform: rotate(0deg);    opacity: 0; }
-    100%  { opacity: 0; }
-}
-
-/* Snap flash burst */
-@keyframes saSnapBurst {
+@keyframes saGrow { to { height: 44vh; } }
+@keyframes saSpin { to { transform: rotate(360deg); } }
+@keyframes saSnap { to { opacity: 0; } }
+@keyframes saFlashBurst {
     0%   { opacity: 0; transform: scale(0.5); }
-    25%  { opacity: 1; transform: scale(2); }
-    100% { opacity: 0; transform: scale(4); }
+    30%  { opacity: 1; transform: scale(1.8); }
+    100% { opacity: 0; transform: scale(3.5); }
 }
-
-/* Spider tumbles and falls with gravity */
 @keyframes saFall {
-    0%   { transform: translateY(0) rotate(0deg);      opacity: 1; }
-    8%   { opacity: 1; }
-    100% { transform: translateY(65vh) rotate(720deg);  opacity: 0; }
+    0%   { transform: translateY(0) rotate(0deg);     opacity: 1; }
+    100% { transform: translateY(65vh) rotate(720deg); opacity: 0; }
 }
 </style>
-
 <div id="spider-show">
     <div class="sa-anchor">
         <div class="sa-thread"></div>
         <div class="sa-spider">🕷️</div>
     </div>
-    <div class="sa-snap"></div>
+    <div class="sa-flash"></div>
     <div class="sa-fallen">🕷️</div>
 </div>
 """
