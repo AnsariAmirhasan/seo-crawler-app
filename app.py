@@ -15,6 +15,114 @@ from visualizer import (
 )
 from exporter import generate_excel_report, generate_csv
 
+# =============================================================================
+# 🕷️ SPIDER WELCOME ANIMATION (CSS-only, plays once per session!)
+# =============================================================================
+SPIDER_ANIMATION = """
+<style>
+#spider-show {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    pointer-events: none;
+    z-index: 99999;
+    overflow: hidden;
+}
+@media (max-width: 768px) {
+    #spider-show { display: none !important; }
+}
+
+/* Silk drop thread from top */
+.sa-silk {
+    position: absolute;
+    top: 0; left: 10vw;
+    width: 1.5px; height: 0;
+    background: linear-gradient(180deg, rgba(180,180,200,0.05), rgba(180,180,200,0.5));
+    animation: saGrow 2s 0.3s ease-out forwards, saFade 2s 8s forwards;
+}
+@keyframes saGrow { to { height: 38vh; } }
+@keyframes saFade { to { opacity: 0; } }
+
+/* Spider path movement */
+.sa-mover {
+    position: absolute;
+    animation: saJourney 12s ease-in-out forwards;
+}
+@keyframes saJourney {
+    0%   { top: -60px;  left: 10vw;  opacity: 1; }
+    14%  { top: 37vh;   left: 10vw;  }
+    17%  { top: 34vh;   left: 10vw;  }
+    24%  { top: 26vh;   left: 24vw;  }
+    32%  { top: 44vh;   left: 40vw;  }
+    40%  { top: 24vh;   left: 54vw;  }
+    48%  { top: 42vh;   left: 68vw;  }
+    55%  { top: 33vh;   left: 74vw;  }
+    62%  { top: 33vh;   left: 74vw;  }
+    72%  { top: 16vh;   left: 84vw;  }
+    82%  { top: 4vh;    left: 92vw;  }
+    92%  { top: -4vh;   left: 100vw; opacity: 0.3; }
+    100% { top: -14vh;  left: 110vw; opacity: 0; }
+}
+
+/* Spider emoji wobble (simulates legs walking) */
+.sa-body {
+    font-size: 46px;
+    animation: saWobble 0.26s ease-in-out infinite;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+    cursor: default;
+}
+@keyframes saWobble {
+    0%, 100% { transform: rotate(-5deg); }
+    50% { transform: rotate(5deg); }
+}
+
+/* Web trail lines left behind by spider */
+.sa-trail {
+    position: absolute;
+    height: 1.2px;
+    background: rgba(180,180,200,0.3);
+    transform-origin: left center;
+    opacity: 0;
+}
+.sa-t1 { top: 30vh; left: 10vw; width: 18vw; transform: rotate(-10deg);
+         animation: saShow 0.3s 2.6s forwards, saFade 2s 9s forwards; }
+.sa-t2 { top: 35vh; left: 24vw; width: 20vw; transform: rotate(25deg);
+         animation: saShow 0.3s 3.6s forwards, saFade 2s 9s forwards; }
+.sa-t3 { top: 34vh; left: 40vw; width: 18vw; transform: rotate(-28deg);
+         animation: saShow 0.3s 4.6s forwards, saFade 2s 9s forwards; }
+.sa-t4 { top: 33vh; left: 54vw; width: 18vw; transform: rotate(26deg);
+         animation: saShow 0.3s 5.4s forwards, saFade 2s 9s forwards; }
+.sa-t5 { top: 38vh; left: 68vw; width: 10vw; transform: rotate(-16deg);
+         animation: saShow 0.3s 6.2s forwards, saFade 2s 9s forwards; }
+@keyframes saShow { to { opacity: 1; } }
+
+/* Swing-away web line (shoots up before spider flies off) */
+.sa-swing {
+    position: absolute;
+    top: 0; left: 84vw;
+    width: 1.5px; height: 0;
+    background: linear-gradient(180deg, rgba(180,180,200,0.1), rgba(180,180,200,0.5));
+    transform: rotate(-10deg);
+    transform-origin: top center;
+    animation: saShoot 0.5s 8s ease-out forwards, saFade 2s 10s forwards;
+}
+@keyframes saShoot { to { height: 30vh; } }
+</style>
+
+<div id="spider-show">
+    <div class="sa-silk"></div>
+    <div class="sa-trail sa-t1"></div>
+    <div class="sa-trail sa-t2"></div>
+    <div class="sa-trail sa-t3"></div>
+    <div class="sa-trail sa-t4"></div>
+    <div class="sa-trail sa-t5"></div>
+    <div class="sa-swing"></div>
+    <div class="sa-mover">
+        <div class="sa-body">🕷️</div>
+    </div>
+</div>
+"""
+
 # 1. Streamlit Page Configuration - Must be first
 st.set_page_config(
     page_title="Amir's SEO Spider",
@@ -102,6 +210,11 @@ st.markdown("""
     <p class="main-subtitle">High-speed technical SEO crawler & site audit web app — crawl up to 10,000+ URLs with zero limits!</p>
 </div>
 """, unsafe_allow_html=True)
+
+# 🕷️ Play spider animation on first visit!
+if "spider_anim_shown" not in st.session_state:
+    st.session_state["spider_anim_shown"] = True
+    st.markdown(SPIDER_ANIMATION, unsafe_allow_html=True)
 
 # Initialize Session State
 if "crawl_results" not in st.session_state:
