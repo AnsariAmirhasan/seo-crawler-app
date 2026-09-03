@@ -20,78 +20,133 @@ from exporter import generate_excel_report, generate_csv
 # =============================================================================
 SPIDER_ANIMATION = """
 <style>
-#spider-show {
+#spider-crawl-overlay {
     position: fixed;
     top: 0; left: 0;
     width: 100vw; height: 100vh;
     pointer-events: none;
-    z-index: 99999;
+    z-index: 999999;
     overflow: hidden;
 }
 @media (max-width: 768px) {
-    #spider-show { display: none !important; }
+    #spider-crawl-overlay { display: none !important; }
 }
-.sa-anchor {
+
+/* Spider crawler wrapper moving from right to left */
+.spider-crawler {
     position: fixed;
-    top: 0; left: 50%;
-    width: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    animation: saSnap 0.01s 6s step-end forwards;
+    bottom: 25px;
+    right: -120px;
+    width: 90px;
+    height: 70px;
+    will-change: transform;
+    animation: crawlRightToLeft 8.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
-.sa-thread {
-    width: 1px; height: 0;
-    background: linear-gradient(180deg,
-        rgba(220,220,240,0.05) 0%,
-        rgba(220,220,240,0.4) 100%);
-    animation: saGrow 2.5s 0.3s cubic-bezier(0.33, 1, 0.68, 1) forwards;
+
+/* Walk trajectory: right to left with slight natural wobble */
+@keyframes crawlRightToLeft {
+    0% {
+        transform: translate3d(0, 0, 0) rotate(0deg);
+        opacity: 0;
+    }
+    3% {
+        opacity: 1;
+    }
+    15% {
+        transform: translate3d(-18vw, -6px, 0) rotate(-3deg);
+    }
+    30% {
+        transform: translate3d(-38vw, 4px, 0) rotate(2deg);
+    }
+    50% {
+        transform: translate3d(-60vw, -5px, 0) rotate(-2deg);
+    }
+    70% {
+        transform: translate3d(-82vw, 3px, 0) rotate(3deg);
+    }
+    90% {
+        transform: translate3d(-102vw, -2px, 0) rotate(-1deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translate3d(-118vw, 0, 0) rotate(0deg);
+        opacity: 0;
+    }
 }
-.sa-spider {
-    font-size: 44px;
-    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
-    margin-top: -2px;
-    animation: saSpin 6s 2.8s linear infinite;
+
+/* Spider body subtle breathing / crawling tilt */
+.spider-svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
 }
-.sa-flash {
-    position: fixed;
-    top: 0; left: 50%;
-    width: 6px; height: 6px;
-    margin-left: -3px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.85);
-    opacity: 0;
-    animation: saFlashBurst 0.35s 5.98s ease-out forwards;
+
+/* Leg walking animation - alternating gait */
+.leg-group-a {
+    transform-origin: 45px 35px;
+    animation: walkStepA 0.32s infinite ease-in-out alternate;
 }
-.sa-fallen {
-    position: fixed;
-    top: 44vh;
-    left: calc(50% - 22px);
-    font-size: 44px;
-    opacity: 0;
-    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
-    animation: saFall 1.8s 6s cubic-bezier(0.4, 0, 1, 1) forwards;
+.leg-group-b {
+    transform-origin: 45px 35px;
+    animation: walkStepB 0.32s infinite ease-in-out alternate;
 }
-@keyframes saGrow { to { height: 44vh; } }
-@keyframes saSpin { to { transform: rotate(360deg); } }
-@keyframes saSnap { to { opacity: 0; } }
-@keyframes saFlashBurst {
-    0%   { opacity: 0; transform: scale(0.5); }
-    30%  { opacity: 1; transform: scale(1.8); }
-    100% { opacity: 0; transform: scale(3.5); }
+
+@keyframes walkStepA {
+    0% { transform: rotate(-9deg) translate(-2px, -2px); }
+    100% { transform: rotate(9deg) translate(2px, 2px); }
 }
-@keyframes saFall {
-    0%   { transform: translateY(0) rotate(0deg);     opacity: 1; }
-    100% { transform: translateY(65vh) rotate(720deg); opacity: 0; }
+
+@keyframes walkStepB {
+    0% { transform: rotate(9deg) translate(2px, 2px); }
+    100% { transform: rotate(-9deg) translate(-2px, -2px); }
 }
 </style>
-<div id="spider-show">
-    <div class="sa-anchor">
-        <div class="sa-thread"></div>
-        <div class="sa-spider">🕷️</div>
+
+<div id="spider-crawl-overlay">
+    <div class="spider-crawler">
+        <svg class="spider-svg" viewBox="0 0 100 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Left-side Legs (Facing left, top-side legs) -->
+            <!-- Group A legs -->
+            <g class="leg-group-a">
+                <path d="M42 32 Q30 10 18 8" stroke="#1e293b" stroke-width="3" stroke-linecap="round" fill="none"/>
+                <path d="M48 38 Q52 65 38 72" stroke="#1e293b" stroke-width="3" stroke-linecap="round" fill="none"/>
+                <path d="M44 32 Q25 45 10 40" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                <path d="M50 36 Q68 18 80 12" stroke="#1e293b" stroke-width="3" stroke-linecap="round" fill="none"/>
+            </g>
+
+            <!-- Group B legs (alternate phase) -->
+            <g class="leg-group-b">
+                <path d="M46 32 Q38 12 28 6" stroke="#0f172a" stroke-width="3" stroke-linecap="round" fill="none"/>
+                <path d="M44 38 Q32 60 18 64" stroke="#1e293b" stroke-width="3" stroke-linecap="round" fill="none"/>
+                <path d="M48 34 Q62 48 76 56" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                <path d="M52 36 Q72 32 86 28" stroke="#1e293b" stroke-width="3" stroke-linecap="round" fill="none"/>
+            </g>
+
+            <!-- Spider Body (Facing Left) -->
+            <!-- Abdomen (Back, right side) -->
+            <ellipse cx="60" cy="35" rx="16" ry="12" fill="#0f172a"/>
+            <!-- Abdomen markings -->
+            <ellipse cx="60" cy="35" rx="12" ry="8" fill="#1e293b"/>
+            <circle cx="58" cy="35" r="3" fill="#ef4444"/>
+            <circle cx="65" cy="35" r="2" fill="#f97316"/>
+
+            <!-- Cephalothorax (Middle) -->
+            <ellipse cx="44" cy="35" rx="9" ry="8" fill="#1e293b"/>
+            <circle cx="43" cy="35" r="7" fill="#334155"/>
+
+            <!-- Head & Eyes (Front, left side) -->
+            <circle cx="34" cy="35" r="5" fill="#0f172a"/>
+            <!-- Eyes (glowing red) -->
+            <circle cx="31" cy="33" r="1.5" fill="#ef4444"/>
+            <circle cx="31" cy="37" r="1.5" fill="#ef4444"/>
+            <circle cx="33" cy="31.5" r="1" fill="#fee2e2"/>
+            <circle cx="33" cy="38.5" r="1" fill="#fee2e2"/>
+
+            <!-- Pedipalps (front feelers) -->
+            <path d="M31 33 Q25 31 22 28" stroke="#0f172a" stroke-width="2" stroke-linecap="round" fill="none"/>
+            <path d="M31 37 Q25 39 22 42" stroke="#0f172a" stroke-width="2" stroke-linecap="round" fill="none"/>
+        </svg>
     </div>
-    <div class="sa-flash"></div>
-    <div class="sa-fallen">🕷️</div>
 </div>
 """
 
