@@ -32,107 +32,121 @@ SPIDER_ANIMATION = """
     #spider-show { display: none !important; }
 }
 
-/* Silk drop thread — grows via scaleY for GPU smoothness */
-.sa-silk {
+/* Pendulum anchor — fixed at top center, rotates from top */
+.sa-anchor {
     position: fixed;
-    top: 0; left: 10vw;
-    width: 1px; height: 36vh;
+    top: 0;
+    left: 50%;
+    width: 0;
+    transform-origin: center top;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    will-change: transform, opacity;
+    animation: saPendulum 8s ease-in-out forwards;
+}
+
+/* Silk thread — grows downward */
+.sa-thread {
+    width: 1px;
+    height: 0;
     background: linear-gradient(180deg,
-        rgba(220,220,240,0.0) 0%,
-        rgba(220,220,240,0.35) 100%);
-    transform-origin: top center;
-    transform: scaleY(0);
-    will-change: transform, opacity;
-    animation: saGrow 2.2s 0.2s cubic-bezier(0.33, 1, 0.68, 1) forwards,
-               saFade 3s 8s ease-out forwards;
-}
-@keyframes saGrow { to { transform: scaleY(1); } }
-@keyframes saFade { to { opacity: 0; } }
-
-/* Spider path — GPU accelerated translate3d for 60fps */
-.sa-mover {
-    position: fixed;
-    top: 0; left: 0;
-    will-change: transform, opacity;
-    animation: saJourney 11s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-}
-@keyframes saJourney {
-    0%    { transform: translate3d(10vw, -60px, 0);  opacity: 1; }
-    13%   { transform: translate3d(10vw, 33vh, 0);   }
-    16%   { transform: translate3d(10vw, 31vh, 0);   }
-    24%   { transform: translate3d(24vw, 24vh, 0);   }
-    32%   { transform: translate3d(38vw, 40vh, 0);   }
-    40%   { transform: translate3d(52vw, 22vh, 0);   }
-    48%   { transform: translate3d(66vw, 38vh, 0);   }
-    55%   { transform: translate3d(73vw, 28vh, 0);   }
-    62%   { transform: translate3d(73vw, 28vh, 0);   }
-    72%   { transform: translate3d(83vw, 14vh, 0);   }
-    82%   { transform: translate3d(91vw, 3vh, 0);    }
-    92%   { transform: translate3d(99vw, -5vh, 0);   opacity: 0.3; }
-    100%  { transform: translate3d(112vw, -16vh, 0); opacity: 0; }
+        rgba(220,220,240,0.05) 0%,
+        rgba(220,220,240,0.45) 100%);
+    will-change: height;
+    animation: saThreadGrow 2s 0.2s cubic-bezier(0.33, 1, 0.68, 1) forwards;
 }
 
-/* Spider body — subtle gentle wobble */
-.sa-body {
+/* Spider hanging at bottom of thread */
+.sa-spider {
     font-size: 44px;
-    will-change: transform;
-    animation: saWobble 0.5s ease-in-out infinite;
-    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.3));
-}
-@keyframes saWobble {
-    0%, 100% { transform: rotate(-2.5deg); }
-    50%      { transform: rotate(2.5deg); }
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+    margin-top: -2px;
 }
 
-/* Web trails — thin lines that fade in along path */
-.sa-trail {
+/* Snap flash — tiny burst when thread breaks */
+.sa-snap {
     position: fixed;
-    height: 1px;
-    background: rgba(220,220,240,0.18);
-    transform-origin: left center;
-    will-change: opacity;
+    top: 0;
+    left: 50%;
+    width: 8px; height: 8px;
+    margin-left: -4px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.9);
     opacity: 0;
-}
-.sa-t1 { top: 28vh; left: 10vw;  width: 17vw; transform: rotate(-7deg);
-         animation: saShow 1s 2.6s ease-out forwards, saFade 3s 9s ease-out forwards; }
-.sa-t2 { top: 32vh; left: 24vw;  width: 18vw; transform: rotate(20deg);
-         animation: saShow 1s 3.5s ease-out forwards, saFade 3s 9s ease-out forwards; }
-.sa-t3 { top: 31vh; left: 38vw;  width: 18vw; transform: rotate(-22deg);
-         animation: saShow 1s 4.3s ease-out forwards, saFade 3s 9s ease-out forwards; }
-.sa-t4 { top: 30vh; left: 52vw;  width: 18vw; transform: rotate(20deg);
-         animation: saShow 1s 5.1s ease-out forwards, saFade 3s 9s ease-out forwards; }
-.sa-t5 { top: 33vh; left: 66vw;  width: 11vw; transform: rotate(-12deg);
-         animation: saShow 1s 5.8s ease-out forwards, saFade 3s 9s ease-out forwards; }
-@keyframes saShow { to { opacity: 1; } }
-
-/* Swing web — shoots up before spider flies away */
-.sa-swing {
-    position: fixed;
-    top: 0; left: 83vw;
-    width: 1px; height: 26vh;
-    background: linear-gradient(180deg,
-        rgba(220,220,240,0.0) 0%,
-        rgba(220,220,240,0.3) 100%);
-    transform-origin: top center;
-    transform: scaleY(0) rotate(-12deg);
     will-change: transform, opacity;
-    animation: saShoot 0.7s 7.8s cubic-bezier(0.33, 1, 0.68, 1) forwards,
-               saFade 2.5s 10.5s ease-out forwards;
+    animation: saSnapBurst 0.4s 5.95s ease-out forwards;
 }
-@keyframes saShoot { to { transform: scaleY(1) rotate(-12deg); } }
+
+/* Fallen spider — appears when thread snaps, tumbles down */
+.sa-fallen {
+    position: fixed;
+    top: 44vh;
+    left: calc(50% - 22px);
+    font-size: 44px;
+    opacity: 0;
+    will-change: transform, opacity;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+    animation: saFall 2s 6s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* Thread grows down to center */
+@keyframes saThreadGrow {
+    to { height: 44vh; }
+}
+
+/* Pendulum swing — starts gentle, gets WILD, then SNAP! */
+@keyframes saPendulum {
+    0%    { transform: rotate(0deg);    opacity: 1; }
+    25%   { transform: rotate(0deg);    }
+
+    29%   { transform: rotate(8deg);    }
+    33%   { transform: rotate(-8deg);   }
+
+    37%   { transform: rotate(16deg);   }
+    41%   { transform: rotate(-16deg);  }
+
+    45%   { transform: rotate(26deg);   }
+    49%   { transform: rotate(-26deg);  }
+
+    53%   { transform: rotate(35deg);   }
+    57%   { transform: rotate(-35deg);  }
+
+    61%   { transform: rotate(42deg);   }
+    65%   { transform: rotate(-42deg);  }
+
+    69%   { transform: rotate(46deg);   }
+    72%   { transform: rotate(-18deg);  }
+
+    74%   { transform: rotate(2deg);    opacity: 1; }
+
+    /* SNAP! Thread breaks! */
+    75%   { transform: rotate(0deg);    opacity: 0; }
+    100%  { opacity: 0; }
+}
+
+/* Snap flash burst */
+@keyframes saSnapBurst {
+    0%   { opacity: 0; transform: scale(0.5); }
+    25%  { opacity: 1; transform: scale(2); }
+    100% { opacity: 0; transform: scale(4); }
+}
+
+/* Spider tumbles and falls with gravity */
+@keyframes saFall {
+    0%   { transform: translateY(0) rotate(0deg);      opacity: 1; }
+    8%   { opacity: 1; }
+    100% { transform: translateY(65vh) rotate(720deg);  opacity: 0; }
+}
 </style>
 
 <div id="spider-show">
-    <div class="sa-silk"></div>
-    <div class="sa-trail sa-t1"></div>
-    <div class="sa-trail sa-t2"></div>
-    <div class="sa-trail sa-t3"></div>
-    <div class="sa-trail sa-t4"></div>
-    <div class="sa-trail sa-t5"></div>
-    <div class="sa-swing"></div>
-    <div class="sa-mover">
-        <div class="sa-body">🕷️</div>
+    <div class="sa-anchor">
+        <div class="sa-thread"></div>
+        <div class="sa-spider">🕷️</div>
     </div>
+    <div class="sa-snap"></div>
+    <div class="sa-fallen">🕷️</div>
 </div>
 """
 
