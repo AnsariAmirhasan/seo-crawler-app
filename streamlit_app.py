@@ -212,10 +212,11 @@ if btn_start:
         st.rerun()
 
 # Main Application Tabs
-tab_overview, tab_issues, tab_pages, tab_titles, tab_headings, tab_links, tab_images, tab_architecture, tab_inspector, tab_sitemap = st.tabs([
+tab_overview, tab_issues, tab_pages, tab_canonicals, tab_titles, tab_headings, tab_links, tab_images, tab_architecture, tab_inspector, tab_sitemap = st.tabs([
     "📊 Overview",
     "🚨 Issues & Fixes",
     "📑 Internal Pages",
+    "🎯 Canonicals",
     "🏷️ Page Titles & Meta",
     "🧱 Headings (H1/H2)",
     "🔗 Link Analysis",
@@ -379,8 +380,8 @@ with tab_pages:
             ]
 
         columns_to_show = [
-            "url", "status_code", "title", "meta_description", "h1",
-            "word_count", "latency_ms", "size_kb", "canonical_status",
+            "url", "canonical_url", "canonical_status", "status_code", "title", "meta_description", "h1",
+            "word_count", "latency_ms", "size_kb",
             "is_indexable", "internal_outlinks_count", "images_count"
         ]
         available_cols = [c for c in columns_to_show if c in display_df.columns]
@@ -389,7 +390,9 @@ with tab_pages:
             display_df[available_cols],
             use_container_width=True,
             column_config={
-                "url": st.column_config.LinkColumn("URL"),
+                "url": st.column_config.LinkColumn("Page URL"),
+                "canonical_url": st.column_config.LinkColumn("Canonical URL"),
+                "canonical_status": st.column_config.TextColumn("Canonical Status"),
                 "status_code": st.column_config.NumberColumn("Status", format="%d"),
                 "title": st.column_config.TextColumn("Page Title"),
                 "meta_description": st.column_config.TextColumn("Meta Description"),
@@ -402,7 +405,72 @@ with tab_pages:
             hide_index=True
         )
 
-# TAB 4: PAGE TITLES & META DESCRIPTIONS
+# TAB 4: CANONICAL TAGS AUDIT ("Ye Page -> Iska Canonical Ye")
+with tab_canonicals:
+    if not results:
+        st.info("Run a crawl to audit Canonical URLs, mismatches, and self-referential tags.")
+    else:
+        df_pages = results["df_pages"]
+        
+        st.subheader("🎯 Canonical URLs Audit (Page URL ➔ Canonical Target)")
+        st.caption("Complete breakdown of Page URLs and their associated Canonical tags — detect duplicate content and indexing signals.")
+
+        # Metric breakdown
+        total_pages = len(df_pages)
+        self_ref_count = len(df_pages[df_pages["canonical_status"] == "Self-Referential"])
+        canonicalised_count = len(df_pages[df_pages["canonical_status"] == "Canonicalised"])
+        missing_count = len(df_pages[df_pages["canonical_status"] == "Missing"])
+        multiple_count = len(df_pages[df_pages["canonical_status"] == "Multiple"])
+
+        cm1, cm2, cm3, cm4 = st.columns(4)
+        cm1.metric("Self-Referential (OK)", f"{self_ref_count}", delta=f"{round(self_ref_count/max(total_pages,1)*100)}% of pages")
+        cm2.metric("Canonicalised (Points Elsewhere)", f"{canonicalised_count}", delta="Consolidating equity" if canonicalised_count else None)
+        cm3.metric("Missing Canonical", f"{missing_count}", delta="Needs tag" if missing_count else None, delta_color="inverse")
+        cm4.metric("Multiple Canonicals", f"{multiple_count}", delta="Critical Error" if multiple_count else None, delta_color="inverse")
+
+        # Filters
+        fcol1, fcol2 = st.columns([1, 2])
+        with fcol1:
+            canon_filter = st.selectbox(
+                "Filter by Canonical Status:",
+                ["All Pages", "Self-Referential", "Canonicalised", "Missing", "Multiple"]
+            )
+        with fcol2:
+            canon_search = st.text_input("🔍 Search Page URL or Canonical URL:", "")
+
+        df_canon = df_pages[["url", "canonical_url", "canonical_status", "status_code", "is_indexable"]].copy()
+
+        if canon_filter != "All Pages":
+            df_canon = df_canon[df_canon["canonical_status"] == canon_filter]
+
+        if canon_search:
+            df_canon = df_canon[
+                df_canon["url"].str.contains(canon_search, case=False, na=False) |
+                df_canon["canonical_url"].str.contains(canon_search, case=False, na=False)
+            ]
+
+        st.dataframe(
+            df_canon,
+            use_container_width=True,
+            column_config={
+                "url": st.column_config.LinkColumn("Page URL (Crawled)"),
+                "canonical_url": st.column_config.LinkColumn("Canonical Target (<link rel='canonical'>)"),
+                "canonical_status": st.column_config.TextColumn("Canonical Status"),
+                "status_code": st.column_config.NumberColumn("Status Code", format="%d"),
+                "is_indexable": st.column_config.CheckboxColumn("Indexable"),
+            },
+            hide_index=True
+        )
+
+        with st.expander("💡 SEO Guide: How Canonical URLs Work"):
+            st.markdown("""
+            - **Self-Referential (`Page URL == Canonical URL`)**: ✅ Recommended best practice. Protects against duplicate content caused by query parameters, session IDs, trailing slashes, and HTTP/HTTPS protocol variations.
+            - **Canonicalised (`Page URL != Canonical URL`)**: 🔀 Directs search engines to index a master version instead of this duplicate/parameterized URL.
+            - **Missing Canonical**: ⚠️ No canonical link tag found in `<head>`. Search engines will choose a version on their own.
+            - **Multiple Canonicals**: ❌ More than one canonical link tag detected. Google will typically ignore all of them.
+            """)
+
+# TAB 5: PAGE TITLES & META DESCRIPTIONS
 with tab_titles:
     if not results:
         st.info("Run a crawl to inspect titles, SERP lengths and snippets.")

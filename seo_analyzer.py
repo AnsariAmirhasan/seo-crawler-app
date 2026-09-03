@@ -1,5 +1,6 @@
 import re
 import json
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 import pandas as pd
 from collections import Counter
@@ -263,29 +264,43 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
             })
 
     # 5. Canonical Tag
-    canonical = soup.find("link", attrs={"rel": re.compile(r"^canonical$", re.I)})
-    if canonical and canonical.get("href"):
-        canon_url = canonical["href"].strip()
+    canonical_tags = soup.find_all("link", attrs={"rel": lambda x: x and "canonical" in (x.lower() if isinstance(x, str) else [item.lower() for item in x])})
+    if not canonical_tags:
+        canonical_tags = soup.find_all("link", attrs={"rel": re.compile(r"^canonical$", re.I)})
+
+    if len(canonical_tags) > 1:
+        raw_canon = canonical_tags[0].get("href", "").strip()
+        seo_info["canonical_url"] = urljoin(final_url, raw_canon) if raw_canon else ""
+        seo_info["canonical_status"] = "Multiple"
+        seo_info["issues"].append({
+            "type": "Error",
+            "category": "Canonical",
+            "issue": f"Multiple canonical tags detected ({len(canonical_tags)} tags found)",
+            "recommendation": "Search engines may ignore all canonical tags when multiples are found. Retain only one valid canonical tag."
+        })
+    elif canonical_tags and canonical_tags[0].get("href"):
+        raw_canon = canonical_tags[0]["href"].strip()
+        canon_url = urljoin(final_url, raw_canon)
         seo_info["canonical_url"] = canon_url
         
-        # Compare canonical with actual URL
+        # Compare canonical with actual crawled URL
         if canon_url.rstrip("/") == final_url.rstrip("/"):
-            seo_info["canonical_status"] = "Self-Referential (OK)"
+            seo_info["canonical_status"] = "Self-Referential"
         else:
-            seo_info["canonical_status"] = "Points to Different URL"
+            seo_info["canonical_status"] = "Canonicalised"
             seo_info["issues"].append({
                 "type": "Notice",
                 "category": "Canonical",
                 "issue": f"Canonical points to alternative URL: {canon_url}",
-                "recommendation": "Verify that canonical destination is the desired primary ranking version."
+                "recommendation": "Verify that this canonical target is the desired master version to consolidate link equity."
             })
     else:
-        seo_info["canonical_status"] = "Missing Canonical"
+        seo_info["canonical_status"] = "Missing"
         seo_info["issues"].append({
             "type": "Notice",
             "category": "Canonical",
-            "issue": "Missing Canonical Link Tag",
-            "recommendation": "Add a self-referential canonical tag to prevent duplicate content issues."
+            "issue": "Missing Canonical Tag",
+            "recommendation": "Add a self-referential canonical tag (<link rel='canonical' href='...'>) to prevent duplicate content issues."
         })
 
     # 6. Word Count & Content Quality

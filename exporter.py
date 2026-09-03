@@ -34,6 +34,9 @@ def generate_excel_report(analysis_result: dict, start_url: str) -> bytes:
         df_summary.to_excel(writer, sheet_name='Audit Summary', index=False)
         if not df_pages.empty:
             df_pages.to_excel(writer, sheet_name='Internal Pages', index=False)
+            if "canonical_url" in df_pages.columns:
+                canon_cols = [c for c in ["url", "canonical_url", "canonical_status", "status_code", "is_indexable"] if c in df_pages.columns]
+                df_pages[canon_cols].to_excel(writer, sheet_name='Canonicals', index=False)
         if not df_issues.empty:
             df_issues.to_excel(writer, sheet_name='Issues & Fixes', index=False)
         if not df_links.empty:
