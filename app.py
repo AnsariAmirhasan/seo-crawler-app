@@ -32,81 +32,94 @@ SPIDER_ANIMATION = """
     #spider-show { display: none !important; }
 }
 
-/* Silk drop thread from top */
+/* Silk drop thread — grows via scaleY for GPU smoothness */
 .sa-silk {
-    position: absolute;
+    position: fixed;
     top: 0; left: 10vw;
-    width: 1.5px; height: 0;
-    background: linear-gradient(180deg, rgba(180,180,200,0.05), rgba(180,180,200,0.5));
-    animation: saGrow 2s 0.3s ease-out forwards, saFade 2s 8s forwards;
+    width: 1px; height: 36vh;
+    background: linear-gradient(180deg,
+        rgba(220,220,240,0.0) 0%,
+        rgba(220,220,240,0.35) 100%);
+    transform-origin: top center;
+    transform: scaleY(0);
+    will-change: transform, opacity;
+    animation: saGrow 2.2s 0.2s cubic-bezier(0.33, 1, 0.68, 1) forwards,
+               saFade 3s 8s ease-out forwards;
 }
-@keyframes saGrow { to { height: 38vh; } }
+@keyframes saGrow { to { transform: scaleY(1); } }
 @keyframes saFade { to { opacity: 0; } }
 
-/* Spider path movement */
+/* Spider path — GPU accelerated translate3d for 60fps */
 .sa-mover {
-    position: absolute;
-    animation: saJourney 12s ease-in-out forwards;
+    position: fixed;
+    top: 0; left: 0;
+    will-change: transform, opacity;
+    animation: saJourney 11s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
 }
 @keyframes saJourney {
-    0%   { top: -60px;  left: 10vw;  opacity: 1; }
-    14%  { top: 37vh;   left: 10vw;  }
-    17%  { top: 34vh;   left: 10vw;  }
-    24%  { top: 26vh;   left: 24vw;  }
-    32%  { top: 44vh;   left: 40vw;  }
-    40%  { top: 24vh;   left: 54vw;  }
-    48%  { top: 42vh;   left: 68vw;  }
-    55%  { top: 33vh;   left: 74vw;  }
-    62%  { top: 33vh;   left: 74vw;  }
-    72%  { top: 16vh;   left: 84vw;  }
-    82%  { top: 4vh;    left: 92vw;  }
-    92%  { top: -4vh;   left: 100vw; opacity: 0.3; }
-    100% { top: -14vh;  left: 110vw; opacity: 0; }
+    0%    { transform: translate3d(10vw, -60px, 0);  opacity: 1; }
+    13%   { transform: translate3d(10vw, 33vh, 0);   }
+    16%   { transform: translate3d(10vw, 31vh, 0);   }
+    24%   { transform: translate3d(24vw, 24vh, 0);   }
+    32%   { transform: translate3d(38vw, 40vh, 0);   }
+    40%   { transform: translate3d(52vw, 22vh, 0);   }
+    48%   { transform: translate3d(66vw, 38vh, 0);   }
+    55%   { transform: translate3d(73vw, 28vh, 0);   }
+    62%   { transform: translate3d(73vw, 28vh, 0);   }
+    72%   { transform: translate3d(83vw, 14vh, 0);   }
+    82%   { transform: translate3d(91vw, 3vh, 0);    }
+    92%   { transform: translate3d(99vw, -5vh, 0);   opacity: 0.3; }
+    100%  { transform: translate3d(112vw, -16vh, 0); opacity: 0; }
 }
 
-/* Spider emoji wobble (simulates legs walking) */
+/* Spider body — subtle gentle wobble */
 .sa-body {
-    font-size: 46px;
-    animation: saWobble 0.26s ease-in-out infinite;
-    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
-    cursor: default;
+    font-size: 44px;
+    will-change: transform;
+    animation: saWobble 0.5s ease-in-out infinite;
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.3));
 }
 @keyframes saWobble {
-    0%, 100% { transform: rotate(-5deg); }
-    50% { transform: rotate(5deg); }
+    0%, 100% { transform: rotate(-2.5deg); }
+    50%      { transform: rotate(2.5deg); }
 }
 
-/* Web trail lines left behind by spider */
+/* Web trails — thin lines that fade in along path */
 .sa-trail {
-    position: absolute;
-    height: 1.2px;
-    background: rgba(180,180,200,0.3);
+    position: fixed;
+    height: 1px;
+    background: rgba(220,220,240,0.18);
     transform-origin: left center;
+    will-change: opacity;
     opacity: 0;
 }
-.sa-t1 { top: 30vh; left: 10vw; width: 18vw; transform: rotate(-10deg);
-         animation: saShow 0.3s 2.6s forwards, saFade 2s 9s forwards; }
-.sa-t2 { top: 35vh; left: 24vw; width: 20vw; transform: rotate(25deg);
-         animation: saShow 0.3s 3.6s forwards, saFade 2s 9s forwards; }
-.sa-t3 { top: 34vh; left: 40vw; width: 18vw; transform: rotate(-28deg);
-         animation: saShow 0.3s 4.6s forwards, saFade 2s 9s forwards; }
-.sa-t4 { top: 33vh; left: 54vw; width: 18vw; transform: rotate(26deg);
-         animation: saShow 0.3s 5.4s forwards, saFade 2s 9s forwards; }
-.sa-t5 { top: 38vh; left: 68vw; width: 10vw; transform: rotate(-16deg);
-         animation: saShow 0.3s 6.2s forwards, saFade 2s 9s forwards; }
+.sa-t1 { top: 28vh; left: 10vw;  width: 17vw; transform: rotate(-7deg);
+         animation: saShow 1s 2.6s ease-out forwards, saFade 3s 9s ease-out forwards; }
+.sa-t2 { top: 32vh; left: 24vw;  width: 18vw; transform: rotate(20deg);
+         animation: saShow 1s 3.5s ease-out forwards, saFade 3s 9s ease-out forwards; }
+.sa-t3 { top: 31vh; left: 38vw;  width: 18vw; transform: rotate(-22deg);
+         animation: saShow 1s 4.3s ease-out forwards, saFade 3s 9s ease-out forwards; }
+.sa-t4 { top: 30vh; left: 52vw;  width: 18vw; transform: rotate(20deg);
+         animation: saShow 1s 5.1s ease-out forwards, saFade 3s 9s ease-out forwards; }
+.sa-t5 { top: 33vh; left: 66vw;  width: 11vw; transform: rotate(-12deg);
+         animation: saShow 1s 5.8s ease-out forwards, saFade 3s 9s ease-out forwards; }
 @keyframes saShow { to { opacity: 1; } }
 
-/* Swing-away web line (shoots up before spider flies off) */
+/* Swing web — shoots up before spider flies away */
 .sa-swing {
-    position: absolute;
-    top: 0; left: 84vw;
-    width: 1.5px; height: 0;
-    background: linear-gradient(180deg, rgba(180,180,200,0.1), rgba(180,180,200,0.5));
-    transform: rotate(-10deg);
+    position: fixed;
+    top: 0; left: 83vw;
+    width: 1px; height: 26vh;
+    background: linear-gradient(180deg,
+        rgba(220,220,240,0.0) 0%,
+        rgba(220,220,240,0.3) 100%);
     transform-origin: top center;
-    animation: saShoot 0.5s 8s ease-out forwards, saFade 2s 10s forwards;
+    transform: scaleY(0) rotate(-12deg);
+    will-change: transform, opacity;
+    animation: saShoot 0.7s 7.8s cubic-bezier(0.33, 1, 0.68, 1) forwards,
+               saFade 2.5s 10.5s ease-out forwards;
 }
-@keyframes saShoot { to { height: 30vh; } }
+@keyframes saShoot { to { transform: scaleY(1) rotate(-12deg); } }
 </style>
 
 <div id="spider-show">
