@@ -229,19 +229,14 @@ def render_query_fanout_page():
 
         if ai_provider == "Google Gemini":
             model_options = [
-                "gemini-2.5-flash (Recommended - Active Production)",
-                "gemini-2.5-pro (Active Production)",
-                "gemini-2.0-flash",
-                "gemini-2.0-flash-lite",
-                "gemini-1.5-flash",
-                "gemini-1.5-pro",
-                "gemini-3.8-flash (Preview)",
-                "gemini-3.8-pro (Preview)",
-                "gemini-3.7-flash (Preview)",
-                "gemini-3.7-pro (Preview)",
-                "gemini-3.6-flash (Preview)",
-                "gemini-3.6-pro (Preview)",
+                "gemini-3.8-flash",
+                "gemini-3.8-pro",
+                "gemini-3.7-flash",
+                "gemini-3.7-pro",
+                "gemini-3.6-flash",
+                "gemini-3.6-pro",
                 "gemini-3.5-flash",
+                "gemini-3.5-flash-lite",
                 "gemini-3.5-pro",
                 "Custom Model"
             ]
