@@ -1319,7 +1319,6 @@ with tab_responses:
             f"All ({total_resp_pages})",
             f"Success (2xx) ({c_2xx})",
             f"Redirection (3xx) ({c_3xx})",
-            f"Redirection (Loop) ({c_loop})",
             f"Client Error (4xx) ({c_4xx})",
             f"Server Error (5xx) ({c_5xx})",
             f"Blocked by Robots.txt ({c_robots})",
