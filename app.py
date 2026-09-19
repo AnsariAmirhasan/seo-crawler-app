@@ -749,7 +749,7 @@ with tab_issues:
 
             st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
 
-            # Interactive Button Filters (st.pills)
+            # 1. Severity Filter Buttons (st.pills)
             sev_options = [
                 f"All Severities ({total_issues_count})",
                 f"🔴 Errors ({err_count})",
@@ -764,30 +764,40 @@ with tab_issues:
                 key="pills_sev_filter"
             )
 
-            # Resolve Category Counts and Button Options
-            cat_counts = df_issues["category"].value_counts().to_dict()
-            cat_options = [f"All Categories ({total_issues_count})"] + [
-                f"{cat} ({cat_counts[cat]})" for cat in sorted(cat_counts.keys())
-            ]
-            selected_cat = st.pills(
-                "Filter by Issue Category:",
-                options=cat_options,
-                default=f"All Categories ({total_issues_count})",
-                selection_mode="single",
-                key="pills_cat_filter"
-            )
-
             # Resolve Active Severity
             if not selected_sev or "All Severities" in selected_sev:
                 active_severities = ["Error", "Warning", "Notice"]
+                sev_key_suffix = "all"
             elif "Errors" in selected_sev:
                 active_severities = ["Error"]
+                sev_key_suffix = "error"
             elif "Warnings" in selected_sev:
                 active_severities = ["Warning"]
+                sev_key_suffix = "warning"
             elif "Notices" in selected_sev:
                 active_severities = ["Notice"]
+                sev_key_suffix = "notice"
             else:
                 active_severities = ["Error", "Warning", "Notice"]
+                sev_key_suffix = "all"
+
+            # Filter issues by selected severity FIRST so category buttons only show relevant categories!
+            df_sev_subset = df_issues[df_issues["type"].isin(active_severities)]
+            sev_total_count = len(df_sev_subset)
+
+            # Resolve Category Counts strictly from the filtered severity subset
+            cat_counts = df_sev_subset["category"].value_counts().to_dict()
+            cat_options = [f"All Categories ({sev_total_count})"] + [
+                f"{cat} ({cat_counts[cat]})" for cat in sorted(cat_counts.keys())
+            ]
+            
+            selected_cat = st.pills(
+                "Filter by Issue Category:",
+                options=cat_options,
+                default=f"All Categories ({sev_total_count})",
+                selection_mode="single",
+                key=f"pills_cat_filter_{sev_key_suffix}"
+            )
 
             # Resolve Active Category
             if not selected_cat or "All Categories" in selected_cat:
@@ -795,7 +805,7 @@ with tab_issues:
             else:
                 active_category = selected_cat.rsplit(" (", 1)[0]
 
-            filtered_issues = df_issues[df_issues["type"].isin(active_severities)]
+            filtered_issues = df_sev_subset.copy()
             if active_category:
                 filtered_issues = filtered_issues[filtered_issues["category"] == active_category]
 
