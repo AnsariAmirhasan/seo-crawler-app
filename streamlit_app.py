@@ -1439,7 +1439,11 @@ with tab_responses:
             ]
             avail_cols = [c for c in target_cols if c in df_resp_filtered.columns]
             
-            st.dataframe(
+            broken_urls = df_resp_filtered["url"].tolist()
+
+            st.caption("💡 **Interactive**: Niche table me kisi bhi **Broken URL** ki row par click karein, ya dropdown se select karein — uske **Source Pages aur Anchor Texts** turant inspect ho jayenge.")
+
+            table_event = st.dataframe(
                 df_resp_filtered[avail_cols],
                 use_container_width=True,
                 column_config={
@@ -1450,32 +1454,83 @@ with tab_responses:
                     "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable Link Text)", width="medium", help="Clickable anchor text used for this link"),
                     "inlinks_count": st.column_config.NumberColumn("Inlinks", format="%d", width="small", help="Total incoming links to this 404 URL"),
                 },
-                hide_index=True
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="single-row",
+                key="df_broken_links_selection"
             )
 
-            # Deep Inlinks Inspector expander for 404 pages
-            with st.expander("🔍 Inlinks Deep-Dive: Exactly Where Each Broken Link Appears & Its Anchor Text", expanded=True):
-                st.markdown("Yeh breakdown har broken (404) page ke liye website par **kis page par link hai (Source Page)** aur **uska anchor text kya hai** dikhata hai:")
-                for _, b_row in df_resp_filtered.iterrows():
-                    b_url = b_row["url"]
-                    b_status = b_row.get("status_code", 404)
-                    
-                    referring = pd.DataFrame()
-                    if not df_links.empty and "target_url" in df_links.columns:
-                        b_clean = b_url.rstrip("/")
-                        referring = df_links[
-                            (df_links["target_url"] == b_url) | 
-                            (df_links["target_url"].str.rstrip("/") == b_clean)
-                        ]
-                    
-                    st.markdown(f"🔴 **Broken URL (404):** `{b_url}` &nbsp;&nbsp;|&nbsp;&nbsp; **Status:** `{b_status}`")
-                    if not referring.empty:
-                        ref_cols = [c for c in ["source_url", "anchor_text", "is_internal", "nofollow"] if c in referring.columns]
+            # Detect clicked row from table
+            selected_url_from_table = None
+            if table_event and hasattr(table_event, "selection") and table_event.selection:
+                sel_rows = table_event.selection.get("rows", [])
+                if sel_rows and sel_rows[0] < len(df_resp_filtered):
+                    selected_url_from_table = df_resp_filtered.iloc[sel_rows[0]]["url"]
+
+            if broken_urls:
+                if selected_url_from_table and selected_url_from_table in broken_urls:
+                    st.session_state["sb_inspect_404_picker"] = selected_url_from_table
+                elif "sb_inspect_404_picker" not in st.session_state or st.session_state["sb_inspect_404_picker"] not in broken_urls:
+                    st.session_state["sb_inspect_404_picker"] = broken_urls[0]
+
+                active_idx = broken_urls.index(st.session_state["sb_inspect_404_picker"])
+
+                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+                
+                c_sel1, c_sel2 = st.columns([3, 1.2])
+                with c_sel1:
+                    active_broken_url = st.selectbox(
+                        "🔍 Selected Broken Page (Table me click karein ya yahan se choose karein):",
+                        options=broken_urls,
+                        index=active_idx,
+                        key="sb_inspect_404_picker"
+                    )
+                with c_sel2:
+                    curr_broken_row = df_resp_filtered[df_resp_filtered["url"] == active_broken_url]
+                    inlinks_val = curr_broken_row["inlinks_count"].values[0] if not curr_broken_row.empty and "inlinks_count" in curr_broken_row.columns else 0
+                    code_val = curr_broken_row["status_code"].values[0] if not curr_broken_row.empty and "status_code" in curr_broken_row.columns else 404
+                    st.markdown(f"<div style='padding-top: 1.8rem;'><span style='background: rgba(239, 68, 68, 0.15); color: #f87171; padding: 7px 16px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 600; font-size: 0.88rem;'>🔴 Status {code_val} &nbsp;|&nbsp; 🔗 {inlinks_val} Inlinks</span></div>", unsafe_allow_html=True)
+
+                st.markdown(f"##### 🔗 Referring Source Pages & Anchor Texts for: `{active_broken_url}`")
+
+                # Query only this chosen URL
+                b_clean = active_broken_url.rstrip("/")
+                referring = pd.DataFrame()
+                if not df_links.empty and "target_url" in df_links.columns:
+                    referring = df_links[
+                        (df_links["target_url"] == active_broken_url) | 
+                        (df_links["target_url"].str.rstrip("/") == b_clean)
+                    ]
+
+                if not referring.empty:
+                    ref_cols = [c for c in ["source_url", "anchor_text", "is_internal", "nofollow"] if c in referring.columns]
+                    st.dataframe(
+                        referring[ref_cols].drop_duplicates(),
+                        use_container_width=True,
+                        column_config={
+                            "source_url": st.column_config.LinkColumn("Source Page (Jahan ye link laga hua hai)", width="large"),
+                            "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable text)", width="medium"),
+                            "is_internal": st.column_config.CheckboxColumn("Internal Link"),
+                            "nofollow": st.column_config.CheckboxColumn("Nofollow"),
+                        },
+                        hide_index=True
+                    )
+                else:
+                    curr_broken_row = df_resp_filtered[df_resp_filtered["url"] == active_broken_url]
+                    s_url = curr_broken_row["source_url"].values[0] if not curr_broken_row.empty and "source_url" in curr_broken_row.columns else ""
+                    a_txt = curr_broken_row["anchor_text"].values[0] if not curr_broken_row.empty and "anchor_text" in curr_broken_row.columns else ""
+                    if s_url:
+                        single_ref_df = pd.DataFrame([{
+                            "source_url": s_url,
+                            "anchor_text": a_txt or "[Direct link / No text]",
+                            "is_internal": True,
+                            "nofollow": False
+                        }])
                         st.dataframe(
-                            referring[ref_cols].drop_duplicates(),
+                            single_ref_df,
                             use_container_width=True,
                             column_config={
-                                "source_url": st.column_config.LinkColumn("Source Page (Found On)", width="large"),
+                                "source_url": st.column_config.LinkColumn("Source Page (Jahan ye link laga hua hai)", width="large"),
                                 "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable text)", width="medium"),
                                 "is_internal": st.column_config.CheckboxColumn("Internal Link"),
                                 "nofollow": st.column_config.CheckboxColumn("Nofollow"),
@@ -1483,13 +1538,7 @@ with tab_responses:
                             hide_index=True
                         )
                     else:
-                        s_url = b_row.get("source_url", "")
-                        a_txt = b_row.get("anchor_text", "")
-                        if s_url:
-                            st.caption(f"Discovered from Source Page: `{s_url}` &nbsp;|&nbsp; Anchor Text: **{a_txt or '[Direct link / No text]'}**")
-                        else:
-                            st.caption("No internal referring page recorded (Discovered directly from initial seed).")
-                    st.markdown("<div style='margin-bottom: 0.8rem;'></div>", unsafe_allow_html=True)
+                        st.info("No internal referring page recorded for this URL (Discovered directly from initial seed).")
         else:
             resp_cols = [
                 "url", "status_code", "status_description", "response_category",
