@@ -730,31 +730,36 @@ if selected_tool != "🕷️ CrawlPilot Engine":
 
 
 # 5. Main Page Hero Banner with Official CrawlPilot Branding & Graphic
-spider_logo_b64 = get_asset_base64(SPIDER_LOGO_PATH)
-st.html(f"""
-<div style="background: radial-gradient(130% 120% at 85% 30%, #1e1908 0%, #121622 55%, #0B0E14 100%); padding: 2.2rem 2.6rem; border-radius: 20px; border: 1px solid rgba(255, 193, 7, 0.25); margin-bottom: 1.5rem; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.7); position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
-    <div style="flex: 1.3; min-width: 320px; z-index: 2;">
-        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 193, 7, 0.12); color: #FFC107; border: 1px solid rgba(255, 193, 7, 0.35); padding: 5px 14px; border-radius: 9999px; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1rem;">
-            <span>⚡</span> ENTERPRISE-READY TECHNICAL SEO ENGINE
+# Hide this hero banner when a crawl is active or completed so audit data moves directly to the top
+has_crawl_results = st.session_state.get("crawl_results") is not None
+is_crawling_active = st.session_state.get("is_crawling", False)
+
+if not has_crawl_results and not is_crawling_active:
+    spider_logo_b64 = get_asset_base64(SPIDER_LOGO_PATH)
+    st.html(f"""
+    <div style="background: radial-gradient(130% 120% at 85% 30%, #1e1908 0%, #121622 55%, #0B0E14 100%); padding: 2.2rem 2.6rem; border-radius: 20px; border: 1px solid rgba(255, 193, 7, 0.25); margin-bottom: 1.5rem; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.7); position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+        <div style="flex: 1.3; min-width: 320px; z-index: 2;">
+            <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 193, 7, 0.12); color: #FFC107; border: 1px solid rgba(255, 193, 7, 0.35); padding: 5px 14px; border-radius: 9999px; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1rem;">
+                <span>⚡</span> ENTERPRISE-READY TECHNICAL SEO ENGINE
+            </div>
+            <h1 style="font-size: 3rem; font-weight: 900; margin: 0 0 0.25rem 0; line-height: 1.1; letter-spacing: -0.03em;">
+                <span style="color: #FFFFFF; text-shadow: 0 0 30px rgba(255,255,255,0.25);">Crawl</span><span style="color: #FFC107; text-shadow: 0 0 30px rgba(255,193,7,0.45);">Pilot</span>
+            </h1>
+            <div style="font-size: 0.82rem; color: #E2E8F0; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 0.9rem;">
+                CRAWL <span style="color: #FFC107;">•</span> ANALYZE <span style="color: #FFC107;">•</span> OPTIMIZE <span style="color: #FFC107;">•</span> RANK
+            </div>
+            <p style="color: #94A3B8; font-size: 1.05rem; max-width: 680px; margin: 0; line-height: 1.6;">
+                Enter any website URL to audit internal links, canonical tags, titles, headings, images and more up to 10,000 URLs. <b style="color: #FFC107;">Fast. Accurate. Actionable.</b>
+            </p>
         </div>
-        <h1 style="font-size: 3rem; font-weight: 900; margin: 0 0 0.25rem 0; line-height: 1.1; letter-spacing: -0.03em;">
-            <span style="color: #FFFFFF; text-shadow: 0 0 30px rgba(255,255,255,0.25);">Crawl</span><span style="color: #FFC107; text-shadow: 0 0 30px rgba(255,193,7,0.45);">Pilot</span>
-        </h1>
-        <div style="font-size: 0.82rem; color: #E2E8F0; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 0.9rem;">
-            CRAWL <span style="color: #FFC107;">•</span> ANALYZE <span style="color: #FFC107;">•</span> OPTIMIZE <span style="color: #FFC107;">•</span> RANK
+        <div style="position: relative; text-align: center; z-index: 2; padding-right: 15px;">
+            <img src="data:image/png;base64,{spider_logo_b64}" width="185" style="filter: drop-shadow(0 10px 25px rgba(255, 193, 7, 0.35)); max-width: 100%;" />
+            <div style="font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif; font-size: 1.25rem; color: #FDE047; transform: rotate(-4deg); margin-top: 4px; text-shadow: 0 2px 8px rgba(0,0,0,0.8);">
+                Crawl • Analyze • Optimize • Rank
+            </div>
         </div>
-        <p style="color: #94A3B8; font-size: 1.05rem; max-width: 680px; margin: 0; line-height: 1.6;">
-            Enter any website URL to audit internal links, canonical tags, titles, headings, images and more up to 10,000 URLs. <b style="color: #FFC107;">Fast. Accurate. Actionable.</b>
-        </p>
     </div>
-    <div style="position: relative; text-align: center; z-index: 2; padding-right: 15px;">
-        <img src="data:image/png;base64,{spider_logo_b64}" width="185" style="filter: drop-shadow(0 10px 25px rgba(255, 193, 7, 0.35)); max-width: 100%;" />
-        <div style="font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif; font-size: 1.25rem; color: #FDE047; transform: rotate(-4deg); margin-top: 4px; text-shadow: 0 2px 8px rgba(0,0,0,0.8);">
-            Crawl • Analyze • Optimize • Rank
-        </div>
-    </div>
-</div>
-""")
+    """)
 
 # 6. Screaming Frog Top Search Bar
 col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([4.8, 2.2, 1.8, 1.2])
@@ -785,6 +790,7 @@ with col_sf_clear:
 
 if btn_clear:
     st.session_state["crawl_results"] = None
+    st.session_state["is_crawling"] = False
     st.session_state["single_inspect_result"] = None
     st.session_state["cfg_target_url"] = ""
     st.rerun()
