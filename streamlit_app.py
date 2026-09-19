@@ -700,7 +700,7 @@ if selected_tool != "🕷️ SEO Spider & Crawler":
 
 
 # 4. Top Stepper Navbar & Quick Actions
-st.markdown("""
+st.html("""
 <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.2rem 0 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.07); margin-bottom: 1.4rem;">
     <div style="display: flex; align-items: center; gap: 14px;">
         <span style="color: #94A3B8; font-size: 1.25rem; cursor: pointer;">☰</span>
@@ -722,10 +722,10 @@ st.markdown("""
         </div>
     </div>
 </div>
-""", unsafe_allow_html=True)
+""")
 
 # 5. Main Page Hero Banner with 3D Golden Spider Graphic
-st.markdown("""
+st.html("""
 <div style="background: radial-gradient(130% 120% at 85% 30%, #1e1908 0%, #121622 55%, #0B0E14 100%); padding: 2.2rem 2.6rem; border-radius: 20px; border: 1px solid rgba(255, 193, 7, 0.25); margin-bottom: 1.5rem; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.7); position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
     <div style="flex: 1.3; min-width: 320px; z-index: 2;">
         <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 193, 7, 0.12); color: #FFC107; border: 1px solid rgba(255, 193, 7, 0.35); padding: 5px 14px; border-radius: 9999px; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1rem;">
@@ -784,7 +784,7 @@ st.markdown("""
         </div>
     </div>
 </div>
-""", unsafe_allow_html=True)
+""")
 
 # 6. Screaming Frog Top Search Bar
 col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([4.8, 2.2, 1.8, 1.2])
@@ -911,7 +911,7 @@ results = st.session_state.get("crawl_results")
 with tab_overview:
     if not results:
         # 6 KPI Metric Cards Showcase (Matching screenshot design)
-        st.markdown("""
+        st.html("""
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 1.4rem;">
             <div class="kpi-card-gold">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -962,10 +962,10 @@ with tab_overview:
                 <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">312 ms</div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
         # Zero Limitations Feature Showcase Card
-        st.markdown("""
+        st.html("""
         <div style="background: linear-gradient(135deg, rgba(18, 22, 32, 0.95) 0%, rgba(11, 14, 20, 0.98) 100%); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 18px; padding: 2.2rem 2.4rem; margin-top: 0.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2rem; box-shadow: 0 16px 36px rgba(0,0,0,0.5);">
             <div style="flex: 1.2; min-width: 280px;">
                 <h2 style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin: 0 0 0.6rem 0; letter-spacing: -0.02em;">
@@ -975,7 +975,6 @@ with tab_overview:
                     Enter your target URL in the search bar, select your crawl mode, and click Start. The crawler will audit internal links, canonical tags, metadata, status codes, images, and headings up to 10,000 URLs.
                 </p>
             </div>
-            
             <div style="flex: 1; min-width: 260px;">
                 <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.88rem; color: #CBD5E1;">
                     <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Fast & Accurate Crawling</div>
@@ -985,7 +984,6 @@ with tab_overview:
                     <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Built for SEOs, Agencies & Businesses</div>
                 </div>
             </div>
-            
             <div style="flex: 0.8; min-width: 220px; text-align: center; position: relative;">
                 <div style="background: rgba(14, 18, 26, 0.95); border: 1px solid rgba(255, 193, 7, 0.35); border-radius: 14px; padding: 16px 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); text-align: left;">
                     <div style="display: flex; align-items: center; gap: 8px; color: #FFFFFF; font-weight: 700; font-size: 0.88rem; margin-bottom: 8px;">
@@ -1011,7 +1009,7 @@ with tab_overview:
                 <span>☁️</span> Run Enterprise Audits at Cloud Scale <span style="color: #FFC107; font-weight: 800;">›</span>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
         col_demo1, col_demo2, col_demo3 = st.columns([1, 2, 1])
         with col_demo2:
@@ -1027,7 +1025,7 @@ with tab_overview:
         target = results.get("start_url", "")
 
         # Target Quick Status Strip
-        st.markdown(f"""
+        st.html(f"""
         <div style="background:rgba(18,22,32,0.85); border:1px solid rgba(255,193,7,0.25); border-radius:12px; padding:12px 18px; margin-bottom:1.2rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
             <div>
                 <span style="color:#94A3B8; font-size:0.85rem; font-weight:600; text-transform:uppercase;">Audited Website:</span>
@@ -1039,10 +1037,10 @@ with tab_overview:
                 <span>🔒 HTTPS Pages: <b style="color:#CBD5E1;">{len(df_pages[df_pages['url'].str.startswith('https://')])} / {len(df_pages)}</b></span>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
         # 6 KPI Metric Cards with Live Data
-        st.markdown(f"""
+        st.html(f"""
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 1.4rem;">
             <div class="kpi-card-gold">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -1093,7 +1091,7 @@ with tab_overview:
                 <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{round(df_pages['latency_ms'].mean(), 1) if not df_pages.empty else 0} ms</div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
