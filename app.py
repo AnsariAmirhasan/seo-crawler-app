@@ -508,10 +508,11 @@ if selected_tool != "🕷️ SEO Spider & Crawler":
     st.stop()
 
 # Main Application Tabs
-tab_overview, tab_issues, tab_pages, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_inspector, tab_sitemap = st.tabs([
+tab_overview, tab_issues, tab_pages, tab_responses, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_inspector, tab_sitemap = st.tabs([
     "📊 Overview",
     "🚨 Issues & Fixes",
     "📑 Internal Pages",
+    "🚦 Response Codes",
     "🎯 Canonicals",
     "🏷️ Page Titles",
     "📝 Meta Description",
@@ -868,7 +869,158 @@ with tab_pages:
         )
 
 # ==============================================================================
-# TAB 4: CANONICAL TAGS AUDIT ("Ye Page -> Iska Canonical Ye")
+# TAB 4: RESPONSE CODES & HTTP STATUS AUDIT
+# ==============================================================================
+with tab_responses:
+    if not results:
+        st.info("Run a crawl to audit HTTP response codes, redirection types, errors, and orphan pages.")
+    else:
+        df_pages = results["df_pages"]
+        total_resp_pages = len(df_pages)
+
+        st.subheader("🚦 Response Codes & HTTP Status Breakdown")
+        st.caption("Inspect HTTP status codes, redirection chains, server errors, blocked resources, and orphan pages with 0 internal links.")
+
+        # KPI Metrics Row
+        c_2xx = len(df_pages[(df_pages["status_code"] >= 200) & (df_pages["status_code"] < 300)])
+        c_3xx = len(df_pages[(df_pages["status_code"] >= 300) & (df_pages["status_code"] < 400)])
+        c_4xx = len(df_pages[(df_pages["status_code"] >= 400) & (df_pages["status_code"] < 500)])
+        c_5xx = len(df_pages[(df_pages["status_code"] >= 500) & (df_pages["status_code"] < 600)])
+        c_orphan = int(df_pages["is_orphan"].sum()) if "is_orphan" in df_pages.columns else 0
+
+        rm1, rm2, rm3, rm4, rm5 = st.columns(5)
+        rm1.metric("Success (2xx)", f"{c_2xx}", delta=f"{round(c_2xx/max(total_resp_pages,1)*100)}% of pages")
+        rm2.metric("Redirection (3xx)", f"{c_3xx}", delta="Redirects" if c_3xx else None)
+        rm3.metric("Client Error (4xx)", f"{c_4xx}", delta="Broken links" if c_4xx else None, delta_color="inverse")
+        rm4.metric("Server Error (5xx)", f"{c_5xx}", delta="Critical" if c_5xx else None, delta_color="inverse")
+        rm5.metric("Orphan URLs (0 Inlinks)", f"{c_orphan}", delta="Needs internal links" if c_orphan else None, delta_color="inverse")
+
+        st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
+
+        # Build Screaming Frog Filter Options matching user's screenshot + Orphan pages
+        c_robots = len(df_pages[df_pages["response_category"] == "Blocked by Robots.txt"]) if "response_category" in df_pages.columns else 0
+        c_blocked_res = len(df_pages[df_pages["response_category"] == "Blocked Resource"]) if "response_category" in df_pages.columns else 0
+        c_no_resp = len(df_pages[df_pages["response_category"] == "No Response"]) if "response_category" in df_pages.columns else 0
+        c_js_red = len(df_pages[df_pages.get("has_js_redirect", False) == True]) if "has_js_redirect" in df_pages.columns else 0
+        c_meta_red = len(df_pages[df_pages.get("has_meta_refresh", False) == True]) if "has_meta_refresh" in df_pages.columns else 0
+
+        sf_options = [
+            f"All ({total_resp_pages})",
+            f"Blocked by Robots.txt ({c_robots})",
+            f"Blocked Resource ({c_blocked_res})",
+            f"No Response ({c_no_resp})",
+            f"Success (2xx) ({c_2xx})",
+            f"Redirection (3xx) ({c_3xx})",
+            f"Redirection (JavaScript) ({c_js_red})",
+            f"Redirection (Meta Refresh) ({c_meta_red})",
+            f"Client Error (4xx) ({c_4xx})",
+            f"Server Error (5xx) ({c_5xx})",
+            f"Orphan URLs (0 Inlinks) ({c_orphan})"
+        ]
+
+        rfcol1, rfcol2 = st.columns([1.2, 1.8])
+        with rfcol1:
+            resp_filter = st.selectbox(
+                "Filter by Response Code:",
+                options=sf_options,
+                index=0,
+                key="sb_response_code_filter"
+            )
+        with rfcol2:
+            resp_search = st.text_input(
+                "🔍 Search URL, Status Code, or Response Description:",
+                "",
+                key="txt_response_code_search"
+            )
+
+        # Filter the DataFrame
+        df_resp_filtered = df_pages.copy()
+
+        filter_choice = resp_filter.split(" (")[0]
+        if filter_choice == "Blocked by Robots.txt":
+            df_resp_filtered = df_resp_filtered[df_resp_filtered["response_category"] == "Blocked by Robots.txt"]
+        elif filter_choice == "Blocked Resource":
+            df_resp_filtered = df_resp_filtered[df_resp_filtered["response_category"] == "Blocked Resource"]
+        elif filter_choice == "No Response":
+            df_resp_filtered = df_resp_filtered[df_resp_filtered["response_category"] == "No Response"]
+        elif filter_choice == "Success (2xx)":
+            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 200) & (df_resp_filtered["status_code"] < 300)]
+        elif filter_choice == "Redirection (3xx)":
+            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 300) & (df_resp_filtered["status_code"] < 400)]
+        elif filter_choice == "Redirection (JavaScript)":
+            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("has_js_redirect", False) == True]
+        elif filter_choice == "Redirection (Meta Refresh)":
+            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("has_meta_refresh", False) == True]
+        elif filter_choice == "Client Error (4xx)":
+            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 400) & (df_resp_filtered["status_code"] < 500)]
+        elif filter_choice == "Server Error (5xx)":
+            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 500) & (df_resp_filtered["status_code"] < 600)]
+        elif filter_choice == "Orphan URLs (0 Inlinks)":
+            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("inlinks_count", 0) == 0]
+
+        if resp_search:
+            status_desc_col = df_resp_filtered["status_description"] if "status_description" in df_resp_filtered.columns else ""
+            final_url_col = df_resp_filtered["final_url"] if "final_url" in df_resp_filtered.columns else ""
+            df_resp_filtered = df_resp_filtered[
+                df_resp_filtered["url"].str.contains(resp_search, case=False, na=False) |
+                status_desc_col.astype(str).str.contains(resp_search, case=False, na=False) |
+                df_resp_filtered["status_code"].astype(str).str.contains(resp_search, case=False, na=False) |
+                final_url_col.astype(str).str.contains(resp_search, case=False, na=False)
+            ]
+
+        # Download button
+        col_rdown1, col_rdown2 = st.columns([1.2, 3.8])
+        with col_rdown1:
+            csv_resp = generate_csv(df_resp_filtered)
+            st.download_button(
+                label=f"📥 Download Filtered ({len(df_resp_filtered)} URLs)",
+                data=csv_resp,
+                file_name=f"response_codes_{filter_choice.replace(' ', '_').lower()}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with col_rdown2:
+            st.caption(f"Showing **{len(df_resp_filtered)}** of **{total_resp_pages}** URLs matching filter: `{filter_choice}`")
+
+        # Table Display
+        resp_cols = [
+            "url", "status_code", "status_description", "response_category",
+            "inlinks_count", "internal_outlinks_count", "final_url", "latency_ms",
+            "content_type", "is_indexable"
+        ]
+        available_resp_cols = [c for c in resp_cols if c in df_resp_filtered.columns]
+
+        st.dataframe(
+            df_resp_filtered[available_resp_cols],
+            use_container_width=True,
+            column_config={
+                "url": st.column_config.LinkColumn("Page URL"),
+                "status_code": st.column_config.NumberColumn("Status Code", format="%d"),
+                "status_description": st.column_config.TextColumn("Response Description"),
+                "response_category": st.column_config.TextColumn("Response Category"),
+                "inlinks_count": st.column_config.NumberColumn("Inlinks (Inbound)", help="Number of internal pages linking to this URL. 0 = Orphan Page!"),
+                "internal_outlinks_count": st.column_config.NumberColumn("Outlinks"),
+                "final_url": st.column_config.LinkColumn("Redirect Target URL"),
+                "latency_ms": st.column_config.NumberColumn("Latency", format="%.0f ms"),
+                "content_type": st.column_config.TextColumn("Content Type"),
+                "is_indexable": st.column_config.CheckboxColumn("Indexable"),
+            },
+            hide_index=True
+        )
+
+        with st.expander("💡 SEO Guide: Response Codes & Orphan Pages Technical Reference"):
+            st.markdown("""
+            - **Success (2xx)**: HTTP 200 OK indicates the page was fetched successfully and is fully indexable by search engine bots.
+            - **Redirection (3xx)**: Permanent redirects (301, 308) pass equity; temporary redirects (302, 307) signify short-term moves.
+            - **Redirection (JavaScript & Meta Refresh)**: Client-side redirects cause crawling latency and index delays. Always prioritize 301 server-side redirects.
+            - **Client Error (4xx)**: 404 Not Found or 410 Gone mean broken links. Internal links pointing to 4xx URLs should be fixed or removed.
+            - **Server Error (5xx)**: 500, 502, 503, 504 errors indicate host/backend instability. High 5xx rates degrade Google crawl frequency.
+            - **Blocked by Robots.txt / Blocked Resource**: URL is barred from crawling by robots.txt directives or authorization.
+            - **Orphan URLs (0 Inlinks)**: An orphan page has **zero internal links** pointing to it from anywhere on the website. Search engines may not discover or rank orphan pages unless found via external links or XML sitemaps. Fix by adding contextual internal links from parent categories or menus.
+            """)
+
+# ==============================================================================
+# TAB 5: CANONICAL TAGS AUDIT ("Ye Page -> Iska Canonical Ye")
 # ==============================================================================
 with tab_canonicals:
     if not results:

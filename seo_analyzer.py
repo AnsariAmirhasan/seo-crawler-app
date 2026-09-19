@@ -80,6 +80,11 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         # Links & Images Stats
         "internal_outlinks_count": 0,
         "external_outlinks_count": 0,
+        "inlinks_count": 0,
+        "is_orphan": False,
+        "has_meta_refresh": False,
+        "meta_refresh_content": "",
+        "has_js_redirect": False,
         "images_count": 0,
         "images_missing_alt_count": 0,
         # Issues Detected on this page
@@ -270,6 +275,34 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
                 "recommendation": "Ensure internal link juice is not inadvertently blocked."
             })
 
+    # Meta Refresh Redirects
+    meta_refresh = soup.find("meta", attrs={"http-equiv": re.compile(r"^refresh$", re.I)})
+    if meta_refresh and meta_refresh.get("content"):
+        seo_info["has_meta_refresh"] = True
+        seo_info["meta_refresh_content"] = meta_refresh["content"]
+        seo_info["issues"].append({
+            "type": "Warning",
+            "category": "Redirect",
+            "issue": f"Meta Refresh Redirect Found: {meta_refresh['content'][:60]}",
+            "recommendation": "Replace meta refresh redirects with standard 301 HTTP redirects."
+        })
+
+    # JavaScript Redirects
+    has_js_redirect = False
+    for script in soup.find_all("script"):
+        stext = script.string or ""
+        if stext and ("window.location" in stext or "location.href" in stext or "location.replace" in stext):
+            has_js_redirect = True
+            break
+    seo_info["has_js_redirect"] = has_js_redirect
+    if has_js_redirect:
+        seo_info["issues"].append({
+            "type": "Warning",
+            "category": "Redirect",
+            "issue": "JavaScript Client-Side Redirect Detected",
+            "recommendation": "Use 301 HTTP server redirects instead of client-side JavaScript redirects."
+        })
+
     # 5. Canonical Tag
     canonical_tags = soup.find_all("link", attrs={"rel": lambda x: x and "canonical" in (x.lower() if isinstance(x, str) else [item.lower() for item in x])})
     if not canonical_tags:
@@ -381,8 +414,96 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
     if not df_links.empty and not df_pages.empty:
         internal_outlinks = df_links[df_links["is_internal"] == True].groupby("source_url").size().to_dict()
         external_outlinks = df_links[df_links["is_internal"] == False].groupby("source_url").size().to_dict()
+        internal_inlinks = df_links[df_links["is_internal"] == True].groupby("target_url").size().to_dict()
         df_pages["internal_outlinks_count"] = df_pages["url"].map(internal_outlinks).fillna(0).astype(int)
         df_pages["external_outlinks_count"] = df_pages["url"].map(external_outlinks).fillna(0).astype(int)
+        df_pages["inlinks_count"] = df_pages["url"].map(internal_inlinks).fillna(0).astype(int)
+    else:
+        df_pages["internal_outlinks_count"] = 0
+        df_pages["external_outlinks_count"] = 0
+        df_pages["inlinks_count"] = 0
+
+    # Determine starting seed URL (first crawled URL)
+    start_url = crawled_pages[0].get("url") if crawled_pages else ""
+    df_pages["is_orphan"] = (df_pages["inlinks_count"] == 0) & (df_pages["url"] != start_url)
+
+    # Classify Response Description and Screaming Frog Response Category
+    def classify_response(row):
+        code = row.get("status_code", 0)
+        err = str(row.get("error") or "").lower()
+        has_meta = row.get("has_meta_refresh", False)
+        has_js = row.get("has_js_redirect", False)
+
+        # Status Description
+        if code == 200:
+            desc = "200 OK"
+        elif code == 201:
+            desc = "201 Created"
+        elif code == 204:
+            desc = "204 No Content"
+        elif code == 301:
+            desc = "301 Moved Permanently"
+        elif code == 302:
+            desc = "302 Found"
+        elif code == 307:
+            desc = "307 Temporary Redirect"
+        elif code == 308:
+            desc = "308 Permanent Redirect"
+        elif code == 400:
+            desc = "400 Bad Request"
+        elif code == 401:
+            desc = "401 Unauthorized"
+        elif code == 403:
+            desc = "403 Forbidden"
+        elif code == 404:
+            desc = "404 Not Found"
+        elif code == 410:
+            desc = "410 Gone"
+        elif code == 500:
+            desc = "500 Internal Server Error"
+        elif code == 502:
+            desc = "502 Bad Gateway"
+        elif code == 503:
+            desc = "503 Service Unavailable"
+        elif code == 504:
+            desc = "504 Gateway Timeout"
+        elif code == 0 or "timeout" in err or "failed" in err or "connection" in err:
+            desc = f"No Response ({err[:25]})" if err else "No Response"
+        else:
+            desc = f"HTTP {code}"
+
+        # Category for Screaming Frog filter parity
+        if "robots" in err:
+            cat = "Blocked by Robots.txt"
+        elif code == 403 or (code != 200 and "blocked" in err):
+            cat = "Blocked Resource"
+        elif code == 0 or "timeout" in err or "failed" in err or "connection" in err:
+            cat = "No Response"
+        elif 200 <= code < 300:
+            if has_meta:
+                cat = "Redirection (Meta Refresh)"
+            elif has_js:
+                cat = "Redirection (JavaScript)"
+            else:
+                cat = "Success (2xx)"
+        elif 300 <= code < 400:
+            cat = "Redirection (3xx)"
+        elif 400 <= code < 500:
+            cat = "Client Error (4xx)"
+        elif 500 <= code < 600:
+            cat = "Server Error (5xx)"
+        else:
+            cat = "Other"
+
+        return pd.Series([desc, cat], index=["status_description", "response_category"])
+
+    if not df_pages.empty:
+        resp_df = df_pages.apply(classify_response, axis=1)
+        df_pages["status_description"] = resp_df["status_description"]
+        df_pages["response_category"] = resp_df["response_category"]
+    else:
+        df_pages["status_description"] = []
+        df_pages["response_category"] = []
 
     # Compute image stats per page
     if not df_images.empty and not df_pages.empty:
@@ -438,6 +559,14 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
                     "recommendation": "Write tailored meta descriptions for key landing pages."
                 })
 
+        if row.get("is_orphan", False):
+            issues_list.append({
+                "type": "Warning",
+                "category": "Architecture",
+                "issue": "Orphan Page (0 Internal Inlinks)",
+                "recommendation": "Add internal links pointing to this URL from navigation, category pages, or relevant articles."
+            })
+
         if row["images_missing_alt_count"] > 0:
             issues_list.append({
                 "type": "Warning",
@@ -483,6 +612,7 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
             "health_score": health_score,
             "duplicate_titles_count": len(duplicate_titles),
             "duplicate_h1_count": len(duplicate_h1s),
+            "orphan_pages_count": int(df_pages["is_orphan"].sum()) if not df_pages.empty and "is_orphan" in df_pages.columns else 0,
             "total_links": len(df_links),
             "total_images": len(df_images)
         }
