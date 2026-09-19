@@ -301,6 +301,8 @@ def render_query_fanout_page():
         if api_key:
             st.session_state[f"api_key_{ai_provider}"] = api_key
 
+        btn_clear_cfg = st.button("🔄 Clear All (Keys & Results)", use_container_width=True, key="btn_clear_cfg")
+
     with cfg_col3:
         target_country = st.selectbox(
             "Target Search Region",
@@ -321,7 +323,7 @@ def render_query_fanout_page():
 
     # 3. Central Query Input Search Bar
     st.markdown("##### 🔎 Target Search Prompt / Keyword")
-    q_col1, q_col2 = st.columns([4.2, 1.2])
+    q_col1, q_col2, q_col3 = st.columns([3.8, 1.2, 0.8])
 
     with q_col1:
         user_query = st.text_input(
@@ -334,6 +336,19 @@ def render_query_fanout_page():
 
     with q_col2:
         btn_extract = st.button("Extract Fan-Out 🚀", type="primary", use_container_width=True, key="btn_fanout_exec")
+
+    with q_col3:
+        btn_clear_search = st.button("🔄 Clear", use_container_width=True, key="btn_clear_search")
+
+    # Clear Execution Logic
+    if btn_clear_cfg or btn_clear_search:
+        for p in ["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"]:
+            st.session_state[f"api_key_{p}"] = ""
+            st.session_state[f"input_key_{p}"] = ""
+        st.session_state["fanout_user_query"] = ""
+        st.session_state["fanout_query_input"] = ""
+        st.session_state["fanout_results"] = None
+        st.rerun()
 
     # Example chips
     st.markdown("""
