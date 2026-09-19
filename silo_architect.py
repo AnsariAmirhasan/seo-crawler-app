@@ -1,7 +1,8 @@
 """
 AI Silo Structure Architect & Strategic Interlinker Module
-Architect high-authority topical silos, prevent PageRank leakage, and chat directly
-with Gemini (3.5 - 3.8 models), OpenAI ChatGPT, or Anthropic Claude.
+Architect high-authority topical silos, eliminate PageRank leaks, benchmark competitors,
+and get clear page-by-page anchor text and internal linking recommendations.
+Powered by Gemini (3.5 to 3.8), OpenAI ChatGPT, or Anthropic Claude.
 """
 
 import streamlit as st
@@ -50,7 +51,7 @@ SILO_FRAMEWORKS = {
 }
 
 
-def _extract_site_context(target_url: str, max_links: int = 25) -> dict:
+def _extract_site_context(target_url: str, max_links: int = 30) -> dict:
     """Quickly inspect website to extract real-world context for AI analysis."""
     info = {
         "url": target_url,
@@ -71,7 +72,7 @@ def _extract_site_context(target_url: str, max_links: int = 25) -> dict:
             if d_tag and d_tag.get("content"):
                 info["meta_desc"] = d_tag.get("content").strip()
             
-            for h in soup.find_all(["h1", "h2"], limit=10):
+            for h in soup.find_all(["h1", "h2"], limit=12):
                 htxt = h.get_text().strip()
                 if htxt and len(htxt) < 90 and htxt not in info["headings"]:
                     info["headings"].append(htxt)
@@ -102,7 +103,6 @@ def _call_ai_model(api_key: str, provider: str, model: str, system_prompt: str, 
     
     if provider == "Google Gemini":
         from google import genai
-        from google.genai import types
         client = genai.Client(api_key=api_key)
         
         # Try requested model with fallback if 404
@@ -141,7 +141,7 @@ def _call_ai_model(api_key: str, provider: str, model: str, system_prompt: str, 
         client = anthropic.Anthropic(api_key=api_key)
         response = client.messages.create(
             model=clean_model,
-            max_tokens=3500,
+            max_tokens=4000,
             system=system_prompt,
             messages=[
                 {"role": "user", "content": user_prompt}
@@ -272,7 +272,7 @@ def render_silo_architect_page():
             AI Silo Structure Architect
         </h1>
         <p style="color: #94A3B8; font-size: 1.12rem; max-width: 760px; margin: 0 auto; line-height: 1.6;">
-            Architect bulletproof topical silos, eliminate PageRank leaks, and chat directly with Google Gemini (3.5 to 3.8), OpenAI ChatGPT, or Claude to engineer your website's internal linking.
+            Architect bulletproof topical silos, benchmark competitors' site architecture, get exact in-page anchor text linking instructions, and chat with Google Gemini (3.5 to 3.8), ChatGPT, or Claude.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -455,7 +455,7 @@ def render_silo_architect_page():
             st.error("❌ Please enter a valid website URL starting with http:// or https://")
             return
 
-        with st.spinner(f"🔍 Analyzing {target_site} with {ai_provider} ({selected_model})..."):
+        with st.spinner(f"🔍 Analyzing {target_site}, benchmarking competitors, and constructing Silo with {ai_provider} ({selected_model})..."):
             # Gather page details
             pages_context = []
             if use_crawl and crawl_data and "df_pages" in crawl_data:
@@ -469,17 +469,27 @@ def render_silo_architect_page():
                     })
                 site_meta = {"url": target_site, "sample_pages": pages_context}
             else:
-                site_meta = _extract_site_context(target_site, max_links=25)
+                site_meta = _extract_site_context(target_site, max_links=30)
 
             system_prompt = """
 You are an Elite Enterprise Technical SEO Architect & Information Architecture Specialist.
-Your mission is to construct a bulletproof, mathematically sound Silo Structure and strategic Internal Linking Blueprint for the target website.
+Your mission is to construct a bulletproof, mathematically sound Silo Structure, benchmark top organic competitors, and provide crystal-clear, step-by-step in-page interlinking instructions.
 
 You MUST respond strictly in valid JSON format with this exact structure:
 {
   "summary": "Executive summary of the recommended Silo Structure and why it fits this website.",
   "target_silo_model": "Exact name of the Silo Model",
-  "topical_authority_score": 85,
+  "topical_authority_score": 88,
+  "competitors_analysis": [
+    {
+      "competitor_name": "Top Competitor Name",
+      "domain": "competitor.com",
+      "silo_structure_breakdown": "How they organize their main categories, pillar hubs, and child articles.",
+      "linking_strengths": "Their internal linking patterns (e.g. contextual upward links, mega-menu silos, etc.)",
+      "topical_gaps_for_us": "Specific pillars, products, or high-volume search topics they rank for that target_site is missing",
+      "action_to_outrank": "Tactical recommendation to build and link a better cluster to capture their organic traffic"
+    }
+  ],
   "clusters": [
     {
       "pillar_name": "Name of Pillar Category",
@@ -498,11 +508,13 @@ You MUST respond strictly in valid JSON format with this exact structure:
   ],
   "interlinking_rules": [
     {
-      "action": "Upward Link | Lateral Link | Downward Link | Strict Isolation",
-      "source_page": "Where to link from",
-      "target_page": "Where to point link to",
-      "suggested_anchor_text": "Exact anchor text recommendation",
-      "seo_rationale": "Why this passes PageRank and reinforces topic authority"
+      "directive": "Upward to Pillar ⬆️ | Lateral within Silo ↔️ | Downward to Guide ⬇️",
+      "source_page": "Exact Source Page URL or Title where link should be placed",
+      "target_page": "Exact Destination Page URL or Title",
+      "suggested_anchor_text": "Exact anchor text keywords to highlight",
+      "placement_section": "e.g. Introduction / Technical Specs / Benefits Section / FAQ",
+      "sentence_context": "Exact realistic sentence to paste on the source page with the anchor text naturally placed",
+      "seo_rationale": "Exact reason why this passes PageRank and boosts rankings"
     }
   ],
   "prohibited_links": [
@@ -524,10 +536,10 @@ Meta Description: {site_meta.get('meta_desc', '')}
 Headings: {site_meta.get('headings', [])}
 Sample URLs: {json.dumps(site_meta.get('sample_pages', [])[:20], indent=2)}
 
-Please construct 3 to 6 distinct Silo Topic Clusters. Each cluster must have:
-1. One Core Pillar Page (Tier 1).
-2. 3 to 5 Supporting Spokes (Tier 2/Tier 3).
-3. 8 to 15 exact, actionable interlinking directives tailored specifically to the {selected_framework} rules.
+Please generate:
+1. 3 to 4 organic search Competitors for this website, analyzing their silo architecture, topical depth, and gaps that our website should exploit.
+2. 3 to 6 distinct Silo Topic Clusters with 1 Core Pillar Page (Tier 1) and 3 to 5 Supporting Spokes (Tier 2/Tier 3).
+3. 10 to 18 crystal-clear, step-by-step in-page interlinking directives tailored to {selected_framework}, specifying the EXACT source page, exact target page, exact anchor text, section placement, and natural sentence context so any content writer or SEO can paste it directly.
 """
 
             try:
@@ -561,10 +573,10 @@ Please construct 3 to 6 distinct Silo Topic Clusters. Each cluster must have:
                 st.session_state["silo_chat_history"] = [
                     {
                         "role": "assistant",
-                        "content": f"Hello! I am your **AI Silo Architect** powered by **{ai_provider} ({selected_model})**. I have analyzed **{target_site}** and designed a **{selected_framework}** blueprint with **{len(silo_result.get('clusters', []))} topical pillars**.\n\nHow can I help you execute this linking strategy or optimize specific pages?"
+                        "content": f"Hello! I am your **AI Silo Architect** powered by **{ai_provider} ({selected_model})**. I have analyzed **{target_site}**, benchmarked your organic search competitors, and designed a **{selected_framework}** blueprint with **{len(silo_result.get('clusters', []))} topical pillars** and **{len(silo_result.get('interlinking_rules', []))} in-page linking directives**.\n\nHow can I help you execute this linking strategy, optimize anchor texts, or analyze competitors?"
                     }
                 ]
-                st.success("✅ Silo Structure & Interlinking Strategy successfully generated!")
+                st.success("✅ Silo Structure, Competitor Benchmark, & Interlinking Strategy successfully generated!")
 
             except Exception as e:
                 st.error(f"❌ Error during AI Silo generation: {e}")
@@ -576,12 +588,13 @@ Please construct 3 to 6 distinct Silo Topic Clusters. Each cluster must have:
         st.subheader("📊 Strategic Silo Blueprint & Recommendations")
 
         # Top Executive Summary Cards
-        sc1, sc2, sc3, sc4 = st.columns(4)
-        sc1.metric("Target Framework", silo_res.get("target_silo_model", selected_framework)[:22] + "..")
+        sc1, sc2, sc3, sc4, sc5 = st.columns(5)
+        sc1.metric("Target Framework", silo_res.get("target_silo_model", selected_framework)[:20] + "..")
         sc2.metric("Silo Clusters", f"{len(silo_res.get('clusters', []))} Pillars")
         total_spokes = sum(len(c.get("spokes", [])) for c in silo_res.get("clusters", []))
         sc3.metric("Supporting Spokes", f"{total_spokes} Pages")
-        sc4.metric("Interlinking Directives", f"{len(silo_res.get('interlinking_rules', []))} Rules")
+        sc4.metric("Competitors Benchmarked", f"{len(silo_res.get('competitors_analysis', []))} Rivals")
+        sc5.metric("Interlinking Directives", f"{len(silo_res.get('interlinking_rules', []))} Rules")
 
         # Executive Summary Callout
         st.markdown(f"""
@@ -595,18 +608,183 @@ Please construct 3 to 6 distinct Silo Topic Clusters. Each cluster must have:
         </div>
         """, unsafe_allow_html=True)
 
-        # Tabs for Visualization, Clusters, Link Matrix, and Chat
-        tab_graph, tab_clusters, tab_matrix, tab_leakage = st.tabs([
+        # Tabs for Visualization, In-Page Interlinking, Competitors, Clusters, and Leakage
+        tab_graph, tab_interlinking, tab_competitors, tab_clusters, tab_leakage = st.tabs([
             "🧭 Visual Silo Graph",
+            "🔗 In-Page Interlinking Guide",
+            "🏆 Competitor Silo Benchmark & Gaps",
             "📚 Topical Clusters & Pillars",
-            "🔗 Actionable Linking Matrix",
             "🛡️ Leakage Audit & Breadcrumbs"
         ])
 
+        # TAB 1: VISUAL GRAPH
         with tab_graph:
             silo_fig = _create_silo_tree_chart(silo_res, st.session_state.get("silo_architecture_website", target_site))
             st.plotly_chart(silo_fig, use_container_width=True)
 
+        # TAB 2: IN-PAGE INTERLINKING GUIDE (Crystal clear: Iss page me ye ancore text pe ye wala link rakho)
+        with tab_interlinking:
+            st.markdown("#### 🔗 Exact In-Page Interlinking Blueprint")
+            st.caption("Here is exactly where to place each internal link, which source page to edit, what anchor text to use, and the natural sentence to insert.")
+
+            rules = silo_res.get("interlinking_rules", [])
+            if rules:
+                df_rules = pd.DataFrame(rules)
+
+                # Page Selector Filter
+                all_sources = sorted(list(set([str(r.get("source_page", "")) for r in rules if r.get("source_page")])))
+                col_f1, col_f2 = st.columns([2, 1.2])
+                with col_f1:
+                    filter_source = st.selectbox(
+                        "🔍 Filter Interlinking Tasks by Source Page (Page to edit):",
+                        ["All Pages (Show All Recommendations)"] + all_sources,
+                        key="silo_filter_source_page"
+                    )
+                with col_f2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    csv_data = df_rules.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "📥 Download Full Interlinking Plan (CSV)",
+                        data=csv_data,
+                        file_name="silo_in_page_interlinking_plan.csv",
+                        mime="text/csv",
+                        key="dl_silo_csv"
+                    )
+
+                # Filter items
+                displayed_rules = rules
+                if filter_source != "All Pages (Show All Recommendations)":
+                    displayed_rules = [r for r in rules if str(r.get("source_page", "")) == filter_source]
+
+                st.markdown(f"##### Showing **{len(displayed_rules)}** actionable linking directives:")
+
+                # Render intuitive cards for each link directive
+                for idx, r in enumerate(displayed_rules):
+                    d_type = r.get("directive") or r.get("action", "Internal Link")
+                    src = r.get("source_page", "")
+                    tgt = r.get("target_page", "")
+                    anchor = r.get("suggested_anchor_text", "")
+                    section = r.get("placement_section", "Article Body / Relevant Content Section")
+                    sentence = r.get("sentence_context", f"Explore our comprehensive guide on {anchor} for more specifications.")
+                    benefit = r.get("seo_rationale", "Passes topical link equity and establishes semantic hierarchy.")
+
+                    # Type styling
+                    if "Upward" in d_type or "Pillar" in d_type or "⬆️" in d_type:
+                        badge_bg = "rgba(56, 189, 248, 0.15)"
+                        badge_border = "#38BDF8"
+                        badge_color = "#38BDF8"
+                        icon = "⬆️"
+                    elif "Lateral" in d_type or "↔️" in d_type:
+                        badge_bg = "rgba(52, 211, 153, 0.15)"
+                        badge_border = "#34D399"
+                        badge_color = "#34D399"
+                        icon = "↔️"
+                    else:
+                        badge_bg = "rgba(245, 158, 11, 0.15)"
+                        badge_border = "#F59E0B"
+                        badge_color = "#F59E0B"
+                        icon = "⬇️"
+
+                    # Highlight the anchor in the sentence
+                    highlighted_sentence = sentence
+                    if anchor and anchor.lower() in sentence.lower():
+                        # Case-insensitive replacement with markdown bold and blue
+                        pattern = re.compile(re.escape(anchor), re.IGNORECASE)
+                        highlighted_sentence = pattern.sub(f'<span style="background: rgba(56, 189, 248, 0.25); color: #38BDF8; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-decoration: underline;">{anchor}</span>', sentence)
+                    else:
+                        highlighted_sentence = f'{sentence} — (Link: <span style="background: rgba(56, 189, 248, 0.25); color: #38BDF8; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-decoration: underline;">{anchor}</span>)'
+
+                    st.markdown(f"""
+                    <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-left: 4px solid {badge_border}; border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.25);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                            <span style="background: {badge_bg}; color: {badge_color}; border: 1px solid {badge_border}55; padding: 3px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase;">
+                                {icon} {d_type}
+                            </span>
+                            <span style="font-size: 0.8rem; color: #94A3B8;">📍 Section: <b style="color:#E2E8F0;">{section}</b></span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; background: rgba(30, 41, 59, 0.5); padding: 10px 14px; border-radius: 8px; margin-bottom: 12px;">
+                            <div>
+                                <div style="font-size: 0.72rem; color: #94A3B8; text-transform: uppercase; font-weight: 700;">📄 Source Page (Edit Here)</div>
+                                <div style="font-size: 0.9rem; font-weight: 600; color: #FFFFFF; word-break: break-all;">{src}</div>
+                            </div>
+                            <div style="color: #38BDF8; font-size: 1.2rem; font-weight: bold;">➔</div>
+                            <div>
+                                <div style="font-size: 0.72rem; color: #94A3B8; text-transform: uppercase; font-weight: 700;">🎯 Target Destination Page</div>
+                                <div style="font-size: 0.9rem; font-weight: 600; color: #38BDF8; word-break: break-all;">{tgt}</div>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 8px;">
+                            <div style="font-size: 0.76rem; color: #94A3B8; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">✍️ Sentence Context (Find or paste in paragraph):</div>
+                            <div style="background: rgba(2, 6, 23, 0.6); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(71, 85, 105, 0.3); font-size: 0.92rem; color: #E2E8F0; line-height: 1.5;">
+                                "{highlighted_sentence}"
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.82rem; color: #94A3B8; margin-top: 8px;">
+                            <div>🏷️ Hyperlink Anchor: <b style="color: #38BDF8; font-size: 0.9rem;">"{anchor}"</b></div>
+                            <div>💡 SEO Benefit: <span style="color: #CBD5E1;">{benefit}</span></div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    with st.expander(f"📋 1-Click HTML Anchor Snippet for Task #{idx+1}", expanded=False):
+                        clean_href = tgt if tgt.startswith("http") else f"{target_site.rstrip('/')}/{tgt.lstrip('/')}"
+                        st.code(f'<!-- On Page: {src} -->\n<!-- Section: {section} -->\n<a href="{clean_href}">{anchor}</a>', language="html")
+
+                # Data Table View
+                st.markdown("---")
+                st.markdown("##### 📋 Complete Master Interlinking Table")
+                st.dataframe(df_rules, use_container_width=True, hide_index=True)
+
+        # TAB 3: COMPETITOR SILO BENCHMARK & GAP ANALYSIS
+        with tab_competitors:
+            st.markdown("#### 🏆 Organic Search Competitor Silo Benchmark & Topical Gaps")
+            st.caption(f"Competitor analysis based on organic search rivals for {target_site}. Discover how industry leaders structure their topical silos, and where they have content gaps you can dominate.")
+
+            competitors = silo_res.get("competitors_analysis", [])
+            if competitors:
+                for c_idx, comp in enumerate(competitors):
+                    c_name = comp.get("competitor_name", f"Competitor {c_idx+1}")
+                    c_domain = comp.get("domain", "")
+                    c_silo = comp.get("silo_structure_breakdown", "")
+                    c_strengths = comp.get("linking_strengths", "")
+                    c_gaps = comp.get("topical_gaps_for_us", "")
+                    c_action = comp.get("action_to_outrank", "")
+
+                    st.markdown(f"""
+                    <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 14px; padding: 20px 24px; margin-bottom: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(148, 163, 184, 0.15); padding-bottom: 10px; margin-bottom: 14px;">
+                            <div style="font-size: 1.25rem; font-weight: 800; color: #FFFFFF; display: flex; align-items: center; gap: 8px;">
+                                <span>🏢 {c_name}</span>
+                                <span style="font-size: 0.85rem; color: #38BDF8; font-weight: 500;">({c_domain})</span>
+                            </div>
+                            <span style="background: rgba(99, 102, 241, 0.15); color: #A5B4FC; border: 1px solid rgba(99, 102, 241, 0.35); font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase;">
+                                Competitor Benchmark #{c_idx+1}
+                            </span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px;">
+                            <div style="background: rgba(30, 41, 59, 0.4); padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.1);">
+                                <div style="font-size: 0.76rem; color: #38BDF8; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">🏛️ Their Silo & Category Hierarchy:</div>
+                                <div style="font-size: 0.9rem; color: #E2E8F0; line-height: 1.5;">{c_silo}</div>
+                            </div>
+                            <div style="background: rgba(30, 41, 59, 0.4); padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.1);">
+                                <div style="font-size: 0.76rem; color: #34D399; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">🔗 Their Linking Strengths & Strategy:</div>
+                                <div style="font-size: 0.9rem; color: #E2E8F0; line-height: 1.5;">{c_strengths}</div>
+                            </div>
+                        </div>
+                        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); padding: 12px 16px; border-radius: 8px; margin-bottom: 12px;">
+                            <div style="font-size: 0.76rem; color: #F87171; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">⚠️ Topical Gaps & Missing Topics for Your Site:</div>
+                            <div style="font-size: 0.9rem; color: #FCA5A5; line-height: 1.5;">{c_gaps}</div>
+                        </div>
+                        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); padding: 12px 16px; border-radius: 8px;">
+                            <div style="font-size: 0.76rem; color: #34D399; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">🚀 Strategic Playbook to Outrank Them:</div>
+                            <div style="font-size: 0.9rem; color: #A7F3D0; line-height: 1.5;">{c_action}</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("ℹ️ Competitor analysis data will appear here when generated. Run analysis or ask the AI Chatbot below.")
+
+        # TAB 4: TOPICAL CLUSTERS
         with tab_clusters:
             st.markdown("#### 📂 Identified Topical Silos & Supporting Pages")
             for idx, cluster in enumerate(silo_res.get("clusters", [])):
@@ -637,41 +815,7 @@ Please construct 3 to 6 distinct Silo Topic Clusters. Each cluster must have:
                     if spoke_rows:
                         st.dataframe(pd.DataFrame(spoke_rows), use_container_width=True, hide_index=True)
 
-        with tab_matrix:
-            st.markdown("#### 🔗 Exact Interlinking Rules & Recommendations")
-            rules = silo_res.get("interlinking_rules", [])
-            if rules:
-                df_rules = pd.DataFrame(rules)
-                col_rename = {
-                    "action": "Directive",
-                    "source_page": "Source Page (Link From)",
-                    "target_page": "Target Page (Link To)",
-                    "suggested_anchor_text": "Suggested Anchor Text",
-                    "seo_rationale": "SEO Rationale"
-                }
-                df_rules = df_rules.rename(columns=col_rename)
-
-                # Export CSV
-                csv_data = df_rules.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    "📥 Download Silo Interlinking Plan (CSV)",
-                    data=csv_data,
-                    file_name="ai_silo_interlinking_plan.csv",
-                    mime="text/csv",
-                    key="dl_silo_csv"
-                )
-
-                st.dataframe(df_rules, use_container_width=True, hide_index=True)
-
-                with st.expander("📋 1-Click HTML Anchor Snippets for Developers & CMS"):
-                    st.markdown("Copy and paste these exact anchor tags into your content editor:")
-                    for _, r in df_rules.head(6).iterrows():
-                        s_p = r.get("Source Page (Link From)", "")
-                        t_p = r.get("Target Page (Link To)", "")
-                        anc = r.get("Suggested Anchor Text", "")
-                        d_type = r.get("Directive", "")
-                        st.code(f'<!-- On: {s_p} | Type: {d_type} -->\n<a href="{t_p}">{anc}</a>', language="html")
-
+        # TAB 5: LEAKAGE AUDIT & BREADCRUMBS
         with tab_leakage:
             st.markdown("#### 🛡️ Cross-Silo Linkage Leakage Prevention & Breadcrumbs")
             col_b1, col_b2 = st.columns(2)
@@ -701,7 +845,7 @@ Please construct 3 to 6 distinct Silo Topic Clusters. Each cluster must have:
         <span style="font-size: 1.45rem; font-weight: 800; color: #FFFFFF;">Chat with AI Silo Architect</span>
     </div>
     <div style="font-size: 0.92rem; color: #94A3B8; margin-bottom: 16px;">
-        Ask Gemini, ChatGPT, or Claude any question about structuring your website, anchor texts, resolving PageRank dilution, or CMS implementation.
+        Ask Gemini, ChatGPT, or Claude any question about structuring your website, anchor texts, competitor gaps, resolving PageRank dilution, or CMS implementation.
     </div>
     """, unsafe_allow_html=True)
 
@@ -710,26 +854,26 @@ Please construct 3 to 6 distinct Silo Topic Clusters. Each cluster must have:
         st.session_state["silo_chat_history"] = [
             {
                 "role": "assistant",
-                "content": f"👋 Hi! I am your **AI Silo Architect**. Enter your website URL above and ask me anything about optimizing your website's topical clusters, choosing anchor texts, or structuring URLs."
+                "content": f"👋 Hi! I am your **AI Silo Architect**. Enter your website URL above and ask me anything about optimizing your website's topical clusters, choosing anchor texts, competitor gaps, or structuring internal links."
             }
         ]
 
-    # Quick prompt buttons
+    # Quick prompt buttons (Updated as requested by user: Keep Anchor Text Strategy, Keep Interlinking Strategy, Remove Subfolder vs Flat URLs, Add Competitor Analysis)
     st.markdown("<div style='font-size: 0.82rem; font-weight: 600; color: #CBD5E1; margin-bottom: 8px;'>💡 Quick Strategy Inquiries:</div>", unsafe_allow_html=True)
     qc1, qc2, qc3, qc4 = st.columns(4)
     quick_prompt = None
     with qc1:
         if st.button("🔗 Anchor Text Strategy", use_container_width=True, key="qp_anchor"):
-            quick_prompt = f"What are 10 high-impact anchor text variations to link supporting articles to the main pillar on {target_site}?"
+            quick_prompt = f"What are 10 high-impact anchor text variations to link supporting articles to the main pillar on {target_site} without over-optimization penalties?"
     with qc2:
-        if st.button("🚫 Prevent Leakage", use_container_width=True, key="qp_leakage"):
-            quick_prompt = f"How do I prevent PageRank leakage between different category silos on {target_site}?"
+        if st.button("⚡ In-Page Interlinking Guide", use_container_width=True, key="qp_interlinking"):
+            quick_prompt = f"Give me a concrete list of exactly which page on {target_site} should link to which other page, along with the exact anchor text and sentence context."
     with qc3:
-        if st.button("📂 Subfolder vs Flat URLs", use_container_width=True, key="qp_urls"):
-            quick_prompt = f"Should {target_site} use physical subfolders (/category/subcategory/) or virtual breadcrumb silos with flat URLs?"
+        if st.button("🏆 Competitor Silo Analysis", use_container_width=True, key="qp_competitor"):
+            quick_prompt = f"Who are the top 3-4 organic search competitors for {target_site}? What are their core silo pillars, how do they link them, and what topical gaps can we exploit to outrank them?"
     with qc4:
-        if st.button("🛒 Product to Blog Linking", use_container_width=True, key="qp_prod"):
-            quick_prompt = f"What is the exact formula for interlinking informational blog guides with commercial product pages on {target_site}?"
+        if st.button("🛡️ Prevent PageRank Leakage", use_container_width=True, key="qp_leakage"):
+            quick_prompt = f"How do I prevent PageRank leakage between different category silos on {target_site} while maintaining good user navigation?"
 
     # Display Chat History
     chat_container = st.container()
@@ -739,7 +883,7 @@ Please construct 3 to 6 distinct Silo Topic Clusters. Each cluster must have:
                 st.markdown(msg["content"])
 
     # User Input Field
-    user_input = st.chat_input("Ask AI Silo Architect anything about your website's internal linking...")
+    user_input = st.chat_input("Ask AI Silo Architect anything about your website's internal linking or competitors...")
     if quick_prompt:
         user_input = quick_prompt
 
@@ -758,13 +902,16 @@ Please construct 3 to 6 distinct Silo Topic Clusters. Each cluster must have:
             with st.spinner("AI Architect is thinking..."):
                 current_silo_context = json.dumps(st.session_state.get("silo_architecture_result", {}), indent=2)
                 chat_sys_prompt = f"""
-You are an Elite Senior Technical SEO Architect specializing in Website Information Architecture, Topical Silos, and Internal Linking.
+You are an Elite Senior Technical SEO Architect specializing in Website Information Architecture, Topical Silos, Internal Linking, and Competitor Search Analysis.
 The user is working on the website: {target_site}
 Target Silo Model: {selected_framework}
-Generated Silo Structure Context:
-{current_silo_context[:2500]}
+Generated Silo Structure & Competitors Context:
+{current_silo_context[:3000]}
 
-Provide clear, highly specific, actionable advice. Use bullet points, bold key terms, and provide code/URL examples where appropriate. Keep answers concise and SEO-practical.
+Provide clear, highly specific, actionable advice. When suggesting links, ALWAYS format them clearly:
+'On Page: [URL] ➔ In Section: [Name] ➔ Insert Sentence: "..." ➔ Anchor Text: "[Text]" ➔ Links to: [Destination URL]'.
+When discussing competitors, name specific real-world competitors in that industry, compare their category architecture, and highlight actionable gaps.
+Use bullet points, bold key terms, and keep answers concise and SEO-practical.
 """
                 try:
                     ai_reply = _call_ai_model(
