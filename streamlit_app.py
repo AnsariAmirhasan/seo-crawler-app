@@ -661,7 +661,7 @@ with tab_overview:
         st.markdown("<br>", unsafe_allow_html=True)
 
         # Visualizer Charts Grid
-        col_g1, col_g2, col_g3 = st.columns([1, 1, 1.35])
+        col_g1, col_g2, col_g3 = st.columns([1, 1, 1.6])
         with col_g1:
             st.plotly_chart(create_health_gauge(summary["health_score"]), use_container_width=True, config={'displayModeBar': False})
         with col_g2:

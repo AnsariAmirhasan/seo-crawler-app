@@ -34,7 +34,7 @@ def create_health_gauge(score: int):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        height=350,
+        height=370,
         margin=dict(l=20, r=20, t=50, b=20),
         font=dict(family=FONT_FAMILY)
     )
@@ -77,7 +77,7 @@ def create_status_code_chart(df_pages: pd.DataFrame):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#CBD5E1", family=FONT_FAMILY),
-        height=350,
+        height=370,
         margin=dict(l=15, r=15, t=55, b=45),
         legend=dict(
             orientation="h",
@@ -99,7 +99,7 @@ def create_issues_bar_chart(df_issues: pd.DataFrame):
             showarrow=False,
             font=dict(size=15, color="#10B981", family=FONT_FAMILY)
         )
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=350)
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=370)
         return fig
 
     issue_summary = df_issues.groupby(["category", "type"]).size().reset_index(name="count")
@@ -119,20 +119,34 @@ def create_issues_bar_chart(df_issues: pd.DataFrame):
         color_discrete_map=color_discrete_map,
         labels={"count": "Issues Count", "category": "SEO Category", "type": "Severity"}
     )
+    fig.update_traces(
+        hovertemplate="<b>%{y}</b><br>Severity: %{data.name}<br>Issues: %{x}<extra></extra>"
+    )
     fig.update_layout(
-        title={
-            'text': "Issues by Category & Severity",
-            'x': 0.02,
-            'xanchor': 'left',
-            'font': {'color': '#F1F5F9', 'size': 16, 'family': FONT_FAMILY}
-        },
+        title=dict(
+            text="Issues by Category & Severity",
+            x=0.01,
+            y=0.98,
+            xanchor="left",
+            yanchor="top",
+            font=dict(color='#F1F5F9', size=15, family=FONT_FAMILY)
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0.01,
+            title=dict(text=""),
+            font=dict(size=11, color="#94A3B8")
+        ),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#CBD5E1", family=FONT_FAMILY),
-        height=350,
-        margin=dict(l=10, r=20, t=55, b=45),
+        height=370,
+        margin=dict(l=10, r=20, t=80, b=50),
         xaxis=dict(
-            title=dict(text="Issues Count", standoff=8, font=dict(size=11, color="#94A3B8")),
+            title=dict(text="Issues Count", standoff=10, font=dict(size=11, color="#94A3B8")),
             gridcolor="rgba(51, 65, 85, 0.4)",
             tickfont=dict(color="#94A3B8", size=10)
         ),
@@ -141,15 +155,6 @@ def create_issues_bar_chart(df_issues: pd.DataFrame):
             gridcolor="rgba(51, 65, 85, 0.4)",
             tickfont=dict(color="#CBD5E1", size=11),
             automargin=True
-        ),
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1.0,
-            title=dict(text=""),
-            font=dict(size=11, color="#94A3B8")
         )
     )
     return fig
