@@ -164,10 +164,10 @@ def run_extraction(api_key: str, model: str, query: str, num_queries: int = 15, 
             fan_out_queries, answer_text = extract_via_prompt(client, actual_model, query, num_queries, country)
     except Exception as e:
         err = str(e).lower()
-        # Handle 404 NOT_FOUND (when model name like gemini-3.6/3.7/3.8 is not yet deployed on Google's endpoint)
+        # Handle 404 NOT_FOUND (when model name is not deployed or deprecated)
         if "404" in err or "not found" in err or "not_found" in err:
-            actual_model = "gemini-2.5-flash"
-            fallback_note = f"ℹ️ Model '{clean_model}' is not yet deployed on Google's v1beta API endpoint. Automatically switched to Google's active production model '{actual_model}' to complete your extraction."
+            actual_model = "gemini-3.6-flash"
+            fallback_note = f"ℹ️ Model '{clean_model}' was not found on Google's endpoint. Automatically switched to Google's recommended active model '{actual_model}' to complete your extraction."
             try:
                 fan_out_queries, answer_text = extract_via_grounding(client, actual_model, query, country)
                 if not fan_out_queries:
@@ -234,14 +234,11 @@ def render_query_fanout_page():
         if ai_provider == "Google Gemini":
             model_options = [
                 "gemini-3.8-flash",
-                "gemini-3.8-pro",
                 "gemini-3.7-flash",
-                "gemini-3.7-pro",
                 "gemini-3.6-flash",
-                "gemini-3.6-pro",
                 "gemini-3.5-flash",
                 "gemini-3.5-flash-lite",
-                "gemini-3.5-pro",
+                "gemini-3.1-pro-preview",
                 "Custom Model"
             ]
         elif ai_provider == "ChatGPT (OpenAI)":
