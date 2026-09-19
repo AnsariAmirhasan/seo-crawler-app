@@ -270,7 +270,7 @@ def render_silo_architect_page():
             🏛️ Enterprise Information Architecture & AI Interlinking
         </div>
         <h1 style="font-size: 2.75rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.03em; margin: 0 0 0.6rem 0; line-height: 1.15;">
-            AI Silo Structure Architect
+            AI Silo / Competitor / Blog Topic
         </h1>
         <p style="color: #94A3B8; font-size: 1.12rem; max-width: 760px; margin: 0 auto; line-height: 1.6;">
             Architect bulletproof topical silos, benchmark competitors' site architecture, discover high-traffic blog topics with ZERO keyword cannibalization, and get exact in-page anchor text linking instructions.

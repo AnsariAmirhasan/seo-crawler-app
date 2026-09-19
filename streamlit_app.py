@@ -371,7 +371,7 @@ with st.sidebar:
             "🕷️ SEO Spider & Crawler",
             "🗺️ XML Sitemap Generator",
             "🎯 Query Fan-Out Extractor",
-            "🏛️ AI Silo Structure Architect",
+            "🏛️ AI Silo / Competitor / Blog Topic",
             "📊 SERP Rank Tracker (Coming Soon)",
             "🔗 Backlink Explorer (Coming Soon)",
             "⚡ Core Web Vitals (Coming Soon)"
@@ -699,7 +699,7 @@ if selected_tool == "🎯 Query Fan-Out Extractor":
     render_query_fanout_page()
     st.stop()
 
-if selected_tool == "🏛️ AI Silo Structure Architect":
+if selected_tool == "🏛️ AI Silo / Competitor / Blog Topic":
     render_silo_architect_page()
     st.stop()
 
@@ -2806,7 +2806,7 @@ with tab_architecture:
                     <span style="font-weight: 700; color: #FFFFFF; font-size: 0.98rem;">🏛️ Looking for Strategic AI Silo Architecture & Interlinking?</span>
                     <div style="color: #94A3B8; font-size: 0.85rem; margin-top: 3px;">Harness Gemini (3.5 to 3.8), ChatGPT, or Claude to architect topical silos, eliminate PageRank leaks, and chat with an AI SEO strategist.</div>
                 </div>
-                <span style="background: #6366F1; color: white; padding: 6px 16px; border-radius: 8px; font-size: 0.82rem; font-weight: 700;">Select '🏛️ AI Silo Structure Architect' in Sidebar</span>
+                <span style="background: #6366F1; color: white; padding: 6px 16px; border-radius: 8px; font-size: 0.82rem; font-weight: 700;">Select '🏛️ AI Silo / Competitor / Blog Topic' in Sidebar</span>
             </div>
             """, unsafe_allow_html=True)
 
