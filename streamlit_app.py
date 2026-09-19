@@ -390,118 +390,6 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-# 4. Main Page Header Banner
-st.markdown("""
-<div class="main-header" style="padding: 1.3rem 2rem; margin-bottom: 1.2rem;">
-    <div style="font-size:1.55rem; font-weight:800; color:#FFFFFF; letter-spacing:-0.025em; display:flex; align-items:center; gap:8px;">
-        <span>⚡ High-Speed Technical SEO Crawler</span>
-    </div>
-    <div style="font-size:0.92rem; color:#94A3B8; margin-top:4px;">
-        Enter any website URL to audit internal links, canonical tags, titles, headings, and images up to 10,000 URLs.
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# 5. Screaming Frog Top Search Bar
-col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([5, 2.2, 1.3, 1.1])
-
-with col_sf_url:
-    target_url = st.text_input(
-        "Enter URL to spider",
-        value=st.session_state.get("cfg_target_url", ""),
-        placeholder="https://www.example.com/",
-        label_visibility="collapsed",
-        help="Enter starting website URL (e.g. https://www.cairnindia.com/)"
-    )
-
-with col_sf_mode:
-    crawl_mode = st.selectbox(
-        "Crawl Mode",
-        options=["Subdomain", "Subfolder", "All Subdomains", "Exact URL"],
-        index=0,
-        label_visibility="collapsed",
-        help="• Subdomain: Crawl within current host\n• Subfolder: Stay inside folder path\n• All Subdomains: Crawl all *.domain.com subdomains\n• Exact URL: Inspect this single page only"
-    )
-
-with col_sf_start:
-    btn_start = st.button("▶ Start", type="primary", use_container_width=True)
-
-with col_sf_clear:
-    btn_clear = st.button("🔄 Clear", use_container_width=True)
-
-if btn_clear:
-    st.session_state["crawl_results"] = None
-    st.session_state["single_inspect_result"] = None
-    st.session_state["cfg_target_url"] = ""
-    st.rerun()
-
-# Fixed Optimized Engine Parameters (10,000 URLs limit)
-max_pages = 10000
-max_depth = 10
-concurrency = 12
-timeout = 10
-user_agent_choice = "Chrome (Windows 11)"
-respect_robots = False
-include_regex = ""
-exclude_regex = ""
-
-# 6. Crawl Execution Logic
-if btn_start:
-    if not target_url or not target_url.startswith(("http://", "https://")):
-        st.error("⚠️ Please enter a valid URL starting with http:// or https://")
-    else:
-        st.session_state["cfg_target_url"] = target_url
-        st.session_state["is_crawling"] = True
-        progress_bar = st.progress(0, text=f"Initializing High-Speed SEO Spider Engine [{crawl_mode} Mode - 10,000 URL Limit]...")
-        status_box = st.empty()
-
-        spider = SEOSpider(
-            start_url=target_url,
-            max_pages=max_pages,
-            max_depth=max_depth,
-            concurrency=concurrency,
-            user_agent_name=user_agent_choice,
-            respect_robots=respect_robots,
-            timeout=timeout,
-            include_regex=include_regex,
-            exclude_regex=exclude_regex,
-            crawl_mode=crawl_mode
-        )
-
-        def on_progress(crawled_count=0, max_pages=1, current_url="", status_code=200, **kwargs):
-            total_limit = max_pages or 1
-            pct = min(1.0, crawled_count / max(total_limit, 1))
-            progress_bar.progress(pct, text=f"⚡ Crawling ({crawled_count}/{total_limit} URLs) — {current_url[:65]}...")
-            status_box.markdown(f"""
-            <div style="background:rgba(30,41,59,0.7); border:1px solid #334155; border-radius:10px; padding:10px 14px; font-size:0.88rem; color:#CBD5E1;">
-                <b>Crawling URL:</b> <code>{current_url[:75]}</code> &nbsp;|&nbsp; 
-                <b>Status:</b> <span class="status-pill status-green">{status_code}</span> &nbsp;|&nbsp; 
-                <b>Total Crawled:</b> <b>{crawled_count}</b>
-            </div>
-            """, unsafe_allow_html=True)
-
-        start_time = time.time()
-        with st.spinner("Spider is traversing website architecture..."):
-            raw_crawl = spider.crawl(progress_callback=on_progress)
-            elapsed = round(time.time() - start_time, 2)
-
-        progress_bar.progress(1.0, text=f"Crawl Completed: {len(raw_crawl['crawled_pages'])} pages in {elapsed}s! Analyzing technical factors...")
-        
-        with st.spinner("Computing SEO Health Score and Issue Aggregations..."):
-            analysis = analyze_crawl_results(
-                raw_crawl["crawled_pages"],
-                raw_crawl["links"],
-                raw_crawl["images"]
-            )
-            analysis["elapsed_seconds"] = elapsed
-            analysis["start_url"] = target_url
-            st.session_state["crawl_results"] = analysis
-            st.session_state["is_crawling"] = False
-
-        status_box.success(f"✅ Audit Completed! Successfully crawled and analyzed **{len(analysis['df_pages'])}** pages in **{elapsed} seconds**.")
-        time.sleep(1)
-        st.rerun()
-
 def render_xml_sitemap_generator():
     # Hero section matching xml-sitemaps.com
     st.markdown("""
@@ -824,6 +712,119 @@ if selected_tool != "🕷️ SEO Spider & Crawler":
     </div>
     """, unsafe_allow_html=True)
     st.stop()
+
+
+# 4. Main Page Header Banner
+st.markdown("""
+<div class="main-header" style="padding: 1.3rem 2rem; margin-bottom: 1.2rem;">
+    <div style="font-size:1.55rem; font-weight:800; color:#FFFFFF; letter-spacing:-0.025em; display:flex; align-items:center; gap:8px;">
+        <span>⚡ High-Speed Technical SEO Crawler</span>
+    </div>
+    <div style="font-size:0.92rem; color:#94A3B8; margin-top:4px;">
+        Enter any website URL to audit internal links, canonical tags, titles, headings, and images up to 10,000 URLs.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# 5. Screaming Frog Top Search Bar
+col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([5, 2.2, 1.3, 1.1])
+
+with col_sf_url:
+    target_url = st.text_input(
+        "Enter URL to spider",
+        value=st.session_state.get("cfg_target_url", ""),
+        placeholder="https://www.example.com/",
+        label_visibility="collapsed",
+        help="Enter starting website URL (e.g. https://www.cairnindia.com/)"
+    )
+
+with col_sf_mode:
+    crawl_mode = st.selectbox(
+        "Crawl Mode",
+        options=["Subdomain", "Subfolder", "All Subdomains", "Exact URL"],
+        index=0,
+        label_visibility="collapsed",
+        help="• Subdomain: Crawl within current host\n• Subfolder: Stay inside folder path\n• All Subdomains: Crawl all *.domain.com subdomains\n• Exact URL: Inspect this single page only"
+    )
+
+with col_sf_start:
+    btn_start = st.button("▶ Start", type="primary", use_container_width=True)
+
+with col_sf_clear:
+    btn_clear = st.button("🔄 Clear", use_container_width=True)
+
+if btn_clear:
+    st.session_state["crawl_results"] = None
+    st.session_state["single_inspect_result"] = None
+    st.session_state["cfg_target_url"] = ""
+    st.rerun()
+
+# Fixed Optimized Engine Parameters (10,000 URLs limit)
+max_pages = 10000
+max_depth = 10
+concurrency = 12
+timeout = 10
+user_agent_choice = "Chrome (Windows 11)"
+respect_robots = False
+include_regex = ""
+exclude_regex = ""
+
+# 6. Crawl Execution Logic
+if btn_start:
+    if not target_url or not target_url.startswith(("http://", "https://")):
+        st.error("⚠️ Please enter a valid URL starting with http:// or https://")
+    else:
+        st.session_state["cfg_target_url"] = target_url
+        st.session_state["is_crawling"] = True
+        progress_bar = st.progress(0, text=f"Initializing High-Speed SEO Spider Engine [{crawl_mode} Mode - 10,000 URL Limit]...")
+        status_box = st.empty()
+
+        spider = SEOSpider(
+            start_url=target_url,
+            max_pages=max_pages,
+            max_depth=max_depth,
+            concurrency=concurrency,
+            user_agent_name=user_agent_choice,
+            respect_robots=respect_robots,
+            timeout=timeout,
+            include_regex=include_regex,
+            exclude_regex=exclude_regex,
+            crawl_mode=crawl_mode
+        )
+
+        def on_progress(crawled_count=0, max_pages=1, current_url="", status_code=200, **kwargs):
+            total_limit = max_pages or 1
+            pct = min(1.0, crawled_count / max(total_limit, 1))
+            progress_bar.progress(pct, text=f"⚡ Crawling ({crawled_count}/{total_limit} URLs) — {current_url[:65]}...")
+            status_box.markdown(f"""
+            <div style="background:rgba(30,41,59,0.7); border:1px solid #334155; border-radius:10px; padding:10px 14px; font-size:0.88rem; color:#CBD5E1;">
+                <b>Crawling URL:</b> <code>{current_url[:75]}</code> &nbsp;|&nbsp; 
+                <b>Status:</b> <span class="status-pill status-green">{status_code}</span> &nbsp;|&nbsp; 
+                <b>Total Crawled:</b> <b>{crawled_count}</b>
+            </div>
+            """, unsafe_allow_html=True)
+
+        start_time = time.time()
+        with st.spinner("Spider is traversing website architecture..."):
+            raw_crawl = spider.crawl(progress_callback=on_progress)
+            elapsed = round(time.time() - start_time, 2)
+
+        progress_bar.progress(1.0, text=f"Crawl Completed: {len(raw_crawl['crawled_pages'])} pages in {elapsed}s! Analyzing technical factors...")
+        
+        with st.spinner("Computing SEO Health Score and Issue Aggregations..."):
+            analysis = analyze_crawl_results(
+                raw_crawl["crawled_pages"],
+                raw_crawl["links"],
+                raw_crawl["images"]
+            )
+            analysis["elapsed_seconds"] = elapsed
+            analysis["start_url"] = target_url
+            st.session_state["crawl_results"] = analysis
+            st.session_state["is_crawling"] = False
+
+        status_box.success(f"✅ Audit Completed! Successfully crawled and analyzed **{len(analysis['df_pages'])}** pages in **{elapsed} seconds**.")
+        time.sleep(1)
+        st.rerun()
 
 # Main Application Tabs
 tab_overview, tab_issues, tab_pages, tab_responses, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_inspector, tab_sitemap = st.tabs([
