@@ -140,33 +140,49 @@ def extract_via_claude(api_key: str, model: str, query: str, num_queries: int = 
     return fan_out_queries, answer_text
 
 def run_extraction(api_key: str, model: str, query: str, num_queries: int = 15, provider: str = "Google Gemini", country: str = None):
+    fallback_note = ""
+    clean_model = model.split(" ")[0].strip() if " (" in model else model.strip()
+
     if provider == "ChatGPT (OpenAI)":
-        fan_out_queries, answer_text = extract_via_chatgpt(api_key, model, query, num_queries, country)
-        return fan_out_queries, answer_text, "chatgpt"
+        fan_out_queries, answer_text = extract_via_chatgpt(api_key, clean_model, query, num_queries, country)
+        return fan_out_queries, answer_text, "chatgpt", clean_model, fallback_note
 
     if provider == "Claude (Anthropic)":
-        fan_out_queries, answer_text = extract_via_claude(api_key, model, query, num_queries, country)
-        return fan_out_queries, answer_text, "claude"
+        fan_out_queries, answer_text = extract_via_claude(api_key, clean_model, query, num_queries, country)
+        return fan_out_queries, answer_text, "claude", clean_model, fallback_note
 
-    # Gemini path (grounding -> prompt fallback)
+    # Gemini path (grounding -> prompt fallback -> 404 smart model fallback)
     from google import genai
     client = genai.Client(api_key=api_key)
     method_used = "grounding"
+    actual_model = clean_model
 
     try:
-        fan_out_queries, answer_text = extract_via_grounding(client, model, query, country)
+        fan_out_queries, answer_text = extract_via_grounding(client, actual_model, query, country)
         if not fan_out_queries:
             method_used = "prompt"
-            fan_out_queries, answer_text = extract_via_prompt(client, model, query, num_queries, country)
+            fan_out_queries, answer_text = extract_via_prompt(client, actual_model, query, num_queries, country)
     except Exception as e:
         err = str(e).lower()
-        if any(kw in err for kw in ["quota", "rate", "limit", "429", "503", "resource_exhausted", "grounding", "unavailable", "capacity"]):
+        # Handle 404 NOT_FOUND (when model name like gemini-3.6/3.7/3.8 is not yet deployed on Google's endpoint)
+        if "404" in err or "not found" in err or "not_found" in err:
+            actual_model = "gemini-2.5-flash"
+            fallback_note = f"ℹ️ Model '{clean_model}' is not yet deployed on Google's v1beta API endpoint. Automatically switched to Google's active production model '{actual_model}' to complete your extraction."
+            try:
+                fan_out_queries, answer_text = extract_via_grounding(client, actual_model, query, country)
+                if not fan_out_queries:
+                    method_used = "prompt"
+                    fan_out_queries, answer_text = extract_via_prompt(client, actual_model, query, num_queries, country)
+            except Exception as e2:
+                method_used = "prompt"
+                fan_out_queries, answer_text = extract_via_prompt(client, actual_model, query, num_queries, country)
+        elif any(kw in err for kw in ["quota", "rate", "limit", "429", "503", "resource_exhausted", "grounding", "unavailable", "capacity"]):
             method_used = "prompt"
-            fan_out_queries, answer_text = extract_via_prompt(client, model, query, num_queries, country)
+            fan_out_queries, answer_text = extract_via_prompt(client, actual_model, query, num_queries, country)
         else:
             raise e
 
-    return fan_out_queries, answer_text, method_used
+    return fan_out_queries, answer_text, method_used, actual_model, fallback_note
 
 
 def render_query_fanout_page():
@@ -213,13 +229,20 @@ def render_query_fanout_page():
 
         if ai_provider == "Google Gemini":
             model_options = [
-                "gemini-3.6-flash",
-                "gemini-3.6-pro",
+                "gemini-2.5-flash (Recommended - Active Production)",
+                "gemini-2.5-pro (Active Production)",
+                "gemini-2.0-flash",
+                "gemini-2.0-flash-lite",
+                "gemini-1.5-flash",
+                "gemini-1.5-pro",
+                "gemini-3.8-flash (Preview)",
+                "gemini-3.8-pro (Preview)",
+                "gemini-3.7-flash (Preview)",
+                "gemini-3.7-pro (Preview)",
+                "gemini-3.6-flash (Preview)",
+                "gemini-3.6-pro (Preview)",
                 "gemini-3.5-flash",
-                "gemini-3.5-flash-lite",
                 "gemini-3.5-pro",
-                "gemini-2.5-flash",
-                "gemini-2.5-pro",
                 "Custom Model"
             ]
         elif ai_provider == "ChatGPT (OpenAI)":
@@ -346,7 +369,7 @@ def render_query_fanout_page():
         with st.spinner(f"Analyzing prompt with {ai_provider} ({selected_model}) and decomposing into search fan-out queries..."):
             try:
                 t0 = time.time()
-                queries, answer_text, method_used = run_extraction(
+                queries, answer_text, method_used, actual_model, fallback_note = run_extraction(
                     api_key=api_key.strip(),
                     model=selected_model,
                     query=user_query.strip(),
@@ -363,8 +386,9 @@ def render_query_fanout_page():
                     "elapsed": elapsed,
                     "query": user_query.strip(),
                     "provider": ai_provider,
-                    "model": selected_model,
-                    "country": target_country
+                    "model": actual_model,
+                    "country": target_country,
+                    "fallback_note": fallback_note
                 }
                 st.rerun()
 
@@ -382,6 +406,9 @@ def render_query_fanout_page():
     res = st.session_state.get("fanout_results")
     if res:
         st.markdown("---")
+
+        if res.get("fallback_note"):
+            st.info(res["fallback_note"])
 
         # Method Banner
         method_labels = {
