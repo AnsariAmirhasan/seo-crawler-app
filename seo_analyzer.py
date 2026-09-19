@@ -4,6 +4,8 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 import pandas as pd
 from collections import Counter
+import requests
+from concurrent.futures import ThreadPoolExecutor
 
 def estimate_pixel_width(text: str) -> int:
     """Approximate Google SERP title pixel width."""
@@ -448,6 +450,49 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
 
     return seo_info
 
+def resolve_image_sizes(df_images: pd.DataFrame, max_workers: int = 20, timeout: float = 3.0) -> pd.DataFrame:
+    """Fetch HTTP content-length for unique image URLs in parallel and compute size_kb & is_over_100kb."""
+    if df_images is None or df_images.empty:
+        return df_images
+
+    if "size_kb" in df_images.columns and "is_over_100kb" in df_images.columns:
+        return df_images
+
+    unique_urls = [u for u in df_images["image_url"].dropna().unique() if str(u).startswith("http")]
+    if not unique_urls:
+        df_images["size_kb"] = 0.0
+        df_images["is_over_100kb"] = False
+        return df_images
+
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    })
+
+    def fetch_single_size(url):
+        try:
+            r = session.head(url, timeout=timeout, allow_redirects=True)
+            if r.status_code == 200 and "content-length" in r.headers:
+                return url, round(int(r.headers["content-length"]) / 1024.0, 1)
+            # Fallback to streaming GET if HEAD fails or doesn't return content-length
+            r = session.get(url, stream=True, timeout=timeout)
+            if "content-length" in r.headers:
+                return url, round(int(r.headers["content-length"]) / 1024.0, 1)
+            content = r.raw.read(1024 * 1024 * 10)
+            return url, round(len(content) / 1024.0, 1)
+        except Exception:
+            return url, 0.0
+
+    url_to_size = {}
+    with ThreadPoolExecutor(max_workers=min(max_workers, max(1, len(unique_urls)))) as executor:
+        results = executor.map(fetch_single_size, unique_urls)
+        for u, sz in results:
+            url_to_size[u] = sz
+
+    df_images["size_kb"] = df_images["image_url"].map(url_to_size).fillna(0.0)
+    df_images["is_over_100kb"] = df_images["size_kb"] > 100.0
+    return df_images
+
 def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list):
     """Aggregate all page audits, compute site-wide duplicates, metrics, and health score."""
     pages_audit = []
@@ -459,6 +504,11 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
     df_pages = pd.DataFrame(pages_audit)
     df_links = pd.DataFrame(all_links) if all_links else pd.DataFrame(columns=["source_url", "target_url", "anchor_text", "is_internal", "nofollow", "rel"])
     df_images = pd.DataFrame(all_images) if all_images else pd.DataFrame(columns=["page_url", "image_url", "alt", "has_alt", "loading"])
+    if not df_images.empty:
+        df_images = resolve_image_sizes(df_images)
+    else:
+        df_images["size_kb"] = []
+        df_images["is_over_100kb"] = []
 
     # Compute link stats and map source_page / anchor_text per page
     if not df_links.empty and not df_pages.empty:
@@ -581,8 +631,14 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
     if not df_images.empty and not df_pages.empty:
         img_counts = df_images.groupby("page_url").size().to_dict()
         img_missing_alt = df_images[df_images["has_alt"] == False].groupby("page_url").size().to_dict()
+        img_over_100kb = df_images[df_images.get("is_over_100kb", False) == True].groupby("page_url").size().to_dict() if "is_over_100kb" in df_images.columns else {}
         df_pages["images_count"] = df_pages["url"].map(img_counts).fillna(0).astype(int)
         df_pages["images_missing_alt_count"] = df_pages["url"].map(img_missing_alt).fillna(0).astype(int)
+        df_pages["images_over_100kb_count"] = df_pages["url"].map(img_over_100kb).fillna(0).astype(int)
+    else:
+        df_pages["images_count"] = 0
+        df_pages["images_missing_alt_count"] = 0
+        df_pages["images_over_100kb_count"] = 0
 
     # Detect duplicate Page Titles across the site (ONLY 200 OK & Indexable pages!)
     indexable_pages = df_pages[(df_pages["status_code"] == 200) & (df_pages["is_indexable"] == True)]
@@ -639,12 +695,20 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
                 "recommendation": "Add internal links pointing to this URL from navigation, category pages, or relevant articles."
             })
 
-        if row["images_missing_alt_count"] > 0:
+        if row.get("images_missing_alt_count", 0) > 0:
             issues_list.append({
                 "type": "Warning",
                 "category": "Images",
                 "issue": f"{row['images_missing_alt_count']} images missing ALT text",
                 "recommendation": "Add descriptive alt attributes to help image search and accessibility."
+            })
+
+        if row.get("images_over_100kb_count", 0) > 0:
+            issues_list.append({
+                "type": "Warning",
+                "category": "Images",
+                "issue": f"{row['images_over_100kb_count']} images over 100 KB",
+                "recommendation": "Compress or convert images to next-gen WebP/AVIF format to keep file sizes under 100 KB and improve PageSpeed / Core Web Vitals (LCP)."
             })
 
         df_pages.at[idx, "issues"] = issues_list
@@ -688,6 +752,7 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
             "redirect_chains_count": int(df_pages["is_redirect_chain"].sum()) if not df_pages.empty and "is_redirect_chain" in df_pages.columns else 0,
             "redirect_loops_count": int(df_pages["is_redirect_loop"].sum()) if not df_pages.empty and "is_redirect_loop" in df_pages.columns else 0,
             "total_links": len(df_links),
-            "total_images": len(df_images)
+            "total_images": len(df_images),
+            "images_over_100kb_count": int(df_images["is_over_100kb"].sum()) if not df_images.empty and "is_over_100kb" in df_images.columns else 0
         }
     }

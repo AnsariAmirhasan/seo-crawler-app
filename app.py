@@ -2450,11 +2450,21 @@ with tab_images:
         if df_images.empty:
             st.info("No images detected on crawled pages.")
         else:
+            # Ensure size_kb and is_over_100kb are populated (even on pre-existing session runs)
+            if "size_kb" not in df_images.columns or "is_over_100kb" not in df_images.columns:
+                from seo_analyzer import resolve_image_sizes
+                df_images = resolve_image_sizes(df_images)
+                results["df_images"] = df_images.copy()
+
             total_images = len(df_images)
 
-            # Clean and calculate Alt statistics
+            # Clean and calculate Alt & Size statistics
             df_images["alt_clean"] = df_images["alt"].fillna("").astype(str).str.strip()
             df_images["alt_length"] = df_images["alt_clean"].str.len()
+            if "size_kb" not in df_images.columns:
+                df_images["size_kb"] = 0.0
+            if "is_over_100kb" not in df_images.columns:
+                df_images["is_over_100kb"] = df_images["size_kb"] > 100.0
             
             # Identify Duplicate Alt Texts
             alt_counts = df_images[df_images["alt_clean"] != ""]["alt_clean"].value_counts()
@@ -2478,17 +2488,19 @@ with tab_images:
             dup_alt_count = len(df_images[df_images["alt_status"] == "Duplicate Alt Text"])
             over_len_alt_count = len(df_images[df_images["alt_status"] == "Alt Text Over 100 Chars"])
             ok_alt_count = len(df_images[df_images["alt_status"] == "OK"])
+            over_100kb_count = int(df_images["is_over_100kb"].sum())
 
             st.subheader("🖼️ Images SEO & Alt Text Audit")
-            st.caption("Deep inspection of image elements across crawled pages — extract missing alt text, detect duplicate alt descriptions, and identify overly long descriptions.")
+            st.caption("Deep inspection of image elements across crawled pages — detect images over 100 KB, extract missing alt text, identify duplicate alt descriptions, and flag overly long descriptions.")
 
-            # 5 Metric Cards
-            im1, im2, im3, im4, im5 = st.columns(5)
+            # 6 Metric Cards
+            im1, im2, im3, im4, im5, im6 = st.columns(6)
             im1.metric("Total Images", f"{total_images}")
-            im2.metric("Alt Text Optimal (OK)", f"{ok_alt_count}", delta=f"{round(ok_alt_count/max(total_images,1)*100)}% of images")
+            im2.metric("Alt Optimal (OK)", f"{ok_alt_count}", delta=f"{round(ok_alt_count/max(total_images,1)*100)}% of images")
             im3.metric("Missing Alt Text", f"{missing_alt_count}", delta="Needs alt attribute" if missing_alt_count else "None", delta_color="inverse" if missing_alt_count else "normal")
-            im4.metric("Duplicate Alt Text", f"{dup_alt_count}", delta="Repeated alt" if dup_alt_count else "Unique", delta_color="inverse" if dup_alt_count else "normal")
-            im5.metric("Alt Over 100 Chars", f"{over_len_alt_count}", delta="Too verbose" if over_len_alt_count else "Concise", delta_color="inverse" if over_len_alt_count else "normal")
+            im4.metric("Duplicate Alt", f"{dup_alt_count}", delta="Repeated alt" if dup_alt_count else "Unique", delta_color="inverse" if dup_alt_count else "normal")
+            im5.metric("Alt > 100 Chars", f"{over_len_alt_count}", delta="Too verbose" if over_len_alt_count else "Concise", delta_color="inverse" if over_len_alt_count else "normal")
+            im6.metric("Images Over 100 KB", f"{over_100kb_count}", delta="Heavy assets (>100 KB)" if over_100kb_count else "Optimized", delta_color="inverse" if over_100kb_count else "normal")
 
             # Filters and Search
             ifcol1, ifcol2 = st.columns([1.5, 2])
@@ -2497,6 +2509,7 @@ with tab_images:
                     "Filter Images by Status:",
                     [
                         "All Images",
+                        "Images Over 100 KB",
                         "Missing Alt Text",
                         "Duplicate Alt Text",
                         "Alt Text Over 100 Chars",
@@ -2508,7 +2521,9 @@ with tab_images:
 
             df_filtered_img = df_images.copy()
 
-            if img_filter == "Missing Alt Text":
+            if img_filter == "Images Over 100 KB":
+                df_filtered_img = df_filtered_img[df_filtered_img["is_over_100kb"] == True].sort_values(by="size_kb", ascending=False)
+            elif img_filter == "Missing Alt Text":
                 df_filtered_img = df_filtered_img[df_filtered_img["alt_status"] == "Missing Alt Text"]
             elif img_filter == "Duplicate Alt Text":
                 df_filtered_img = df_filtered_img[df_filtered_img["alt_status"] == "Duplicate Alt Text"]
@@ -2540,12 +2555,14 @@ with tab_images:
 
             st.dataframe(
                 df_filtered_img[[
-                    "page_url", "image_url", "alt_clean", "alt_status", "alt_length", "has_alt"
+                    "page_url", "image_url", "size_kb", "is_over_100kb", "alt_clean", "alt_status", "alt_length", "has_alt"
                 ]],
                 use_container_width=True,
                 column_config={
                     "page_url": st.column_config.LinkColumn("Found On Page"),
                     "image_url": st.column_config.LinkColumn("Image URL"),
+                    "size_kb": st.column_config.NumberColumn("File Size", format="%.1f KB"),
+                    "is_over_100kb": st.column_config.CheckboxColumn("Over 100 KB"),
                     "alt_clean": st.column_config.TextColumn("Alt Text"),
                     "alt_status": st.column_config.TextColumn("Alt Status"),
                     "alt_length": st.column_config.NumberColumn("Alt Chars", format="%d"),
@@ -2554,8 +2571,9 @@ with tab_images:
                 hide_index=True
             )
 
-            with st.expander("💡 SEO Guide: Image Alt Text Best Practices"):
+            with st.expander("💡 SEO Guide: Image Optimization & Alt Text Best Practices"):
                 st.markdown("""
+                - **Keep File Sizes Under 100 KB**: Large image files significantly slow down page load times and degrade Largest Contentful Paint (LCP). Convert to modern WebP or AVIF and apply compression to keep assets under 100 KB.
                 - **Descriptive Alt Text**: Describe the visual content clearly for search engines and screen readers.
                 - **Avoid Keyword Stuffing**: Keep alt text natural, relevant, and concise (under 100 characters).
                 - **Unique Alt Text**: Different images should not share generic alt text (like "image" or "banner").

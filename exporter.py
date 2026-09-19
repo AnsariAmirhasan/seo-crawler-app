@@ -27,7 +27,8 @@ def generate_excel_report(analysis_result: dict, start_url: str) -> bytes:
         {"Metric": "Duplicate Page Titles", "Value": summary.get('duplicate_titles_count', 0)},
         {"Metric": "Duplicate H1 Headings", "Value": summary.get('duplicate_h1_count', 0)},
         {"Metric": "Total Links Discovered", "Value": summary.get('total_links', 0)},
-        {"Metric": "Total Images Discovered", "Value": summary.get('total_images', 0)}
+        {"Metric": "Total Images Discovered", "Value": summary.get('total_images', 0)},
+        {"Metric": "Images Over 100 KB", "Value": summary.get('images_over_100kb_count', 0)}
     ])
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -56,6 +57,10 @@ def generate_excel_report(analysis_result: dict, start_url: str) -> bytes:
             df_links.head(30000).to_excel(writer, sheet_name='Discovered Links', index=False)
         if not df_images.empty:
             df_images.head(30000).to_excel(writer, sheet_name='Images & Alt', index=False)
+            if "is_over_100kb" in df_images.columns:
+                heavy_imgs = df_images[df_images["is_over_100kb"] == True]
+                if not heavy_imgs.empty:
+                    heavy_imgs.sort_values(by="size_kb", ascending=False).to_excel(writer, sheet_name='Images Over 100 KB', index=False)
 
     return output.getvalue()
 
