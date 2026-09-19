@@ -30,8 +30,18 @@ def normalize_url(url: str) -> str:
         url = url + "/"
     return url
 
-def is_internal_url(target_url: str, allowed_domains) -> bool:
-    """Check if target_url belongs to any allowed internal domain / subdomain."""
+def get_root_domain(netloc: str) -> str:
+    """Extract root registrable domain (e.g. example.com or example.co.in)."""
+    clean = re.sub(r"^www\.", "", netloc.lower())
+    parts = clean.split(".")
+    if len(parts) > 2 and parts[-2] in ["co", "com", "org", "net", "gov", "edu", "ac", "nic", "res"]:
+        return ".".join(parts[-3:])
+    if len(parts) >= 2:
+        return ".".join(parts[-2:])
+    return clean
+
+def is_internal_url(target_url: str, allowed_domains, allow_subdomains: bool = False) -> bool:
+    """Check if target_url belongs to allowed internal domain / subdomain based on mode."""
     try:
         parsed_target = urlparse(target_url)
         target_netloc = parsed_target.netloc.lower()
@@ -40,8 +50,19 @@ def is_internal_url(target_url: str, allowed_domains) -> bool:
         domains = allowed_domains if isinstance(allowed_domains, (set, list, tuple)) else [allowed_domains]
         for base_domain in domains:
             base_clean = re.sub(r"^www\.", "", str(base_domain).lower())
-            if target_clean == base_clean or target_clean.endswith("." + base_clean):
+            
+            # Exact subdomain or www equivalent match
+            if target_clean == base_clean:
                 return True
+                
+            # If All Subdomains mode is enabled
+            if allow_subdomains:
+                if target_clean.endswith("." + base_clean):
+                    return True
+                root_base = get_root_domain(base_clean)
+                root_target = get_root_domain(target_clean)
+                if root_base and root_base == root_target:
+                    return True
         return False
     except Exception:
         return False
@@ -69,15 +90,24 @@ class SEOSpider:
         respect_robots: bool = False,
         timeout: int = 10,
         include_regex: str = "",
-        exclude_regex: str = ""
+        exclude_regex: str = "",
+        crawl_mode: str = "Subdomain"
     ):
         self.start_url = normalize_url(start_url)
         parsed_start = urlparse(self.start_url)
         self.base_domain = parsed_start.netloc
         self.allowed_domains = {self.base_domain}
+        self.subfolder_prefix = parsed_start.path.rstrip("/") if parsed_start.path and parsed_start.path != "/" else ""
+        self.crawl_mode = crawl_mode  # "Subdomain", "Subfolder", "All Subdomains", "Exact URL"
         self.scheme = parsed_start.scheme or "https"
-        self.max_pages = max_pages
-        self.max_depth = max_depth
+
+        if self.crawl_mode == "Exact URL":
+            self.max_pages = 1
+            self.max_depth = 0
+        else:
+            self.max_pages = max_pages
+            self.max_depth = max_depth
+
         self.concurrency = concurrency
         self.user_agent = USER_AGENTS.get(user_agent_name, USER_AGENTS["Chrome (Windows 11)"])
         self.respect_robots = respect_robots
@@ -189,7 +219,7 @@ class SEOSpider:
         }
 
     def should_crawl(self, url: str, depth: int) -> bool:
-        """Evaluate if URL passes filters and belongs to allowed internal domains."""
+        """Evaluate if URL passes filters, depth limits, and crawl mode scope."""
         if not url or depth > self.max_depth:
             return False
         
@@ -205,8 +235,23 @@ class SEOSpider:
         if parsed.path.lower().endswith(non_html_extensions):
             return False
 
-        if not is_internal_url(url, self.allowed_domains):
+        # Crawl Mode Scope Checking (Screaming Frog parity)
+        if self.crawl_mode == "Exact URL":
             return False
+        elif self.crawl_mode == "Subfolder":
+            if not is_internal_url(url, self.allowed_domains, allow_subdomains=False):
+                return False
+            if self.subfolder_prefix and not parsed.path.startswith(self.subfolder_prefix):
+                return False
+        elif self.crawl_mode == "Subdomain":
+            if not is_internal_url(url, self.allowed_domains, allow_subdomains=False):
+                return False
+        elif self.crawl_mode == "All Subdomains":
+            if not is_internal_url(url, self.allowed_domains, allow_subdomains=True):
+                return False
+        else:
+            if not is_internal_url(url, self.allowed_domains):
+                return False
 
         if self.include_regex and not self.include_regex.search(url):
             return False
@@ -260,6 +305,7 @@ class SEOSpider:
                     if fetch_res.get("html"):
                         try:
                             soup = BeautifulSoup(fetch_res["html"], "html.parser")
+                            allow_sub = (self.crawl_mode == "All Subdomains")
                             
                             # Extract Links
                             for a_tag in soup.find_all("a", href=True):
@@ -268,7 +314,7 @@ class SEOSpider:
                                     continue
                                 
                                 abs_url = normalize_url(urljoin(fetch_res["final_url"], raw_href))
-                                is_internal = is_internal_url(abs_url, self.allowed_domains)
+                                is_internal = is_internal_url(abs_url, self.allowed_domains, allow_subdomains=allow_sub)
                                 rel_val = a_tag.get("rel", [])
                                 is_nofollow = "nofollow" in (rel_val if isinstance(rel_val, list) else [rel_val])
                                 anchor_text = a_tag.get_text(strip=True)[:100]

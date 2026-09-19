@@ -349,15 +349,54 @@ if "cfg_max_depth" not in st.session_state:
 if "cfg_threads" not in st.session_state:
     st.session_state["cfg_threads"] = 10
 
-# 5. Sidebar Controls & Quick Presets
+# 5. Screaming Frog Top Search Bar
+st.markdown("""
+<div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(51, 65, 85, 0.65); border-radius: 14px; padding: 12px 18px; margin-bottom: 1.5rem; backdrop-filter: blur(10px); box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+        <span style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94A3B8;">
+            🕸️ Spider Crawl Target & Scope
+        </span>
+        <span style="font-size: 0.75rem; color: #64748B;">
+            Screaming Frog Style Search & Mode Selection
+        </span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([5, 2.2, 1.3, 1.1])
+
+with col_sf_url:
+    target_url = st.text_input(
+        "Enter URL to spider",
+        value=st.session_state["cfg_target_url"],
+        placeholder="https://www.example.com/",
+        label_visibility="collapsed",
+        help="Enter starting website URL (e.g. https://www.cairnindia.com/)"
+    )
+
+with col_sf_mode:
+    crawl_mode = st.selectbox(
+        "Crawl Mode",
+        options=["Subdomain", "Subfolder", "All Subdomains", "Exact URL"],
+        index=0,
+        label_visibility="collapsed",
+        help="• Subdomain: Crawl within current host\n• Subfolder: Stay inside folder path\n• All Subdomains: Crawl all *.domain.com subdomains\n• Exact URL: Inspect this single page only"
+    )
+
+with col_sf_start:
+    btn_start_top = st.button("▶ Start", type="primary", use_container_width=True)
+
+with col_sf_clear:
+    btn_clear = st.button("🔄 Clear", use_container_width=True)
+
+if btn_clear:
+    st.session_state["crawl_results"] = None
+    st.session_state["single_inspect_result"] = None
+    st.rerun()
+
+# 6. Sidebar Controls & Quick Presets
 with st.sidebar:
     st.markdown("### ⚙️ Crawl Configuration")
-
-    target_url = st.text_input(
-        "🌐 Target Website URL",
-        value=st.session_state["cfg_target_url"],
-        help="Enter full website URL starting with https:// or http://"
-    )
 
     preset_choice = st.selectbox(
         "⚡ Quick Scan Preset",
@@ -425,28 +464,31 @@ with st.sidebar:
         exclude_regex = st.text_input("Exclude URL Regex", value="", help="Skip URLs matching regex pattern")
 
     st.markdown("---")
-    btn_start = st.button("🚀 Start Unlimited SEO Crawl", type="primary", use_container_width=True)
+    btn_start_sidebar = st.button("🚀 Start SEO Crawl", use_container_width=True)
     st.markdown("---")
 
     st.markdown("""
     <div class="sidebar-box">
         <div style="font-weight:700; color:#F8FAFC; margin-bottom:6px; font-size:0.88rem;">🔥 Screaming Frog vs Amir's Spider:</div>
         <div style="font-size:0.8rem; color:#94A3B8; line-height:1.5;">
+            • <b>Top Search Bar:</b> Enter URL + Mode selector.<br>
             • <b>Unlimited Scale:</b> No 500-page limit.<br>
-            • <b>Cloud Native:</b> Runs anywhere in browser.<br>
             • <b>Canonical Mapping:</b> Dedicated audit tab.<br>
             • <b>Free Excel Export:</b> Multi-sheet workbook.
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-# 6. Crawl Execution Logic
+btn_start = btn_start_top or btn_start_sidebar
+
+# 7. Crawl Execution Logic
 if btn_start:
     if not target_url or not target_url.startswith(("http://", "https://")):
         st.error("⚠️ Please enter a valid URL starting with http:// or https://")
     else:
+        st.session_state["cfg_target_url"] = target_url
         st.session_state["is_crawling"] = True
-        progress_bar = st.progress(0, text="Initializing High-Speed SEO Spider Engine...")
+        progress_bar = st.progress(0, text=f"Initializing High-Speed SEO Spider Engine [{crawl_mode} Mode]...")
         status_box = st.empty()
 
         spider = SEOSpider(
@@ -458,7 +500,8 @@ if btn_start:
             respect_robots=respect_robots,
             timeout=timeout,
             include_regex=include_regex,
-            exclude_regex=exclude_regex
+            exclude_regex=exclude_regex,
+            crawl_mode=crawl_mode
         )
 
         def on_progress(crawled_count=0, max_pages=1, current_url="", status_code=200, **kwargs):
