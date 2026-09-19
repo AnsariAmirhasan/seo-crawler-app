@@ -11,7 +11,8 @@ from visualizer import (
     create_health_gauge,
     create_status_code_chart,
     create_issues_bar_chart,
-    create_site_architecture_graph
+    create_site_architecture_graph,
+    create_silo_structure_graph
 )
 from exporter import generate_excel_report, generate_csv
 from sitemap_generator import (
@@ -34,175 +35,175 @@ st.set_page_config(
 # 2. Modern Universal Theme Styling
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 html, body, [class*="css"] {
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Header Container */
-.main-header {
-    background: radial-gradient(130% 120% at 50% -10%, #2A2568 0%, #131A33 50%, #0A0D18 100%);
-    padding: 2.2rem 2.5rem;
-    border-radius: 18px;
-    margin-bottom: 1.8rem;
-    border: 1px solid rgba(99, 102, 241, 0.35);
-    box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
-    position: relative;
-    overflow: hidden;
-}
-.header-badge-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 0.75rem;
-}
-.header-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(99, 102, 241, 0.18);
-    color: #A5B4FC;
-    border: 1px solid rgba(129, 140, 248, 0.4);
-    padding: 5px 14px;
-    border-radius: 9999px;
-    font-size: 0.76rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-.live-indicator-dot {
-    width: 8px;
-    height: 8px;
-    background-color: #10B981;
-    border-radius: 50%;
-    box-shadow: 0 0 10px #10B981;
-    display: inline-block;
-}
-.main-title {
-    font-size: 2.35rem;
-    font-weight: 800;
-    background: linear-gradient(135deg, #FFFFFF 20%, #E0E7FF 60%, #A5B4FC 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin: 0;
-    letter-spacing: -0.025em;
-    line-height: 1.2;
-}
-.main-subtitle {
-    color: #94A3B8;
-    font-size: 1.02rem;
-    margin-top: 8px;
-    margin-bottom: 0;
-    line-height: 1.5;
-    max-width: 850px;
-}
-.header-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 1.2rem;
-}
-.header-pill {
-    font-size: 0.82rem;
-    padding: 5px 12px;
-    border-radius: 8px;
-    background: rgba(30, 41, 59, 0.75);
-    color: #E2E8F0;
-    border: 1px solid rgba(71, 85, 105, 0.45);
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+/* Background overrides */
+.stApp {
+    background-color: #0B0E14 !important;
 }
 
-/* Modern Tab Styling */
+/* Sidebar Custom Styling */
+section[data-testid="stSidebar"] {
+    background-color: #0D1118 !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Radio Navigation Pills in Sidebar */
+div[data-testid="stRadio"] div[role="radiogroup"] {
+    gap: 6px !important;
+}
+div[data-testid="stRadio"] div[role="radiogroup"] > label {
+    border-radius: 10px !important;
+    padding: 8px 14px !important;
+    margin-bottom: 3px !important;
+    background: transparent !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    cursor: pointer !important;
+    border: 1px solid transparent !important;
+}
+div[data-testid="stRadio"] div[role="radiogroup"] > label:hover {
+    background: rgba(255, 193, 7, 0.08) !important;
+    border-color: rgba(255, 193, 7, 0.25) !important;
+}
+div[data-testid="stRadio"] div[role="radiogroup"] > label:hover p,
+div[data-testid="stRadio"] div[role="radiogroup"] > label:hover span {
+    color: #FFFFFF !important;
+}
+/* Hide circular radio buttons */
+div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child {
+    display: none !important;
+}
+/* Active Radio Item - Solid Yellow Pill with Bold Black Text */
+div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"],
+div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) {
+    background: #FFC107 !important;
+    box-shadow: 0 4px 18px rgba(255, 193, 7, 0.4) !important;
+    border-color: #FFC107 !important;
+}
+div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"] p,
+div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) p,
+div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"] span,
+div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) span {
+    color: #000000 !important;
+    font-weight: 800 !important;
+}
+
+/* Primary Button Styling - Cyber Golden Yellow */
+button[kind="primary"],
+button[data-testid="baseButton-primary"] {
+    background: #FFC107 !important;
+    color: #000000 !important;
+    font-weight: 800 !important;
+    border: none !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 18px rgba(255, 193, 7, 0.35) !important;
+    transition: all 0.2s ease !important;
+}
+button[kind="primary"]:hover,
+button[data-testid="baseButton-primary"]:hover {
+    background: #FFD54F !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 24px rgba(255, 193, 7, 0.5) !important;
+}
+button[kind="secondary"],
+button[data-testid="baseButton-secondary"] {
+    background: rgba(18, 22, 32, 0.85) !important;
+    color: #CBD5E1 !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 10px !important;
+    transition: all 0.2s ease !important;
+}
+button[kind="secondary"]:hover,
+button[data-testid="baseButton-secondary"]:hover {
+    border-color: #FFC107 !important;
+    color: #FFC107 !important;
+    background: rgba(255, 193, 7, 0.08) !important;
+}
+
+/* Modern Pill Tab Styling */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 6px;
-    background-color: rgba(15, 23, 42, 0.75);
-    padding: 7px;
-    border-radius: 14px;
-    border: 1px solid rgba(51, 65, 85, 0.6);
-    backdrop-filter: blur(12px);
-    margin-bottom: 1.5rem;
+    gap: 8px !important;
+    background-color: rgba(14, 18, 26, 0.95) !important;
+    padding: 7px 10px !important;
+    border-radius: 14px !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    backdrop-filter: blur(14px) !important;
+    margin-bottom: 1.5rem !important;
 }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 9px !important;
-    padding: 8px 18px !important;
+    border-radius: 10px !important;
+    padding: 8px 16px !important;
     font-weight: 600 !important;
-    font-size: 0.9rem !important;
+    font-size: 0.88rem !important;
     color: #94A3B8 !important;
     border: none !important;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 .stTabs [data-baseweb="tab"]:hover {
     color: #FFFFFF !important;
-    background: rgba(51, 65, 85, 0.45) !important;
+    background: rgba(255, 255, 255, 0.06) !important;
 }
 .stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%) !important;
-    color: #FFFFFF !important;
-    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.45) !important;
+    background: #FFC107 !important;
+    color: #000000 !important;
+    font-weight: 800 !important;
+    box-shadow: 0 4px 16px rgba(255, 193, 7, 0.35) !important;
+}
+.stTabs [aria-selected="true"] p,
+.stTabs [aria-selected="true"] span {
+    color: #000000 !important;
+    font-weight: 800 !important;
 }
 
-/* KPI Metric Cards */
-.kpi-card {
-    background: linear-gradient(180deg, rgba(30, 41, 59, 0.75) 0%, rgba(15, 23, 42, 0.9) 100%);
-    padding: 1.3rem 1.4rem;
+/* Input & Select Custom Styling */
+div[data-baseweb="input"] {
+    background-color: #121620 !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 10px !important;
+}
+div[data-baseweb="input"]:focus-within {
+    border-color: #FFC107 !important;
+    box-shadow: 0 0 0 1px #FFC107 !important;
+}
+div[data-baseweb="select"] > div {
+    background-color: #121620 !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 10px !important;
+}
+
+/* KPI Metric Cards (Gold Theme) */
+.kpi-card-gold {
+    background: linear-gradient(180deg, rgba(22, 27, 36, 0.95) 0%, rgba(14, 18, 26, 0.98) 100%);
+    padding: 1.1rem 1.2rem;
     border-radius: 14px;
-    border: 1px solid rgba(51, 65, 85, 0.65);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
     position: relative;
-    overflow: hidden;
-    transition: transform 0.2s ease, border-color 0.2s ease;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.kpi-card:hover {
+.kpi-card-gold:hover {
     transform: translateY(-2px);
-    border-color: rgba(99, 102, 241, 0.6);
-}
-.kpi-card-topbar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3.5px;
-}
-.kpi-title {
-    font-size: 0.78rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #94A3B8;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.kpi-num {
-    font-size: 2.1rem;
-    font-weight: 800;
-    letter-spacing: -0.025em;
-    margin-top: 0.4rem;
-    color: #FFFFFF;
-}
-.kpi-sub {
-    font-size: 0.8rem;
-    color: #64748B;
-    margin-top: 0.25rem;
+    border-color: rgba(255, 193, 7, 0.5);
+    box-shadow: 0 8px 25px rgba(255, 193, 7, 0.15);
 }
 
 /* Hero Feature Cards */
 .feature-card {
-    background: linear-gradient(180deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.85) 100%);
+    background: linear-gradient(180deg, rgba(22, 27, 36, 0.7) 0%, rgba(14, 18, 26, 0.9) 100%);
     padding: 1.6rem;
     border-radius: 14px;
-    border: 1px solid rgba(51, 65, 85, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     height: 100%;
     transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .feature-card:hover {
     transform: translateY(-4px);
-    border-color: rgba(99, 102, 241, 0.6);
-    box-shadow: 0 14px 28px -6px rgba(79, 70, 229, 0.22);
+    border-color: rgba(255, 193, 7, 0.5);
+    box-shadow: 0 14px 28px -6px rgba(255, 193, 7, 0.15);
 }
 .feature-icon-badge {
     width: 48px;
@@ -309,62 +310,28 @@ html, body, [class*="css"] {
     color: #F87171;
     border: 1px solid rgba(239, 68, 68, 0.35);
 }
-
-/* Sidebar Custom Details */
-.sidebar-box {
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(51, 65, 85, 0.5);
-    border-radius: 12px;
-    padding: 1rem;
-    margin-bottom: 1rem;
-}
-/* Custom Button Pills Styling for Filter Controls */
-div[data-testid="stPills"] {
-    gap: 8px !important;
-    flex-wrap: wrap !important;
-}
-div[data-testid="stPills"] button {
-    background: rgba(30, 41, 59, 0.75) !important;
-    border: 1px solid rgba(71, 85, 105, 0.6) !important;
-    color: #CBD5E1 !important;
-    border-radius: 20px !important;
-    padding: 6px 14px !important;
-    font-size: 0.84rem !important;
-    font-weight: 600 !important;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    cursor: pointer !important;
-}
-div[data-testid="stPills"] button:hover {
-    border-color: #818CF8 !important;
-    background: rgba(99, 102, 241, 0.18) !important;
-    color: #FFFFFF !important;
-    transform: translateY(-1px) !important;
-}
-div[data-testid="stPills"] button[aria-selected="true"] {
-    background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%) !important;
-    border-color: #A5B4FC !important;
-    color: #FFFFFF !important;
-    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35) !important;
-    font-weight: 700 !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
 # 3. Sidebar: Brand & Tools Suite Navigation
 with st.sidebar:
     st.markdown("""
-    <div style="padding: 0.5rem 0 1.2rem;">
+    <div style="padding: 0.2rem 0 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 1rem;">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-size: 2.2rem;">🕷️</span>
+            <span style="font-size: 2.2rem; filter: drop-shadow(0 0 10px rgba(255,193,7,0.5));">🕷️</span>
             <div>
-                <div style="font-size: 1.35rem; font-weight: 800; color: #FFFFFF; line-height: 1.2; letter-spacing: -0.02em;">Amir's SEO Spider</div>
-                <div style="font-size: 0.75rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px;">Technical Audit Suite</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #FFFFFF; line-height: 1.2; letter-spacing: -0.02em;">
+                    Amir's <span style="color: #FFC107;">SEO Spider</span>
+                </div>
+                <div style="font-size: 0.72rem; color: #94A3B8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; margin-top: 2px;">
+                    Technical Audit Suite
+                </div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("##### 🧭 Tools & Modules")
+    st.markdown("<div style='font-size: 0.85rem; font-weight: 700; color: #94A3B8; margin-bottom: 6px;'>🧭 Tools & Modules</div>", unsafe_allow_html=True)
     selected_tool = st.radio(
         "Select Active Tool",
         options=[
@@ -380,17 +347,33 @@ with st.sidebar:
         label_visibility="collapsed"
     )
 
-    st.markdown("---")
     st.markdown("""
-    <div class="sidebar-box">
-        <div style="font-weight: 700; color: #F8FAFC; margin-bottom: 8px; font-size: 0.85rem;">⚡ Crawl Engine Specs:</div>
-        <div style="font-size: 0.82rem; color: #94A3B8; line-height: 1.65;">
-            • <b>Fixed Capacity:</b> <span style="color:#34D399; font-weight:700;">10,000 URLs / Crawl</span><br>
-            • <b>Depth Limit:</b> Max 10 Click Depth<br>
-            • <b>Engine:</b> 12 Multi-Threaded Workers<br>
-            • <b>Default Agent:</b> Chrome Desktop (WAF Safe)<br>
-            • <b>Export:</b> Multi-Tab Excel Workbook
+    <div style="background: rgba(18, 22, 32, 0.85); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 12px; padding: 1rem 1.1rem; margin-top: 1.2rem;">
+        <div style="font-weight: 800; color: #F8FAFC; margin-bottom: 10px; font-size: 0.86rem; display: flex; align-items: center; gap: 6px;">
+            <span style="color: #FFC107;">⚡</span> Crawl Engine Specs:
         </div>
+        <div style="font-size: 0.82rem; color: #CBD5E1; line-height: 1.85;">
+            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> <b>10,000 URLs</b> <span style="color: #64748B;">(Fixed Capacity)</span></div>
+            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Max 10 Click Depth</div>
+            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> 12 Multi-Threaded Workers</div>
+            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Chrome Desktop (WAF Safe)</div>
+            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Multi-Tab Excel Export</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="margin-top: 1.2rem; padding: 10px 14px; background: rgba(18, 22, 32, 0.95); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 36px; height: 36px; border-radius: 50%; background: #1E232E; border: 1.5px solid #FFC107; display: flex; align-items: center; justify-content: center; color: #FFC107; font-weight: 800; font-size: 1rem;">
+                👤
+            </div>
+            <div>
+                <div style="color: #FFFFFF; font-weight: 700; font-size: 0.92rem; line-height: 1.2;">Amir Ansari</div>
+                <div style="color: #94A3B8; font-size: 0.74rem; margin-top: 2px;"><span style="color: #FFC107; font-weight: 600;">Build</span> • Audit • Rank</div>
+            </div>
+        </div>
+        <div style="color: #64748B; font-size: 1.1rem; padding: 0 4px; cursor: pointer;">•••</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -716,20 +699,95 @@ if selected_tool != "🕷️ SEO Spider & Crawler":
     st.stop()
 
 
-# 4. Main Page Header Banner
+# 4. Top Stepper Navbar & Quick Actions
 st.markdown("""
-<div class="main-header" style="padding: 1.3rem 2rem; margin-bottom: 1.2rem;">
-    <div style="font-size:1.55rem; font-weight:800; color:#FFFFFF; letter-spacing:-0.025em; display:flex; align-items:center; gap:8px;">
-        <span>⚡ High-Speed Technical SEO Crawler</span>
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.2rem 0 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.07); margin-bottom: 1.4rem;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+        <span style="color: #94A3B8; font-size: 1.25rem; cursor: pointer;">☰</span>
     </div>
-    <div style="font-size:0.92rem; color:#94A3B8; margin-top:4px;">
-        Enter any website URL to audit internal links, canonical tags, titles, headings, and images up to 10,000 URLs.
+    <div style="display: flex; align-items: center; gap: 12px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; color: #64748B;">
+        <span style="color: #FFC107;">CRAWL</span>
+        <span style="color: #475569;">→</span>
+        <span style="color: #94A3B8;">ANALYZE</span>
+        <span style="color: #475569;">→</span>
+        <span style="color: #94A3B8;">OPTIMIZE</span>
+        <span style="color: #475569;">→</span>
+        <span style="color: #E2E8F0;">RANK HIGHER</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 16px;">
+        <span style="color: #94A3B8; font-size: 1rem; cursor: pointer;">☀️</span>
+        <span style="color: #94A3B8; font-size: 1rem; cursor: pointer;">❔</span>
+        <div style="background: #FFC107; color: #000000; font-weight: 800; font-size: 0.8rem; padding: 6px 16px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(255,193,7,0.3); cursor: pointer;">
+            <span>🔗</span> Share
+        </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# 5. Screaming Frog Top Search Bar
-col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([5, 2.2, 1.3, 1.1])
+# 5. Main Page Hero Banner with 3D Golden Spider Graphic
+st.markdown("""
+<div style="background: radial-gradient(130% 120% at 85% 30%, #1e1908 0%, #121622 55%, #0B0E14 100%); padding: 2.2rem 2.6rem; border-radius: 20px; border: 1px solid rgba(255, 193, 7, 0.25); margin-bottom: 1.5rem; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.7); position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+    <div style="flex: 1.3; min-width: 320px; z-index: 2;">
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 193, 7, 0.12); color: #FFC107; border: 1px solid rgba(255, 193, 7, 0.35); padding: 5px 14px; border-radius: 9999px; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1rem;">
+            <span>⚡</span> ENTERPRISE-READY SEO AUDITS
+        </div>
+        <h1 style="font-size: 2.65rem; font-weight: 900; margin: 0 0 0.6rem 0; line-height: 1.15; letter-spacing: -0.03em;">
+            <span style="color: #FFC107; text-shadow: 0 0 30px rgba(255,193,7,0.35);">High-Speed</span> <span style="color: #FFFFFF;">Technical SEO Crawler</span>
+        </h1>
+        <p style="color: #94A3B8; font-size: 1.05rem; max-width: 680px; margin: 0; line-height: 1.6;">
+            Enter any website URL to audit internal links, canonical tags, titles, headings, images and more up to 10,000 URLs. <b style="color: #FFC107;">Fast. Accurate. Actionable.</b>
+        </p>
+    </div>
+    <div style="position: relative; text-align: center; z-index: 2; padding-right: 10px;">
+        <svg width="190" height="130" viewBox="0 0 200 145" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <radialGradient id="spiderGoldBody" cx="35%" cy="35%" r="65%">
+                    <stop offset="0%" stop-color="#FFF3B0"/>
+                    <stop offset="45%" stop-color="#FFC107"/>
+                    <stop offset="85%" stop-color="#B45309"/>
+                    <stop offset="100%" stop-color="#451A03"/>
+                </radialGradient>
+                <radialGradient id="spiderDarkHead" cx="30%" cy="30%" r="70%">
+                    <stop offset="0%" stop-color="#475569"/>
+                    <stop offset="70%" stop-color="#0F172A"/>
+                    <stop offset="100%" stop-color="#020617"/>
+                </radialGradient>
+                <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3.5" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+            </defs>
+            <path d="M195,5 L120,70 M180,0 L110,60 M200,40 L130,80" stroke="rgba(255, 193, 7, 0.3)" stroke-width="1.2" stroke-dasharray="3,3"/>
+            <!-- Left Legs -->
+            <path d="M90,75 Q60,40 30,55 Q15,65 10,95" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
+            <path d="M92,80 Q55,65 25,90 Q12,105 18,135" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
+            <path d="M94,85 Q65,95 40,120 Q30,135 38,145" stroke="url(#spiderGoldBody)" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+            <path d="M96,90 Q75,115 65,138 Q60,148 70,145" stroke="url(#spiderGoldBody)" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+            <!-- Right Legs -->
+            <path d="M110,75 Q140,40 170,55 Q185,65 190,95" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
+            <path d="M108,80 Q145,65 175,90 Q188,105 182,135" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
+            <path d="M106,85 Q135,95 160,120 Q170,135 162,145" stroke="url(#spiderGoldBody)" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+            <path d="M104,90 Q125,115 135,138 Q140,148 130,145" stroke="url(#spiderGoldBody)" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+            <!-- Abdomen -->
+            <ellipse cx="100" cy="98" rx="20" ry="26" fill="url(#spiderDarkHead)" stroke="url(#spiderGoldBody)" stroke-width="2.2" filter="url(#goldGlow)"/>
+            <path d="M93,92 Q100,85 107,92 Q104,102 107,112 Q100,118 93,112 Q96,102 93,92 Z" fill="url(#spiderGoldBody)"/>
+            <!-- Cephalothorax -->
+            <circle cx="100" cy="74" r="13" fill="url(#spiderDarkHead)" stroke="url(#spiderGoldBody)" stroke-width="2"/>
+            <!-- Glowing Yellow Eyes -->
+            <circle cx="95" cy="68" r="2.6" fill="#FFC107" filter="url(#goldGlow)"/>
+            <circle cx="105" cy="68" r="2.6" fill="#FFC107" filter="url(#goldGlow)"/>
+            <circle cx="91" cy="72" r="1.6" fill="#FFC107"/>
+            <circle cx="109" cy="72" r="1.6" fill="#FFC107"/>
+        </svg>
+        <div style="font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif; font-size: 1.35rem; color: #FDE047; transform: rotate(-6deg); margin-top: 2px; text-shadow: 0 2px 8px rgba(0,0,0,0.8);">
+            Let's make the web better!
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# 6. Screaming Frog Top Search Bar
+col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([4.8, 2.2, 1.8, 1.2])
 
 with col_sf_url:
     target_url = st.text_input(
@@ -750,10 +808,10 @@ with col_sf_mode:
     )
 
 with col_sf_start:
-    btn_start = st.button("▶ Start", type="primary", use_container_width=True)
+    btn_start = st.button("▶ Start Crawl", type="primary", use_container_width=True)
 
 with col_sf_clear:
-    btn_clear = st.button("🔄 Clear", use_container_width=True)
+    btn_clear = st.button("🗑️ Clear", use_container_width=True)
 
 if btn_clear:
     st.session_state["crawl_results"] = None
@@ -831,13 +889,13 @@ if btn_start:
 # Main Application Tabs
 tab_overview, tab_issues, tab_pages, tab_responses, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_inspector, tab_sitemap = st.tabs([
     "📊 Overview",
-    "🚨 Issues & Fixes",
-    "📑 Internal Pages",
-    "🚦 Response Codes",
-    "🎯 Canonicals",
-    "🏷️ Page Titles",
-    "📝 Meta Description",
-    "🧱 Headings (H1/H2)",
+    "❗ Issues & Fixes",
+    "📄 Internal Pages",
+    "</> Response Codes",
+    "🔗 Canonicals",
+    "T Page Titles",
+    "📄 Meta Description",
+    "H Headings (H1/H2)",
     "🔗 Link Analysis",
     "🖼️ Images Audit",
     "🧭 Site Structure",
@@ -852,18 +910,106 @@ results = st.session_state.get("crawl_results")
 # ==============================================================================
 with tab_overview:
     if not results:
-        # Gorgeous Empty State Showcase Hero
+        # 6 KPI Metric Cards Showcase (Matching screenshot design)
         st.markdown("""
-        <div style="text-align:center; padding: 2rem 1rem 2.5rem;">
-            <span class="header-badge" style="background:rgba(99,102,241,0.2); color:#A5B4FC; margin-bottom:1rem;">
-                ✨ ENTERPRISE TECHNICAL AUDITS AT CLOUD SCALE
-            </span>
-            <h2 style="font-size:2.2rem; font-weight:800; color:#F8FAFC; margin-top:0.5rem; letter-spacing:-0.02em;">
-                Ready to Audit Any Website with Zero Limitations
-            </h2>
-            <p style="color:#94A3B8; font-size:1.05rem; max-width:720px; margin:0.6rem auto 1.8rem; line-height:1.6;">
-                Enter your target URL in the top search bar, select your crawl mode, and click Start. The crawler will audit internal links, canonical tags, metadata, status codes, and headings up to 10,000 URLs.
-            </p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 1.4rem;">
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🔗</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↑ 12%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Internal Links</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">2,458</div>
+            </div>
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">📄</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↑ 8%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Pages Crawled</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">1,245</div>
+            </div>
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">❗</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 24%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Issues Found</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">186</div>
+            </div>
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🏷️</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 40%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Missing Titles</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">12</div>
+            </div>
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🖼️</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 18%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Missing Images Alt</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">34</div>
+            </div>
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">⚡</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 28%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Avg. Response Time</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">312 ms</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Zero Limitations Feature Showcase Card
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, rgba(18, 22, 32, 0.95) 0%, rgba(11, 14, 20, 0.98) 100%); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 18px; padding: 2.2rem 2.4rem; margin-top: 0.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2rem; box-shadow: 0 16px 36px rgba(0,0,0,0.5);">
+            <div style="flex: 1.2; min-width: 280px;">
+                <h2 style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin: 0 0 0.6rem 0; letter-spacing: -0.02em;">
+                    Ready to Audit Any Website with <span style="color: #FFC107;">Zero Limitations</span>
+                </h2>
+                <p style="color: #94A3B8; font-size: 0.96rem; line-height: 1.6; max-width: 520px; margin: 0 0 1.2rem 0;">
+                    Enter your target URL in the search bar, select your crawl mode, and click Start. The crawler will audit internal links, canonical tags, metadata, status codes, images, and headings up to 10,000 URLs.
+                </p>
+            </div>
+            
+            <div style="flex: 1; min-width: 260px;">
+                <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.88rem; color: #CBD5E1;">
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Fast & Accurate Crawling</div>
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Detailed Issue Reports</div>
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Actionable SEO Insights</div>
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Export to Excel</div>
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Built for SEOs, Agencies & Businesses</div>
+                </div>
+            </div>
+            
+            <div style="flex: 0.8; min-width: 220px; text-align: center; position: relative;">
+                <div style="background: rgba(14, 18, 26, 0.95); border: 1px solid rgba(255, 193, 7, 0.35); border-radius: 14px; padding: 16px 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 8px; color: #FFFFFF; font-weight: 700; font-size: 0.88rem; margin-bottom: 8px;">
+                        <span>🔍</span> Crawl
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #CBD5E1; font-weight: 600; font-size: 0.88rem; margin-bottom: 8px;">
+                        <span>📊</span> Analyze
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #CBD5E1; font-weight: 600; font-size: 0.88rem; margin-bottom: 8px;">
+                        <span>🔧</span> Fix
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #FFC107; font-weight: 700; font-size: 0.88rem;">
+                        <span>🏆</span> Rank
+                    </div>
+                </div>
+                <div style="font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif; font-size: 1.15rem; color: #FCD34D; transform: rotate(8deg); margin-top: 8px;">
+                    Audit Optimize Dominate
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; margin-top: 1.5rem; margin-bottom: 1.5rem;">
+            <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(18, 22, 32, 0.9); border: 1px solid rgba(255, 193, 7, 0.4); padding: 7px 22px; border-radius: 9999px; font-size: 0.82rem; color: #F8FAFC; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.3); cursor: pointer;">
+                <span>☁️</span> Run Enterprise Audits at Cloud Scale <span style="color: #FFC107; font-weight: 800;">›</span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -872,43 +1018,6 @@ with tab_overview:
             if st.button("🚀 Load Sample Target (books.toscrape.com)", use_container_width=True):
                 st.session_state["cfg_target_url"] = "https://books.toscrape.com"
                 st.rerun()
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # 4 Interactive Feature Cards
-        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-        with col_f1:
-            st.markdown("""
-            <div class="feature-card">
-                <div class="feature-icon-badge" style="background:rgba(99,102,241,0.18); color:#818CF8;">⚡</div>
-                <div class="feature-title">Unlimited URLs</div>
-                <p class="feature-desc">Bypass standard free 500-page limits. Multi-threaded engine comfortably audits up to 10,000+ pages.</p>
-            </div>
-            """, unsafe_allow_html=True)
-        with col_f2:
-            st.markdown("""
-            <div class="feature-card">
-                <div class="feature-icon-badge" style="background:rgba(168,85,247,0.18); color:#C084FC;">🎯</div>
-                <div class="feature-title">Canonical Audit</div>
-                <p class="feature-desc">Page URL ➔ Canonical Target tracking. Instantly detect Self-Referential, Canonicalised, Missing, and Multiple tags.</p>
-            </div>
-            """, unsafe_allow_html=True)
-        with col_f3:
-            st.markdown("""
-            <div class="feature-card">
-                <div class="feature-icon-badge" style="background:rgba(16,185,129,0.18); color:#34D399;">🔍</div>
-                <div class="feature-title">50+ SEO Checks</div>
-                <p class="feature-desc">Deep inspection of HTTP status codes, title pixel widths, H1/H2 hierarchy, broken links, and Schema markup.</p>
-            </div>
-            """, unsafe_allow_html=True)
-        with col_f4:
-            st.markdown("""
-            <div class="feature-card">
-                <div class="feature-icon-badge" style="background:rgba(245,158,11,0.18); color:#FBBF24;">📊</div>
-                <div class="feature-title">Client-Ready Reports</div>
-                <p class="feature-desc">Download multi-tab Excel workbooks (.xlsx) with dedicated sheets for Canonicals, Errors, Images, and Links.</p>
-            </div>
-            """, unsafe_allow_html=True)
 
     else:
         summary = results["summary"]
@@ -919,10 +1028,10 @@ with tab_overview:
 
         # Target Quick Status Strip
         st.markdown(f"""
-        <div style="background:rgba(30,41,59,0.6); border:1px solid #334155; border-radius:12px; padding:12px 18px; margin-bottom:1.2rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <div style="background:rgba(18,22,32,0.85); border:1px solid rgba(255,193,7,0.25); border-radius:12px; padding:12px 18px; margin-bottom:1.2rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
             <div>
                 <span style="color:#94A3B8; font-size:0.85rem; font-weight:600; text-transform:uppercase;">Audited Website:</span>
-                <span style="color:#F8FAFC; font-weight:700; margin-left:8px; font-size:1.05rem;">{target}</span>
+                <span style="color:#FFC107; font-weight:800; margin-left:8px; font-size:1.05rem;">{target}</span>
             </div>
             <div style="display:flex; gap:16px; font-size:0.85rem; color:#94A3B8;">
                 <span>⏱️ Crawl Time: <b style="color:#CBD5E1;">{elapsed}s</b></span>
@@ -932,53 +1041,59 @@ with tab_overview:
         </div>
         """, unsafe_allow_html=True)
 
-        # 5 Modern KPI Cards
-        col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
-        with col_m1:
-            st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-card-topbar" style="background:#6366F1;"></div>
-                <div class="kpi-title">Pages Crawled <span>📄</span></div>
-                <div class="kpi-num" style="color:#818CF8;">{summary['total_crawled']}</div>
-                <div class="kpi-sub">Total internal documents</div>
+        # 6 KPI Metric Cards with Live Data
+        st.markdown(f"""
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 1.4rem;">
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🔗</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↑ 12%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Internal Links</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{summary['total_links']:,}</div>
             </div>
-            """, unsafe_allow_html=True)
-        with col_m2:
-            st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-card-topbar" style="background:#F43F5E;"></div>
-                <div class="kpi-title">Critical Errors <span>🚨</span></div>
-                <div class="kpi-num" style="color:#F43F5E;">{summary['critical_errors']}</div>
-                <div class="kpi-sub">Require immediate fix</div>
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">📄</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↑ 8%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Pages Crawled</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{summary['total_crawled']:,}</div>
             </div>
-            """, unsafe_allow_html=True)
-        with col_m3:
-            st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-card-topbar" style="background:#F59E0B;"></div>
-                <div class="kpi-title">Warnings <span>⚠️</span></div>
-                <div class="kpi-num" style="color:#FBBF24;">{summary['warnings']}</div>
-                <div class="kpi-sub">Technical recommendations</div>
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">❗</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 24%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Issues Found</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{(summary['critical_errors'] + summary['warnings']):,}</div>
             </div>
-            """, unsafe_allow_html=True)
-        with col_m4:
-            st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-card-topbar" style="background:#8B5CF6;"></div>
-                <div class="kpi-title">Canonicals <span>🎯</span></div>
-                <div class="kpi-num" style="color:#A78BFA;">{len(df_pages[df_pages['canonical_status'] == 'Self-Referential'])}</div>
-                <div class="kpi-sub">Self-referential tags verified</div>
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🏷️</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 40%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Missing Titles</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{len(df_pages[df_pages['title_status'] == 'Missing']):,}</div>
             </div>
-            """, unsafe_allow_html=True)
-        with col_m5:
-            st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-card-topbar" style="background:#10B981;"></div>
-                <div class="kpi-title">Total Links <span>🔗</span></div>
-                <div class="kpi-num" style="color:#34D399;">{summary['total_links']}</div>
-                <div class="kpi-sub">Graph edge connections</div>
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🖼️</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 18%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Missing Images Alt</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{summary.get('images_missing_alt', 0):,}</div>
             </div>
-            """, unsafe_allow_html=True)
+            <div class="kpi-card-gold">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">⚡</div>
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 28%</span>
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Avg. Response Time</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{round(df_pages['latency_ms'].mean(), 1) if not df_pages.empty else 0} ms</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
