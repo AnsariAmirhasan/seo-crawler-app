@@ -636,3 +636,469 @@ def create_site_architecture_graph(
         )
     )
     return fig
+
+def create_silo_structure_graph(
+    df_pages: pd.DataFrame,
+    df_links: pd.DataFrame = None,
+    silo_type: str = "Strict Hierarchical Silo",
+    selected_silo: str = "All",
+    max_children_per_silo: int = 6
+) -> go.Figure:
+    """
+    Render dynamic SEO Silo Architecture Graph for chosen Silo Model:
+    1. Strict Hierarchical Silo
+    2. Hub & Spoke Topic Cluster Silo
+    3. Sequential / Serial Silo
+    4. Reverse Silo (Bottom-Up Equity)
+    5. Hybrid / Matrix Silo (Cross-Pillar Bridges)
+    """
+    if df_pages is None or df_pages.empty:
+        return go.Figure()
+
+    def get_url_silo(u):
+        p = urlparse(str(u)).path.strip('/')
+        if not p:
+            return "Home"
+        parts = p.split('/')
+        top = parts[0].replace('-', ' ').title()
+        if top.lower() in ["about", "about us", "contact", "contact us", "privacy", "terms", "disclaimer"]:
+            return "Company & Utility"
+        return top
+
+    df = df_pages.copy()
+    df["silo"] = df["url"].apply(get_url_silo)
+
+    # Detect Home URL
+    home_rows = df[df["depth"] == 0]
+    home_url = home_rows.iloc[0]["url"] if not home_rows.empty else df.iloc[0]["url"]
+    home_title = home_rows.iloc[0].get("title", "Home") if not home_rows.empty else "Home"
+
+    # Group non-home pages by silo
+    silo_groups = {}
+    for s_name, group in df[df["url"] != home_url].groupby("silo"):
+        if s_name in ["Home"]:
+            continue
+        # Pick pillar: page with lowest depth or highest inlinks
+        sorted_pages = group.sort_values(by=["depth", "inlinks_count"], ascending=[True, False])
+        pillar_row = sorted_pages.iloc[0]
+        child_rows = sorted_pages.iloc[1:max_children_per_silo + 1]
+        silo_groups[s_name] = {
+            "pillar": pillar_row,
+            "children": child_rows
+        }
+
+    if not silo_groups:
+        # Fallback if no subdirectories
+        silo_groups["Core Topic"] = {
+            "pillar": df.iloc[0],
+            "children": df.iloc[1:max_children_per_silo + 1]
+        }
+
+    # Filter by selected silo if not All
+    if selected_silo != "All" and selected_silo in silo_groups:
+        active_silos = {selected_silo: silo_groups[selected_silo]}
+    else:
+        # Limit to top 3-4 silos for clean visual display
+        active_silos = dict(list(silo_groups.items())[:4])
+
+    node_x, node_y, node_text, node_color, node_size, node_custom = [], [], [], [], [], []
+    edge_x, edge_y = [], []
+    bridge_x, bridge_y = [], []
+    sibling_x, sibling_y = [], []
+    shapes = []
+    annotations = []
+
+    # ==========================================
+    # 1. STRICT HIERARCHICAL SILO
+    # ==========================================
+    if "Strict" in silo_type or "Hierarchical" in silo_type:
+        # Home at Top
+        node_x.append(0.0)
+        node_y.append(9.0)
+        node_text.append(f"<b>HOME ROOT</b><br>{home_title[:18]}")
+        node_color.append("#6366F1")
+        node_size.append(34)
+        node_custom.append(["Home", home_url, "Top-Level Root Domain", "Passes authority to Category Pillars"])
+
+        num_silos = len(active_silos)
+        silo_spacing = max(14.0, 48.0 / max(num_silos, 1))
+        total_s_w = (num_silos - 1) * silo_spacing
+
+        for s_idx, (s_name, s_data) in enumerate(active_silos.items()):
+            s_center_x = -total_s_w / 2.0 + s_idx * silo_spacing
+            pillar = s_data["pillar"]
+            p_url = pillar["url"]
+            p_title = str(pillar.get("title") or s_name)[:18]
+
+            # Pillar Node
+            node_x.append(s_center_x)
+            node_y.append(5.0)
+            node_text.append(f"<b>🏛️ SILO PILLAR</b><br>{p_title}")
+            node_color.append("#38BDF8")
+            node_size.append(28)
+            node_custom.append([f"Pillar: {s_name}", p_url, "Category Pillar Page", "Topical anchor distributing PageRank"])
+
+            # Home -> Pillar Edge
+            edge_x.extend([0.0, s_center_x, None])
+            edge_y.extend([9.0, 5.0, None])
+
+            # Silo boundary box
+            shapes.append(dict(
+                type="rect",
+                x0=s_center_x - (silo_spacing / 2.2),
+                x1=s_center_x + (silo_spacing / 2.2),
+                y0=-1.5, y1=6.5,
+                line=dict(color="rgba(239, 68, 68, 0.45)", width=1.5, dash="dash"),
+                fillcolor="rgba(30, 41, 59, 0.25)",
+                layer="below"
+            ))
+            annotations.append(dict(
+                x=s_center_x, y=6.2,
+                text=f"<b>Silo: {s_name}</b> (Zero Cross Leakage)",
+                showarrow=False,
+                font=dict(size=10, color="#F87171", family=FONT_FAMILY)
+            ))
+
+            # Children Nodes
+            children = s_data["children"]
+            n_children = len(children)
+            if n_children > 0:
+                c_spacing = max(2.5, min(4.5, (silo_spacing * 0.85) / max(n_children, 1)))
+                c_total_w = (n_children - 1) * c_spacing
+                prev_c_pos = None
+
+                for c_idx, (_, c_row) in enumerate(children.iterrows()):
+                    c_x = s_center_x - c_total_w / 2.0 + c_idx * c_spacing
+                    c_y = 0.5
+                    c_url = c_row["url"]
+                    c_title = str(c_row.get("title") or urlparse(c_url).path)[:16]
+
+                    node_x.append(c_x)
+                    node_y.append(c_y)
+                    node_text.append(f"<b>Supporting Child</b><br>{c_title}")
+                    node_color.append("#10B981")
+                    node_size.append(18)
+                    node_custom.append([c_title, c_url, f"Supporting article in {s_name}", "Links UP to Pillar & horizontally to siblings"])
+
+                    # Downward Pillar -> Child and Upward Child -> Pillar
+                    edge_x.extend([s_center_x, c_x, None])
+                    edge_y.extend([5.0, c_y, None])
+
+                    # Horizontal Sibling Link
+                    if prev_c_pos:
+                        sibling_x.extend([prev_c_pos[0], c_x, None])
+                        sibling_y.extend([prev_c_pos[1], c_y, None])
+                    prev_c_pos = (c_x, c_y)
+
+    # ==========================================
+    # 2. HUB & SPOKE TOPIC CLUSTER SILO
+    # ==========================================
+    elif "Hub" in silo_type or "Spoke" in silo_type or "Semantic" in silo_type:
+        s_name = list(active_silos.keys())[0]
+        s_data = active_silos[s_name]
+        pillar = s_data["pillar"]
+        children = s_data["children"]
+
+        # Center Hub
+        node_x.append(0.0)
+        node_y.append(0.0)
+        node_text.append(f"<b>🎯 CENTRAL TOPIC HUB</b><br>{str(pillar.get('title') or s_name)[:20]}")
+        node_color.append("#38BDF8")
+        node_size.append(38)
+        node_custom.append([f"Core Pillar: {s_name}", pillar["url"], "Topical Hub", "Broad high-volume primary keyword"])
+
+        n_spokes = max(len(children), 1)
+        r_spoke = 7.5
+        angle_step = (2.0 * math.pi) / n_spokes
+
+        prev_spoke_pos = None
+        first_spoke_pos = None
+
+        for i, (_, c_row) in enumerate(children.iterrows()):
+            theta = i * angle_step
+            sp_x = r_spoke * math.cos(theta)
+            sp_y = r_spoke * math.sin(theta)
+            sp_title = str(c_row.get("title") or urlparse(c_row["url"]).path)[:16]
+
+            node_x.append(sp_x)
+            node_y.append(sp_y)
+            node_text.append(f"<b>Cluster Spoke {i+1}</b><br>{sp_title}")
+            node_color.append("#10B981")
+            node_size.append(22)
+            node_custom.append([sp_title, c_row["url"], f"Spoke Article ({s_name})", "Long-tail intent, links contextually to Hub & Spokes"])
+
+            # Bidirectional Hub-Spoke Edge
+            edge_x.extend([0.0, sp_x, None])
+            edge_y.extend([0.0, sp_y, None])
+
+            # Mesh Contextual Links between adjacent spokes
+            if prev_spoke_pos:
+                sibling_x.extend([prev_spoke_pos[0], sp_x, None])
+                sibling_y.extend([prev_spoke_pos[1], sp_y, None])
+            else:
+                first_spoke_pos = (sp_x, sp_y)
+            prev_spoke_pos = (sp_x, sp_y)
+
+        if prev_spoke_pos and first_spoke_pos and n_spokes > 2:
+            sibling_x.extend([prev_spoke_pos[0], first_spoke_pos[0], None])
+            sibling_y.extend([prev_spoke_pos[1], first_spoke_pos[1], None])
+
+        shapes.append(dict(
+            type="circle",
+            x0=-r_spoke - 1.5, y0=-r_spoke - 1.5,
+            x1=r_spoke + 1.5, y1=r_spoke + 1.5,
+            line=dict(color="rgba(56, 189, 248, 0.25)", width=1.5, dash="dot"),
+            layer="below"
+        ))
+
+    # ==========================================
+    # 3. SEQUENTIAL / SERIAL SILO
+    # ==========================================
+    elif "Sequential" in silo_type or "Serial" in silo_type:
+        s_name = list(active_silos.keys())[0]
+        s_data = active_silos[s_name]
+        pillar = s_data["pillar"]
+        children = s_data["children"]
+
+        # Pillar Guide at Top
+        node_x.append(0.0)
+        node_y.append(6.0)
+        node_text.append(f"<b>📚 GUIDE PILLAR</b><br>{str(pillar.get('title') or s_name)[:20]}")
+        node_color.append("#38BDF8")
+        node_size.append(32)
+        node_custom.append([f"Master Guide: {s_name}", pillar["url"], "Pillar Guide", "Table of contents linking to all sequential steps"])
+
+        n_steps = max(len(children), 1)
+        step_spacing = 4.5
+        total_chain_w = (n_steps - 1) * step_spacing
+        prev_step_pos = None
+
+        for i, (_, c_row) in enumerate(children.iterrows()):
+            st_x = -total_chain_w / 2.0 + i * step_spacing
+            st_y = 0.5
+            st_title = str(c_row.get("title") or urlparse(c_row["url"]).path)[:16]
+
+            node_x.append(st_x)
+            node_y.append(st_y)
+            node_text.append(f"<b>Step {i+1}</b><br>{st_title}")
+            node_color.append("#10B981")
+            node_size.append(22)
+            node_custom.append([f"Step {i+1}: {st_title}", c_row["url"], "Sequential Step", "Links forward to Next step and back to Guide"])
+
+            # Link up to Guide Pillar
+            edge_x.extend([st_x, 0.0, None])
+            edge_y.extend([st_y, 6.0, None])
+
+            # Forward sequential chain link
+            if prev_step_pos:
+                sibling_x.extend([prev_step_pos[0], st_x, None])
+                sibling_y.extend([prev_step_pos[1], st_y, None])
+            prev_step_pos = (st_x, st_y)
+
+    # ==========================================
+    # 4. REVERSE SILO (BOTTOM-UP EQUITY)
+    # ==========================================
+    elif "Reverse" in silo_type or "Bottom" in silo_type:
+        s_name = list(active_silos.keys())[0]
+        s_data = active_silos[s_name]
+        pillar = s_data["pillar"]
+        children = s_data["children"]
+
+        # Money / Commercial Conversion Page at Top
+        node_x.append(0.0)
+        node_y.append(8.0)
+        node_text.append(f"<b>💰 HIGH-CONVERTING TARGET</b><br>{str(pillar.get('title') or s_name)[:20]}")
+        node_color.append("#F59E0B")
+        node_size.append(36)
+        node_custom.append([f"Money Page: {s_name}", pillar["url"], "Conversion Target", "Receives all upward PageRank equity"])
+
+        # Tier 1 Supporting Pages
+        n_c = len(children)
+        tier1_count = min(3, n_c)
+        tier1_spacing = 5.0
+        tier1_total_w = (tier1_count - 1) * tier1_spacing
+
+        for i in range(tier1_count):
+            c_row = children.iloc[i]
+            t1_x = -tier1_total_w / 2.0 + i * tier1_spacing
+            t1_y = 4.0
+            t1_title = str(c_row.get("title") or urlparse(c_row["url"]).path)[:16]
+
+            node_x.append(t1_x)
+            node_y.append(t1_y)
+            node_text.append(f"<b>Tier 1 Sub-Topic</b><br>{t1_title}")
+            node_color.append("#38BDF8")
+            node_size.append(24)
+            node_custom.append([t1_title, c_row["url"], "Tier 1 Pillar Asset", "Passes concentrated equity to Money Page"])
+
+            # Upward arrow to Money Page
+            edge_x.extend([t1_x, 0.0, None])
+            edge_y.extend([t1_y, 8.0, None])
+
+        # Tier 2 Informational / FAQ Pages
+        if n_c > tier1_count:
+            tier2_rows = children.iloc[tier1_count:]
+            n_t2 = len(tier2_rows)
+            t2_spacing = 3.5
+            t2_total_w = (n_t2 - 1) * t2_spacing
+
+            for j, (_, t2_row) in enumerate(tier2_rows.iterrows()):
+                t2_x = -t2_total_w / 2.0 + j * t2_spacing
+                t2_y = 0.5
+                t2_title = str(t2_row.get("title") or urlparse(t2_row["url"]).path)[:15]
+
+                node_x.append(t2_x)
+                node_y.append(t2_y)
+                node_text.append(f"<b>Tier 2 Informational</b><br>{t2_title}")
+                node_color.append("#10B981")
+                node_size.append(18)
+                node_custom.append([t2_title, t2_row["url"], "Tier 2 Long-Tail Post", "Funneling equity upwards"])
+
+                # Connect to closest Tier 1
+                target_t1_x = 0.0 if tier1_count == 1 else (-tier1_total_w / 2.0 if t2_x < 0 else tier1_total_w / 2.0)
+                edge_x.extend([t2_x, target_t1_x, None])
+                edge_y.extend([t2_y, 4.0, None])
+
+    # ==========================================
+    # 5. HYBRID / MATRIX SILO (CROSS-PILLAR BRIDGES)
+    # ==========================================
+    else:
+        # Two main silos side-by-side with Golden Bridge
+        silo_names = list(active_silos.keys())[:2]
+        if len(silo_names) < 2:
+            silo_names = [silo_names[0], "Related Silo"]
+            active_silos["Related Silo"] = active_silos[silo_names[0]]
+
+        silo_centers = [-8.0, 8.0]
+        pillar_positions = []
+
+        for s_idx, s_name in enumerate(silo_names[:2]):
+            s_center_x = silo_centers[s_idx]
+            s_data = active_silos.get(s_name, list(active_silos.values())[0])
+            pillar = s_data["pillar"]
+            p_title = str(pillar.get("title") or s_name)[:18]
+
+            node_x.append(s_center_x)
+            node_y.append(5.5)
+            node_text.append(f"<b>🏛️ SILO PILLAR</b><br>{p_title}")
+            node_color.append("#38BDF8")
+            node_size.append(30)
+            node_custom.append([f"Pillar: {s_name}", pillar["url"], "Category Head", "Topical Pillar Page"])
+            pillar_positions.append((s_center_x, 5.5))
+
+            # Children
+            children = s_data["children"][:3]
+            for c_idx, (_, c_row) in enumerate(children.iterrows()):
+                c_x = s_center_x - 3.0 + c_idx * 3.0
+                c_y = 1.0
+                c_title = str(c_row.get("title") or urlparse(c_row["url"]).path)[:15]
+
+                node_x.append(c_x)
+                node_y.append(c_y)
+                node_text.append(f"<b>Child Page</b><br>{c_title}")
+                node_color.append("#10B981")
+                node_size.append(18)
+                node_custom.append([c_title, c_row["url"], f"Silo Child ({s_name})", "Links UP to its Pillar ONLY"])
+
+                edge_x.extend([s_center_x, c_x, None])
+                edge_y.extend([5.5, c_y, None])
+
+        # Golden Cross-Pillar Bridge Link
+        if len(pillar_positions) >= 2:
+            bridge_x.extend([pillar_positions[0][0], pillar_positions[1][0], None])
+            bridge_y.extend([pillar_positions[0][1], pillar_positions[1][1], None])
+            annotations.append(dict(
+                x=0, y=5.8,
+                text="<b>Controlled Cross-Silo Bridge Link</b>",
+                showarrow=False,
+                font=dict(size=11, color="#F59E0B", family=FONT_FAMILY),
+                bgcolor="rgba(15, 23, 42, 0.8)",
+                bordercolor="#F59E0B"
+            ))
+
+    # Construct Traces
+    traces = []
+
+    # Main Hierarchy / Vertical Links
+    if edge_x:
+        traces.append(go.Scatter(
+            x=edge_x, y=edge_y,
+            mode="lines",
+            line=dict(width=1.5, color="rgba(56, 189, 248, 0.45)"),
+            hoverinfo="none",
+            name="Silo Hierarchy Links"
+        ))
+
+    # Sibling / Sequential Links
+    if sibling_x:
+        traces.append(go.Scatter(
+            x=sibling_x, y=sibling_y,
+            mode="lines",
+            line=dict(width=2.0, color="#A855F7", dash="dot"),
+            hoverinfo="none",
+            name="Intra-Silo Sibling Links"
+        ))
+
+    # Golden Bridge Links
+    if bridge_x:
+        traces.append(go.Scatter(
+            x=bridge_x, y=bridge_y,
+            mode="lines",
+            line=dict(width=3.5, color="#F59E0B"),
+            hoverinfo="none",
+            name="Pillar Bridge Link"
+        ))
+
+    # Nodes Trace
+    traces.append(go.Scatter(
+        x=node_x, y=node_y,
+        mode="markers+text",
+        text=node_text,
+        textposition="bottom center",
+        textfont=dict(family=FONT_FAMILY, size=10, color="#F1F5F9"),
+        customdata=node_custom,
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "<b>URL:</b> %{customdata[1]}<br>"
+            "<b>Role:</b> %{customdata[2]}<br>"
+            "<b>Rule:</b> %{customdata[3]}<extra></extra>"
+        ),
+        marker=dict(
+            size=node_size,
+            color=node_color,
+            line=dict(width=2.5, color="#FFFFFF"),
+            opacity=0.96
+        ),
+        showlegend=False
+    ))
+
+    fig = go.Figure(
+        data=traces,
+        layout=go.Layout(
+            title=dict(
+                text=f"<b>Silo Linking Blueprint:</b> {silo_type}",
+                font=dict(color="#F1F5F9", size=16, family=FONT_FAMILY)
+            ),
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom", y=1.02,
+                xanchor="right", x=1,
+                font=dict(size=11, color="#CBD5E1", family=FONT_FAMILY),
+                bgcolor="rgba(15, 23, 42, 0.7)"
+            ),
+            hovermode="closest",
+            margin=dict(b=25, l=20, r=20, t=50),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            shapes=shapes,
+            annotations=annotations,
+            height=540,
+            dragmode="pan",
+            font=dict(family=FONT_FAMILY)
+        )
+    )
+    return fig
+
