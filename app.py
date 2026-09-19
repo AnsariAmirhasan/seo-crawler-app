@@ -14,6 +14,12 @@ from visualizer import (
     create_site_architecture_graph
 )
 from exporter import generate_excel_report, generate_csv
+from sitemap_generator import (
+    build_xml_sitemap,
+    build_urllist_txt,
+    build_html_sitemap,
+    build_gzipped_xml
+)
 
 # 1. Streamlit Page Configuration - Must be first
 st.set_page_config(
@@ -361,10 +367,10 @@ with st.sidebar:
         "Select Active Tool",
         options=[
             "🕷️ SEO Spider & Crawler",
+            "🗺️ XML Sitemap Generator",
             "📊 SERP Rank Tracker (Coming Soon)",
             "🔗 Backlink Explorer (Coming Soon)",
-            "⚡ Core Web Vitals (Coming Soon)",
-            "🗺️ XML Sitemap Generator (Coming Soon)"
+            "⚡ Core Web Vitals (Coming Soon)"
         ],
         index=0,
         label_visibility="collapsed"
@@ -495,6 +501,317 @@ if btn_start:
         status_box.success(f"✅ Audit Completed! Successfully crawled and analyzed **{len(analysis['df_pages'])}** pages in **{elapsed} seconds**.")
         time.sleep(1)
         st.rerun()
+
+def render_xml_sitemap_generator():
+    # Hero section matching xml-sitemaps.com
+    st.markdown("""
+    <div style="background: radial-gradient(130% 120% at 50% -10%, #172554 0%, #0F172A 60%, #020617 100%); padding: 3rem 2rem 2.2rem; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.25); text-align: center; margin-bottom: 2rem; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.6);">
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(56, 189, 248, 0.12); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 5px 16px; border-radius: 9999px; font-size: 0.76rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1.1rem;">
+            🗺️ Google & W3C Standard XML Engine
+        </div>
+        <h1 style="font-size: 2.85rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.03em; margin: 0 0 0.6rem 0; line-height: 1.15;">
+            Better Indexing Starts Here
+        </h1>
+        <p style="color: #94A3B8; font-size: 1.12rem; max-width: 680px; margin: 0 auto; line-height: 1.6;">
+            Generate search-engine ready sitemaps. Fast, free, and no registration required.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Input Box & Action button
+    col_input, col_action = st.columns([4, 1.2])
+    with col_input:
+        raw_domain = st.text_input(
+            "Domain Input",
+            value=st.session_state.get("sitemap_target_domain", ""),
+            placeholder="Your Website Domain... (e.g. https://example.com)",
+            label_visibility="collapsed",
+            key="sitemap_domain_input"
+        )
+    with col_action:
+        btn_generate = st.button("Generate Sitemap", type="primary", use_container_width=True, key="btn_sitemap_gen")
+
+    # Settings dropdown (Settings ▾ from screenshot)
+    with st.expander("Settings ▾", expanded=False):
+        st.markdown("<div style='font-size:0.85rem; color:#94A3B8; margin-bottom:10px;'>Configure crawl depth, update frequencies, and priority tags:</div>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            cfg_lastmod = st.selectbox(
+                "Page modification date (lastmod):",
+                ["Automatically generated (Today UTC)", "Do not include"],
+                index=0,
+                key="sitemap_cfg_lastmod"
+            )
+            cfg_changefreq = st.selectbox(
+                "Change frequency (changefreq):",
+                ["weekly", "daily", "hourly", "monthly", "yearly", "always", "never", "Do not include"],
+                index=0,
+                key="sitemap_cfg_changefreq"
+            )
+        with c2:
+            cfg_priority = st.selectbox(
+                "Page Priority calculation (priority):",
+                [
+                    "Automatic (Calculated from click depth)",
+                    "Fixed 1.0 (Highest)",
+                    "Fixed 0.8 (Standard)",
+                    "Fixed 0.5 (Default)",
+                    "Do not include"
+                ],
+                index=0,
+                key="sitemap_cfg_priority"
+            )
+            cfg_max_pages = st.slider("Max pages to crawl:", min_value=20, max_value=10000, value=1000, step=50, key="sitemap_cfg_max_pages")
+        with c3:
+            cfg_concurrency = st.slider("Crawl Speed (Concurrency):", min_value=5, max_value=40, value=15, step=5, key="sitemap_cfg_concurrency")
+            cfg_subdomains = st.checkbox("Include subdomains", value=False, key="sitemap_cfg_subdomains")
+            cfg_respect_robots = st.checkbox("Respect robots.txt", value=True, key="sitemap_cfg_robots")
+
+    # Trust row directly from xml-sitemaps.com screenshot
+    st.markdown("""
+    <div style="display: flex; justify-content: center; gap: 2.5rem; flex-wrap: wrap; margin-top: 1.2rem; margin-bottom: 2.2rem; color: #64748B; font-size: 0.88rem; font-weight: 600;">
+        <span>🏆 20+ Years Excellence</span>
+        <span>⚡ 51M+ Sitemaps Created</span>
+        <span>🔍 5B+ Pages Indexed</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Crawl Execution
+    if btn_generate:
+        target_site = raw_domain.strip()
+        if not target_site:
+            st.warning("⚠️ Please enter a website domain or URL (e.g. example.com or https://example.com)")
+        else:
+            if not target_site.startswith(("http://", "https://")):
+                target_site = "https://" + target_site
+            st.session_state["sitemap_target_domain"] = target_site
+
+            progress_bar = st.progress(0, text="Initializing crawler for Sitemap Generation...")
+            status_box = st.empty()
+
+            spider = SEOSpider(
+                start_url=target_site,
+                max_pages=cfg_max_pages,
+                max_depth=8,
+                concurrency=cfg_concurrency,
+                respect_robots=cfg_respect_robots,
+                crawl_mode="All Subdomains" if cfg_subdomains else "Single Subdomain Only"
+            )
+
+            def on_sitemap_progress(crawled_count=0, max_pages=1, current_url="", status_code=200, **kwargs):
+                pct = min(1.0, crawled_count / max(max_pages or 1, 1))
+                progress_bar.progress(pct, text=f"⚡ Discovering URLs ({crawled_count}/{max_pages}) — {current_url[:65]}...")
+                status_box.markdown(f"""
+                <div style="background:rgba(30,41,59,0.7); border:1px solid #334155; border-radius:10px; padding:10px 14px; font-size:0.88rem; color:#CBD5E1;">
+                    <b>Crawling URL:</b> <code>{current_url[:75]}</code> &nbsp;|&nbsp; 
+                    <b>Status:</b> <span class="status-pill status-green">{status_code}</span> &nbsp;|&nbsp; 
+                    <b>Total Discovered:</b> <b>{crawled_count}</b>
+                </div>
+                """, unsafe_allow_html=True)
+
+            t0 = time.time()
+            with st.spinner("Traversing website internal link graph..."):
+                raw_crawl = spider.crawl(progress_callback=on_sitemap_progress)
+                elapsed = round(time.time() - t0, 2)
+
+            progress_bar.progress(1.0, text=f"Crawling Complete! Filtered {len(raw_crawl['crawled_pages'])} pages into clean XML sitemap.")
+
+            # Filter valid 200 OK pages for clean XML Sitemap
+            all_pages = raw_crawl["crawled_pages"]
+            valid_pages = []
+            for p in all_pages:
+                if p.get("status_code") == 200 and p.get("url"):
+                    valid_pages.append(p)
+
+            # Auto priority vs fixed priority
+            auto_p = "Automatic" in cfg_priority
+            fixed_p = None
+            if "Fixed 1.0" in cfg_priority:
+                fixed_p = "1.0"
+            elif "Fixed 0.8" in cfg_priority:
+                fixed_p = "0.8"
+            elif "Fixed 0.5" in cfg_priority:
+                fixed_p = "0.5"
+            elif "Do not include" in cfg_priority:
+                fixed_p = "do not include"
+                auto_p = False
+
+            auto_lm = "Automatically" in cfg_lastmod
+            ch_freq = "do not include" if "Do not include" in cfg_changefreq else cfg_changefreq
+
+            # Build all 4 sitemap formats
+            xml_data = build_xml_sitemap(
+                valid_pages,
+                default_changefreq=ch_freq,
+                auto_priority=auto_p,
+                fixed_priority=fixed_p,
+                auto_lastmod=auto_lm
+            )
+            gz_data = build_gzipped_xml(xml_data)
+            txt_data = build_urllist_txt(valid_pages)
+            html_data = build_html_sitemap(valid_pages, target_site)
+
+            st.session_state["sitemap_tool_results"] = {
+                "domain": target_site,
+                "elapsed": elapsed,
+                "total_crawled": len(all_pages),
+                "valid_count": len(valid_pages),
+                "excluded_count": len(all_pages) - len(valid_pages),
+                "xml": xml_data,
+                "gz": gz_data,
+                "txt": txt_data,
+                "html": html_data,
+                "valid_pages": valid_pages
+            }
+            status_box.success(f"🎉 Generated sitemap with **{len(valid_pages)} clean URLs** in **{elapsed}s**!")
+            time.sleep(0.5)
+            st.rerun()
+
+    # If results are ready, render the full results & download dashboard
+    results_data = st.session_state.get("sitemap_tool_results")
+    if results_data:
+        st.markdown("---")
+        
+        # Metric row
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("📑 URLs Crawled", results_data["total_crawled"])
+        m2.metric("✅ Indexable in Sitemap", results_data["valid_count"])
+        m3.metric("🚫 Excluded (Non-200/Broken)", results_data["excluded_count"])
+        m4.metric("⏱️ Generation Time", f"{results_data['elapsed']}s")
+
+        st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+        st.subheader("📥 Download Your Sitemaps")
+        st.caption("All files are fully compliant with Google Search Console, Bing Webmaster, and W3C XML schemas.")
+
+        d1, d2, d3, d4 = st.columns(4)
+        with d1:
+            st.markdown("""
+            <div style="background:rgba(30,41,59,0.7); border:1px solid #38BDF8; border-radius:12px; padding:16px; text-align:center; min-height:160px;">
+                <div style="font-size:2rem; margin-bottom:8px;">🗺️</div>
+                <div style="font-weight:700; color:#F8FAFC; font-size:1rem;">sitemap.xml</div>
+                <div style="color:#94A3B8; font-size:0.78rem; margin:6px 0 12px;">Standard XML schema for Google, Bing & Search Engines</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.download_button(
+                "📥 Download XML",
+                data=results_data["xml"],
+                file_name="sitemap.xml",
+                mime="application/xml",
+                use_container_width=True,
+                key="dl_xml_btn"
+            )
+
+        with d2:
+            st.markdown("""
+            <div style="background:rgba(30,41,59,0.7); border:1px solid #34D399; border-radius:12px; padding:16px; text-align:center; min-height:160px;">
+                <div style="font-size:2rem; margin-bottom:8px;">🗜️</div>
+                <div style="font-weight:700; color:#F8FAFC; font-size:1rem;">sitemap.xml.gz</div>
+                <div style="color:#94A3B8; font-size:0.78rem; margin:6px 0 12px;">Compressed Gzip XML sitemap saves bandwidth for crawlers</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.download_button(
+                "🗜️ Download GZ",
+                data=results_data["gz"],
+                file_name="sitemap.xml.gz",
+                mime="application/gzip",
+                use_container_width=True,
+                key="dl_gz_btn"
+            )
+
+        with d3:
+            st.markdown("""
+            <div style="background:rgba(30,41,59,0.7); border:1px solid #F59E0B; border-radius:12px; padding:16px; text-align:center; min-height:160px;">
+                <div style="font-size:2rem; margin-bottom:8px;">📄</div>
+                <div style="font-weight:700; color:#F8FAFC; font-size:1rem;">urllist.txt</div>
+                <div style="color:#94A3B8; font-size:0.78rem; margin:6px 0 12px;">Simple line-separated URL list for quick indexing tools</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.download_button(
+                "📄 Download TXT",
+                data=results_data["txt"],
+                file_name="urllist.txt",
+                mime="text/plain",
+                use_container_width=True,
+                key="dl_txt_btn"
+            )
+
+        with d4:
+            st.markdown("""
+            <div style="background:rgba(30,41,59,0.7); border:1px solid #818CF8; border-radius:12px; padding:16px; text-align:center; min-height:160px;">
+                <div style="font-size:2rem; margin-bottom:8px;">🌐</div>
+                <div style="font-weight:700; color:#F8FAFC; font-size:1rem;">sitemap.html</div>
+                <div style="color:#94A3B8; font-size:0.78rem; margin:6px 0 12px;">Human-readable HTML sitemap for site visitors and footer</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.download_button(
+                "🌐 Download HTML",
+                data=results_data["html"],
+                file_name="sitemap.html",
+                mime="text/html",
+                use_container_width=True,
+                key="dl_html_btn"
+            )
+
+        st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
+
+        # Tabbed details
+        t_urls, t_xml, t_html, t_guide = st.tabs([
+            "📋 Sitemap URL List",
+            "💻 XML Code Preview",
+            "🌐 HTML Sitemap Code",
+            "🚀 Google Search Console & robots.txt Setup Guide"
+        ])
+
+        with t_urls:
+            df_sitemap = pd.DataFrame(results_data["valid_pages"])
+            display_cols = [col for col in ["url", "depth", "status_code", "title"] if col in df_sitemap.columns]
+            st.dataframe(df_sitemap[display_cols], use_container_width=True)
+
+        with t_xml:
+            st.caption("First 100 lines of generated sitemap.xml:")
+            xml_lines = results_data["xml"].splitlines()
+            st.code("\n".join(xml_lines[:100]) + ("\n... [truncated]" if len(xml_lines) > 100 else ""), language="xml")
+
+        with t_html:
+            st.caption("Generated HTML sitemap code:")
+            st.code(results_data["html"], language="html")
+
+        with t_guide:
+            domain = results_data["domain"]
+            st.markdown(f"""
+            ### 🛠️ How to Add and Submit Your New Sitemap
+
+            #### 1. Upload to your web server root
+            Upload `sitemap.xml` directly to your root website directory so it is accessible at:
+            ```text
+            {domain}/sitemap.xml
+            ```
+
+            #### 2. Add to your `robots.txt`
+            Edit your website's `robots.txt` file and append this directive at the very end:
+            ```text
+            User-agent: *
+            Allow: /
+
+            Sitemap: {domain}/sitemap.xml
+            ```
+
+            #### 3. Submit to Google Search Console
+            1. Open [Google Search Console](https://search.google.com/search-console).
+            2. Select your property: **`{domain}`**.
+            3. In the left sidebar navigation, click on **Sitemaps**.
+            4. Under *"Add a new sitemap"*, type `sitemap.xml` and click **Submit**.
+            5. Google will begin crawling and indexing all listed URLs immediately!
+
+            #### 4. Submit to Bing Webmaster Tools
+            1. Open [Bing Webmaster Tools](https://www.bing.com/webmasters).
+            2. Select your site and navigate to **Sitemaps**.
+            3. Click **Submit Sitemap** and enter `{domain}/sitemap.xml`.
+            """)
+
+if selected_tool == "🗺️ XML Sitemap Generator":
+    render_xml_sitemap_generator()
+    st.stop()
 
 if selected_tool != "🕷️ SEO Spider & Crawler":
     st.markdown(f"""
@@ -2002,3 +2319,32 @@ with tab_sitemap:
                     st.warning("sitemap.xml not found or returned non-200 code.")
             except Exception as e:
                 st.error(f"Failed to parse sitemap: {e}")
+
+    # Instant Sitemap Export from Current Crawl
+    st.markdown("---")
+    st.markdown("### ⚡ Instant XML Sitemap Export from Current Audit")
+    crawl_data = st.session_state.get("crawl_results")
+    if crawl_data and "df_pages" in crawl_data and not crawl_data["df_pages"].empty:
+        df_p = crawl_data["df_pages"]
+        # Only clean 200 OK indexable pages
+        status_col = df_p["status_code"] if "status_code" in df_p.columns else 200
+        idx_col = df_p["is_indexable"] if "is_indexable" in df_p.columns else True
+        valid_idx = df_p[(status_col == 200) & (idx_col != False)]
+        
+        st.success(f"📊 Current audit contains **{len(df_p)} total pages**, with **{len(valid_idx)} clean 200 OK indexable URLs** ready to export as sitemaps.")
+        
+        pages_records = valid_idx.to_dict(orient="records")
+        target_site = crawl_data.get("start_url", "https://example.com")
+        
+        xml_from_crawl = build_xml_sitemap(pages_records, default_changefreq="weekly", auto_priority=True, auto_lastmod=True)
+        gz_from_crawl = build_gzipped_xml(xml_from_crawl)
+        txt_from_crawl = build_urllist_txt(pages_records)
+        html_from_crawl = build_html_sitemap(pages_records, target_site)
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.download_button("📥 sitemap.xml", data=xml_from_crawl, file_name="sitemap.xml", mime="application/xml", use_container_width=True, key="spider_dl_xml")
+        c2.download_button("🗜️ sitemap.xml.gz", data=gz_from_crawl, file_name="sitemap.xml.gz", mime="application/gzip", use_container_width=True, key="spider_dl_gz")
+        c3.download_button("📄 urllist.txt", data=txt_from_crawl, file_name="urllist.txt", mime="text/plain", use_container_width=True, key="spider_dl_txt")
+        c4.download_button("🌐 sitemap.html", data=html_from_crawl, file_name="sitemap.html", mime="text/html", use_container_width=True, key="spider_dl_html")
+    else:
+        st.info("ℹ️ Run an audit from the sidebar to immediately export standard sitemaps, or select **'🗺️ XML Sitemap Generator'** in the sidebar to generate a sitemap on-demand.")
