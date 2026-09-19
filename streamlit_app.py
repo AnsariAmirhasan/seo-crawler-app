@@ -313,48 +313,76 @@ html, body, [class*="css"] {
 </style>
 """, unsafe_allow_html=True)
 
-# 3. App Header Banner
-st.markdown("""
-<div class="main-header">
-    <div class="header-badge-row">
-        <span class="header-badge"><span class="live-indicator-dot"></span> PRO ENGINE • CLOUD AUDIT</span>
-        <span class="header-badge" style="background:rgba(16,185,129,0.15); color:#34D399; border-color:rgba(16,185,129,0.35);">FREE & UNLIMITED</span>
+# 3. Sidebar: Brand & Tools Suite Navigation
+with st.sidebar:
+    st.markdown("""
+    <div style="padding: 0.5rem 0 1.2rem;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 2.2rem;">🕷️</span>
+            <div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #FFFFFF; line-height: 1.2; letter-spacing: -0.02em;">Amir's SEO Spider</div>
+                <div style="font-size: 0.75rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px;">Technical Audit Suite</div>
+            </div>
+        </div>
     </div>
-    <h1 class="main-title">🕷️ Amir's SEO Spider</h1>
-    <p class="main-subtitle">High-speed technical SEO crawler and site audit suite. Deep crawl up to 10,000+ URLs with zero page caps, analyze canonical targets, verify status codes, and export complete multi-tab spreadsheets.</p>
-    <div class="header-tags">
-        <span class="header-pill">🚀 Multi-Threaded Workers</span>
-        <span class="header-pill">🎯 Canonical URL Mapping</span>
-        <span class="header-pill">🚨 50+ SEO Health Checks</span>
-        <span class="header-pill">📦 Free Multi-Tab Excel Export</span>
+    """, unsafe_allow_html=True)
+
+    st.markdown("##### 🧭 Tools & Modules")
+    selected_tool = st.radio(
+        "Select Active Tool",
+        options=[
+            "🕷️ SEO Spider & Crawler",
+            "📊 SERP Rank Tracker (Coming Soon)",
+            "🔗 Backlink Explorer (Coming Soon)",
+            "⚡ Core Web Vitals (Coming Soon)",
+            "🗺️ XML Sitemap Generator (Coming Soon)"
+        ],
+        index=0,
+        label_visibility="collapsed"
+    )
+
+    st.markdown("---")
+    st.markdown("""
+    <div class="sidebar-box">
+        <div style="font-weight: 700; color: #F8FAFC; margin-bottom: 8px; font-size: 0.85rem;">⚡ Crawl Engine Specs:</div>
+        <div style="font-size: 0.82rem; color: #94A3B8; line-height: 1.65;">
+            • <b>Fixed Capacity:</b> <span style="color:#34D399; font-weight:700;">1,000 URLs / Crawl</span><br>
+            • <b>Depth Limit:</b> Max 10 Click Depth<br>
+            • <b>Engine:</b> 12 Multi-Threaded Workers<br>
+            • <b>Default Agent:</b> Chrome Desktop (WAF Safe)<br>
+            • <b>Export:</b> Multi-Tab Excel Workbook
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# 4. Main Page Header Banner
+st.markdown("""
+<div class="main-header" style="padding: 1.5rem 2.2rem; margin-bottom: 1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+            <div style="font-size:1.55rem; font-weight:800; color:#FFFFFF; letter-spacing:-0.025em; display:flex; align-items:center; gap:8px;">
+                <span>⚡ High-Speed Technical SEO Crawler</span>
+            </div>
+            <div style="font-size:0.92rem; color:#94A3B8; margin-top:4px;">
+                Enter any website URL to audit internal links, canonical tags, titles, headings, and images up to 1,000 URLs.
+            </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <span class="header-pill">🎯 Canonicals</span>
+            <span class="header-pill">🏷️ Titles & Meta</span>
+            <span class="header-pill">🧱 Headings (H1/H2)</span>
+            <span class="header-pill">🖼️ Images Audit</span>
+        </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# 4. Initialize Session State
-if "crawl_results" not in st.session_state:
-    st.session_state["crawl_results"] = None
-if "is_crawling" not in st.session_state:
-    st.session_state["is_crawling"] = False
-if "single_inspect_result" not in st.session_state:
-    st.session_state["single_inspect_result"] = None
-
-# Config defaults in session state
-if "cfg_target_url" not in st.session_state:
-    st.session_state["cfg_target_url"] = "https://example.com"
-if "cfg_max_pages" not in st.session_state:
-    st.session_state["cfg_max_pages"] = 2000
-if "cfg_max_depth" not in st.session_state:
-    st.session_state["cfg_max_depth"] = 5
-if "cfg_threads" not in st.session_state:
-    st.session_state["cfg_threads"] = 10
-
-# 5. Screaming Frog Top Search Bar
+# 5. Screaming Frog Top Search Bar (Front and Center)
 st.markdown("""
 <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(51, 65, 85, 0.65); border-radius: 14px; padding: 12px 18px; margin-bottom: 1.5rem; backdrop-filter: blur(10px); box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
         <span style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94A3B8;">
-            🕸️ Spider Crawl Target & Scope
+            🕸️ Spider Crawl Target & Scope (Fixed 1,000 URLs Limit)
         </span>
         <span style="font-size: 0.75rem; color: #64748B;">
             Screaming Frog Style Search & Mode Selection
@@ -368,7 +396,7 @@ col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([5, 2.2, 1.3, 1
 with col_sf_url:
     target_url = st.text_input(
         "Enter URL to spider",
-        value=st.session_state["cfg_target_url"],
+        value=st.session_state.get("cfg_target_url", "https://example.com"),
         placeholder="https://www.example.com/",
         label_visibility="collapsed",
         help="Enter starting website URL (e.g. https://www.cairnindia.com/)"
@@ -384,7 +412,7 @@ with col_sf_mode:
     )
 
 with col_sf_start:
-    btn_start_top = st.button("▶ Start", type="primary", use_container_width=True)
+    btn_start = st.button("▶ Start", type="primary", use_container_width=True)
 
 with col_sf_clear:
     btn_clear = st.button("🔄 Clear", use_container_width=True)
@@ -394,101 +422,24 @@ if btn_clear:
     st.session_state["single_inspect_result"] = None
     st.rerun()
 
-# 6. Sidebar Controls & Quick Presets
-with st.sidebar:
-    st.markdown("### ⚙️ Crawl Configuration")
+# Fixed Optimized Engine Parameters (1,000 URLs limit)
+max_pages = 1000
+max_depth = 10
+concurrency = 12
+timeout = 10
+user_agent_choice = "Chrome (Windows 11)"
+respect_robots = False
+include_regex = ""
+exclude_regex = ""
 
-    preset_choice = st.selectbox(
-        "⚡ Quick Scan Preset",
-        ["Custom Settings", "⚡ Fast Audit (100 URLs, Depth 3)", "🚀 Standard (1,000 URLs, Depth 5)", "🏢 Deep Spider (5,000 URLs, Depth 8)"],
-        index=0,
-        help="Quickly populate recommended depth and speed settings"
-    )
-    if preset_choice == "⚡ Fast Audit (100 URLs, Depth 3)" and st.session_state["cfg_max_pages"] != 100:
-        st.session_state["cfg_max_pages"] = 100
-        st.session_state["cfg_max_depth"] = 3
-        st.session_state["cfg_threads"] = 10
-        st.rerun()
-    elif preset_choice == "🚀 Standard (1,000 URLs, Depth 5)" and st.session_state["cfg_max_pages"] != 1000:
-        st.session_state["cfg_max_pages"] = 1000
-        st.session_state["cfg_max_depth"] = 5
-        st.session_state["cfg_threads"] = 12
-        st.rerun()
-    elif preset_choice == "🏢 Deep Spider (5,000 URLs, Depth 8)" and st.session_state["cfg_max_pages"] != 5000:
-        st.session_state["cfg_max_pages"] = 5000
-        st.session_state["cfg_max_depth"] = 8
-        st.session_state["cfg_threads"] = 18
-        st.rerun()
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    col_c1, col_c2 = st.columns(2)
-    with col_c1:
-        max_pages = st.number_input(
-            "Max Pages",
-            min_value=1,
-            max_value=10000,
-            value=st.session_state["cfg_max_pages"],
-            step=250,
-            help="Maximum URLs to crawl. Scale up to 10,000 URLs!"
-        )
-    with col_c2:
-        max_depth = st.number_input(
-            "Max Depth",
-            min_value=1,
-            max_value=15,
-            value=st.session_state["cfg_max_depth"],
-            step=1,
-            help="Maximum link click depth from root"
-        )
-
-    col_c3, col_c4 = st.columns(2)
-    with col_c3:
-        concurrency = st.slider(
-            "Concurrency",
-            min_value=1,
-            max_value=25,
-            value=st.session_state["cfg_threads"],
-            help="Number of concurrent multi-threaded requests"
-        )
-    with col_c4:
-        timeout = st.slider("Timeout (s)", min_value=3, max_value=30, value=8, help="Per-request timeout in seconds")
-
-    with st.expander("🛠️ Advanced Crawl Settings", expanded=False):
-        user_agent_choice = st.selectbox(
-            "User-Agent",
-            options=list(USER_AGENTS.keys()),
-            index=0
-        )
-        respect_robots = st.checkbox("Respect robots.txt directives", value=False)
-        include_regex = st.text_input("Include URL Regex", value="", help="Only crawl URLs matching regex pattern")
-        exclude_regex = st.text_input("Exclude URL Regex", value="", help="Skip URLs matching regex pattern")
-
-    st.markdown("---")
-    btn_start_sidebar = st.button("🚀 Start SEO Crawl", use_container_width=True)
-    st.markdown("---")
-
-    st.markdown("""
-    <div class="sidebar-box">
-        <div style="font-weight:700; color:#F8FAFC; margin-bottom:6px; font-size:0.88rem;">🔥 Screaming Frog vs Amir's Spider:</div>
-        <div style="font-size:0.8rem; color:#94A3B8; line-height:1.5;">
-            • <b>Top Search Bar:</b> Enter URL + Mode selector.<br>
-            • <b>Unlimited Scale:</b> No 500-page limit.<br>
-            • <b>Canonical Mapping:</b> Dedicated audit tab.<br>
-            • <b>Free Excel Export:</b> Multi-sheet workbook.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-btn_start = btn_start_top or btn_start_sidebar
-
-# 7. Crawl Execution Logic
+# 6. Crawl Execution Logic
 if btn_start:
     if not target_url or not target_url.startswith(("http://", "https://")):
         st.error("⚠️ Please enter a valid URL starting with http:// or https://")
     else:
         st.session_state["cfg_target_url"] = target_url
         st.session_state["is_crawling"] = True
-        progress_bar = st.progress(0, text=f"Initializing High-Speed SEO Spider Engine [{crawl_mode} Mode]...")
+        progress_bar = st.progress(0, text=f"Initializing High-Speed SEO Spider Engine [{crawl_mode} Mode - 1,000 URL Limit]...")
         status_box = st.empty()
 
         spider = SEOSpider(
@@ -538,7 +489,19 @@ if btn_start:
         time.sleep(1)
         st.rerun()
 
-# 7. Navigation Tabs
+if selected_tool != "🕷️ SEO Spider & Crawler":
+    st.markdown(f"""
+    <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 16px; padding: 3rem 2rem; text-align: center; margin-top: 1.5rem; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+        <div style="font-size: 3.2rem; margin-bottom: 1rem;">🚧</div>
+        <h2 style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.5rem;">{selected_tool}</h2>
+        <p style="color: #94A3B8; font-size: 1.05rem; max-width: 620px; margin: 0 auto 1.5rem; line-height: 1.6;">
+            This module is currently being built for <b>Amir's SEO Suite</b>. In the sidebar, select <b>'🕷️ SEO Spider & Crawler'</b> to use the active technical crawler.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.stop()
+
+# Main Application Tabs
 tab_overview, tab_issues, tab_pages, tab_canonicals, tab_titles, tab_headings, tab_links, tab_images, tab_architecture, tab_inspector, tab_sitemap = st.tabs([
     "📊 Overview",
     "🚨 Issues & Fixes",
@@ -570,7 +533,7 @@ with tab_overview:
                 Ready to Audit Any Website with Zero Limitations
             </h2>
             <p style="color:#94A3B8; font-size:1.05rem; max-width:720px; margin:0.6rem auto 1.8rem; line-height:1.6;">
-                Configure your target URL in the sidebar, or run an instant quick test to evaluate internal linking, canonical targets, metadata lengths, status codes, and SEO health.
+                Enter your target URL in the top search bar, select your crawl mode, and click Start. The crawler will audit internal links, canonical tags, metadata, status codes, and headings up to 1,000 URLs.
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -579,7 +542,6 @@ with tab_overview:
         with col_demo2:
             if st.button("🚀 Load Sample Target (books.toscrape.com)", use_container_width=True):
                 st.session_state["cfg_target_url"] = "https://books.toscrape.com"
-                st.session_state["cfg_max_pages"] = 100
                 st.rerun()
 
         st.markdown("<br>", unsafe_allow_html=True)
