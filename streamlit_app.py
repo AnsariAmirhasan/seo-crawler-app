@@ -875,6 +875,20 @@ with tab_canonicals:
                 df_canon["canonical_url"].str.contains(canon_search, case=False, na=False)
             ]
 
+        # Download button for filtered canonicals
+        col_cdown1, col_cdown2 = st.columns([1, 4])
+        with col_cdown1:
+            csv_canon = generate_csv(df_canon)
+            st.download_button(
+                label=f"📥 Download Canonicals ({len(df_canon)} URLs)",
+                data=csv_canon,
+                file_name=f"canonicals_{canon_filter.replace(' ', '_').lower()}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with col_cdown2:
+            st.caption(f"Showing **{len(df_canon)}** of **{total_pages}** pages matching filter: `{canon_filter}`")
+
         st.dataframe(
             df_canon,
             use_container_width=True,
@@ -897,26 +911,151 @@ with tab_canonicals:
             """)
 
 # ==============================================================================
-# TAB 5: PAGE TITLES & META DESCRIPTIONS
+# TAB 5: PAGE TITLES & META DESCRIPTIONS AUDIT
 # ==============================================================================
 with tab_titles:
     if not results:
-        st.info("Run a crawl to inspect titles, SERP lengths and snippets.")
+        st.info("Run a crawl to inspect titles, meta descriptions, missing tags, and duplicates.")
     else:
-        df_pages = results["df_pages"]
-        title_df = df_pages[["url", "title", "title_length", "title_pixel_width", "meta_description", "meta_description_length"]].copy()
+        df_pages = results["df_pages"].copy()
+        total_pages = len(df_pages)
+
+        # Prepare Clean Status Columns
+        df_titles_meta = df_pages[[
+            "url", "status_code", "title", "title_length", "title_pixel_width", 
+            "meta_description", "meta_description_length", "is_indexable"
+        ]].copy()
         
+        # Calculate Title and Description Duplicates
+        title_counts = df_titles_meta[df_titles_meta["title"].str.strip() != ""]["title"].value_counts()
+        dup_titles_set = set(title_counts[title_counts > 1].index)
+
+        desc_counts = df_titles_meta[df_titles_meta["meta_description"].str.strip() != ""]["meta_description"].value_counts()
+        dup_desc_set = set(desc_counts[desc_counts > 1].index)
+
+        # Title Status Tag
+        def get_title_status(row):
+            t = str(row["title"]).strip()
+            if not t:
+                return "Missing"
+            if t in dup_titles_set:
+                return "Duplicate"
+            if row["title_length"] > 60 or row["title_pixel_width"] > 600:
+                return "Over 60 Chars (>600px)"
+            if row["title_length"] < 30:
+                return "Below 30 Chars"
+            return "OK"
+
+        # Meta Description Status Tag
+        def get_desc_status(row):
+            d = str(row["meta_description"]).strip()
+            if not d:
+                return "Missing"
+            if d in dup_desc_set:
+                return "Duplicate"
+            if row["meta_description_length"] > 160:
+                return "Over 160 Chars"
+            if row["meta_description_length"] < 70:
+                return "Below 70 Chars"
+            return "OK"
+
+        df_titles_meta["title_status"] = df_titles_meta.apply(get_title_status, axis=1)
+        df_titles_meta["meta_desc_status"] = df_titles_meta.apply(get_desc_status, axis=1)
+
+        # KPI Counters
+        missing_titles_count = len(df_titles_meta[df_titles_meta["title_status"] == "Missing"])
+        dup_titles_count = len(df_titles_meta[df_titles_meta["title_status"] == "Duplicate"])
+        missing_desc_count = len(df_titles_meta[df_titles_meta["meta_desc_status"] == "Missing"])
+        dup_desc_count = len(df_titles_meta[df_titles_meta["meta_desc_status"] == "Duplicate"])
+        ok_titles_count = len(df_titles_meta[df_titles_meta["title_status"] == "OK"])
+
         st.subheader("🏷️ Page Titles & Meta Descriptions Audit")
+        st.caption("Deep inspection of Titles and Meta Descriptions — extract missing tags, identify duplicate metadata, and check SERP lengths.")
+
+        # 5 Metric Cards
+        tm1, tm2, tm3, tm4, tm5 = st.columns(5)
+        tm1.metric("Titles Optimal (OK)", f"{ok_titles_count}", delta=f"{round(ok_titles_count/max(total_pages,1)*100)}% of pages")
+        tm2.metric("Missing Titles", f"{missing_titles_count}", delta="Needs title tag" if missing_titles_count else "None", delta_color="inverse" if missing_titles_count else "normal")
+        tm3.metric("Duplicate Titles", f"{dup_titles_count}", delta="Cannibalization" if dup_titles_count else "Unique", delta_color="inverse" if dup_titles_count else "normal")
+        tm4.metric("Missing Meta Desc", f"{missing_desc_count}", delta="Needs snippet" if missing_desc_count else "None", delta_color="inverse" if missing_desc_count else "normal")
+        tm5.metric("Duplicate Meta Desc", f"{dup_desc_count}", delta="Identical snippet" if dup_desc_count else "Unique", delta_color="inverse" if dup_desc_count else "normal")
+
+        # Filters and Search
+        fcol1, fcol2 = st.columns([1.5, 2])
+        with fcol1:
+            title_filter = st.selectbox(
+                "Filter Titles & Meta by Status:",
+                [
+                    "All Pages",
+                    "Missing Title",
+                    "Duplicate Title",
+                    "Title Over 60 Chars (>600px)",
+                    "Title Below 30 Chars",
+                    "Missing Meta Description",
+                    "Duplicate Meta Description",
+                    "Meta Desc Over 160 Chars",
+                    "Meta Desc Below 70 Chars"
+                ]
+            )
+        with fcol2:
+            title_search = st.text_input("🔍 Search URL, Page Title, or Meta Description:", "")
+
+        df_filtered_tm = df_titles_meta.copy()
+
+        if title_filter == "Missing Title":
+            df_filtered_tm = df_filtered_tm[df_filtered_tm["title_status"] == "Missing"]
+        elif title_filter == "Duplicate Title":
+            df_filtered_tm = df_filtered_tm[df_filtered_tm["title_status"] == "Duplicate"]
+        elif title_filter == "Title Over 60 Chars (>600px)":
+            df_filtered_tm = df_filtered_tm[df_filtered_tm["title_status"] == "Over 60 Chars (>600px)"]
+        elif title_filter == "Title Below 30 Chars":
+            df_filtered_tm = df_filtered_tm[df_filtered_tm["title_status"] == "Below 30 Chars"]
+        elif title_filter == "Missing Meta Description":
+            df_filtered_tm = df_filtered_tm[df_filtered_tm["meta_desc_status"] == "Missing"]
+        elif title_filter == "Duplicate Meta Description":
+            df_filtered_tm = df_filtered_tm[df_filtered_tm["meta_desc_status"] == "Duplicate"]
+        elif title_filter == "Meta Desc Over 160 Chars":
+            df_filtered_tm = df_filtered_tm[df_filtered_tm["meta_desc_status"] == "Over 160 Chars"]
+        elif title_filter == "Meta Desc Below 70 Chars":
+            df_filtered_tm = df_filtered_tm[df_filtered_tm["meta_desc_status"] == "Below 70 Chars"]
+
+        if title_search:
+            df_filtered_tm = df_filtered_tm[
+                df_filtered_tm["url"].str.contains(title_search, case=False, na=False) |
+                df_filtered_tm["title"].str.contains(title_search, case=False, na=False) |
+                df_filtered_tm["meta_description"].str.contains(title_search, case=False, na=False)
+            ]
+
+        # Download button for filtered data
+        col_down1, col_down2 = st.columns([1, 4])
+        with col_down1:
+            csv_tm = generate_csv(df_filtered_tm)
+            st.download_button(
+                label=f"📥 Download Filtered Titles & Meta ({len(df_filtered_tm)} URLs)",
+                data=csv_tm,
+                file_name=f"titles_meta_{title_filter.replace(' ', '_').lower()}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with col_down2:
+            st.caption(f"Showing **{len(df_filtered_tm)}** of **{total_pages}** pages matching filter: `{title_filter}`")
+
         st.dataframe(
-            title_df,
+            df_filtered_tm[[
+                "url", "title", "title_status", "title_length", "title_pixel_width",
+                "meta_description", "meta_desc_status", "meta_description_length", "status_code"
+            ]],
             use_container_width=True,
             column_config={
-                "url": st.column_config.LinkColumn("URL"),
+                "url": st.column_config.LinkColumn("Page URL"),
                 "title": st.column_config.TextColumn("Page Title"),
-                "title_length": st.column_config.NumberColumn("Chars"),
-                "title_pixel_width": st.column_config.NumberColumn("Pixel Width (px)"),
+                "title_status": st.column_config.TextColumn("Title Status"),
+                "title_length": st.column_config.NumberColumn("Title Chars"),
+                "title_pixel_width": st.column_config.NumberColumn("Pixels (px)"),
                 "meta_description": st.column_config.TextColumn("Meta Description"),
-                "meta_description_length": st.column_config.NumberColumn("Desc Chars"),
+                "meta_desc_status": st.column_config.TextColumn("Meta Status"),
+                "meta_description_length": st.column_config.NumberColumn("Meta Chars"),
+                "status_code": st.column_config.NumberColumn("HTTP Status", format="%d")
             },
             hide_index=True
         )
@@ -956,27 +1095,155 @@ with tab_titles:
             col_sp3.metric("Meta Description", f"{len(p_desc)} chars", delta="Optimal (70-160)" if 70 <= len(p_desc) <= 160 else "Check Length")
 
 # ==============================================================================
-# TAB 6: HEADINGS (H1/H2) HIERARCHY
+# TAB 6: HEADINGS (H1/H2) HIERARCHY AUDIT
 # ==============================================================================
 with tab_headings:
     if not results:
-        st.info("Run a crawl to inspect H1 and H2 tags.")
+        st.info("Run a crawl to inspect H1 and H2 tags, missing headings, and duplicate hierarchy.")
     else:
-        df_pages = results["df_pages"]
-        heading_cols = ["url", "h1", "h1_count", "h2_first", "h2_count"]
-        st.subheader("🧱 Heading Hierarchy & Structure")
+        df_pages = results["df_pages"].copy()
+        total_pages = len(df_pages)
+
+        # Prepare Clean Heading Columns
+        df_headings = df_pages[[
+            "url", "h1", "h1_count", "h2_first", "h2_count", "status_code", "is_indexable"
+        ]].copy()
+
+        # Calculate H1 and H2 duplicates
+        h1_counts = df_headings[df_headings["h1"].str.strip() != ""]["h1"].value_counts()
+        dup_h1_set = set(h1_counts[h1_counts > 1].index)
+
+        h2_counts = df_headings[df_headings["h2_first"].str.strip() != ""]["h2_first"].value_counts()
+        dup_h2_set = set(h2_counts[h2_counts > 1].index)
+
+        # H1 Status Tag
+        def get_h1_status(row):
+            h = str(row["h1"]).strip()
+            c = row.get("h1_count", 0)
+            if not h or c == 0:
+                return "Missing"
+            if c > 1:
+                return "Multiple H1s"
+            if h in dup_h1_set:
+                return "Duplicate"
+            if len(h) > 70:
+                return "Over 70 Chars"
+            return "OK"
+
+        # H2 Status Tag
+        def get_h2_status(row):
+            h = str(row["h2_first"]).strip()
+            c = row.get("h2_count", 0)
+            if not h or c == 0:
+                return "Missing"
+            if h in dup_h2_set:
+                return "Duplicate"
+            if c > 1:
+                return "Multiple H2s"
+            return "OK"
+
+        df_headings["h1_status"] = df_headings.apply(get_h1_status, axis=1)
+        df_headings["h2_status"] = df_headings.apply(get_h2_status, axis=1)
+
+        # Metric Counters
+        h1_ok_count = len(df_headings[df_headings["h1_status"] == "OK"])
+        missing_h1_count = len(df_headings[df_headings["h1_status"] == "Missing"])
+        dup_h1_count = len(df_headings[df_headings["h1_status"] == "Duplicate"])
+        multiple_h1_count = len(df_headings[df_headings["h1_status"] == "Multiple H1s"])
+        missing_h2_count = len(df_headings[df_headings["h2_status"] == "Missing"])
+
+        st.subheader("🧱 Heading Hierarchy & Structure Audit (H1 / H2)")
+        st.caption("Inspect heading tags across your site — isolate missing H1s, identify duplicate headings, and detect multiple H1 tags per page.")
+
+        # 5 Metric Cards
+        hm1, hm2, hm3, hm4, hm5 = st.columns(5)
+        hm1.metric("H1 Optimal (OK)", f"{h1_ok_count}", delta=f"{round(h1_ok_count/max(total_pages,1)*100)}% of pages")
+        hm2.metric("Missing H1", f"{missing_h1_count}", delta="No H1 tag" if missing_h1_count else "None", delta_color="inverse" if missing_h1_count else "normal")
+        hm3.metric("Duplicate H1", f"{dup_h1_count}", delta="Shared H1" if dup_h1_count else "Unique", delta_color="inverse" if dup_h1_count else "normal")
+        hm4.metric("Multiple H1s", f"{multiple_h1_count}", delta="More than 1 H1" if multiple_h1_count else "Single H1", delta_color="inverse" if multiple_h1_count else "normal")
+        hm5.metric("Missing H2", f"{missing_h2_count}", delta="Needs subheadings" if missing_h2_count else "Structured", delta_color="inverse" if missing_h2_count else "normal")
+
+        # Filters and Search
+        hfcol1, hfcol2 = st.columns([1.5, 2])
+        with hfcol1:
+            heading_filter = st.selectbox(
+                "Filter Headings by Status:",
+                [
+                    "All Headings",
+                    "Missing H1",
+                    "Duplicate H1",
+                    "Multiple H1s",
+                    "H1 Over 70 Chars",
+                    "Missing H2",
+                    "Multiple H2s",
+                    "Duplicate H2"
+                ]
+            )
+        with hfcol2:
+            heading_search = st.text_input("🔍 Search URL or Heading Text (H1/H2):", "")
+
+        df_filtered_hd = df_headings.copy()
+
+        if heading_filter == "Missing H1":
+            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Missing"]
+        elif heading_filter == "Duplicate H1":
+            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Duplicate"]
+        elif heading_filter == "Multiple H1s":
+            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Multiple H1s"]
+        elif heading_filter == "H1 Over 70 Chars":
+            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Over 70 Chars"]
+        elif heading_filter == "Missing H2":
+            df_filtered_hd = df_filtered_hd[df_filtered_hd["h2_status"] == "Missing"]
+        elif heading_filter == "Multiple H2s":
+            df_filtered_hd = df_filtered_hd[df_filtered_hd["h2_status"] == "Multiple H2s"]
+        elif heading_filter == "Duplicate H2":
+            df_filtered_hd = df_filtered_hd[df_filtered_hd["h2_status"] == "Duplicate"]
+
+        if heading_search:
+            df_filtered_hd = df_filtered_hd[
+                df_filtered_hd["url"].str.contains(heading_search, case=False, na=False) |
+                df_filtered_hd["h1"].str.contains(heading_search, case=False, na=False) |
+                df_filtered_hd["h2_first"].str.contains(heading_search, case=False, na=False)
+            ]
+
+        # Download button for filtered headings
+        col_hdown1, col_hdown2 = st.columns([1, 4])
+        with col_hdown1:
+            csv_hd = generate_csv(df_filtered_hd)
+            st.download_button(
+                label=f"📥 Download Filtered Headings ({len(df_filtered_hd)} URLs)",
+                data=csv_hd,
+                file_name=f"headings_{heading_filter.replace(' ', '_').lower()}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with col_hdown2:
+            st.caption(f"Showing **{len(df_filtered_hd)}** of **{total_pages}** pages matching filter: `{heading_filter}`")
+
         st.dataframe(
-            df_pages[[c for c in heading_cols if c in df_pages.columns]],
+            df_filtered_hd[[
+                "url", "h1", "h1_status", "h1_count", "h2_first", "h2_status", "h2_count", "status_code"
+            ]],
             use_container_width=True,
             column_config={
-                "url": st.column_config.LinkColumn("URL"),
-                "h1": st.column_config.TextColumn("H1 Heading Text"),
-                "h1_count": st.column_config.NumberColumn("H1 Count"),
-                "h2_first": st.column_config.TextColumn("First H2 Text"),
-                "h2_count": st.column_config.NumberColumn("H2 Count"),
+                "url": st.column_config.LinkColumn("Page URL"),
+                "h1": st.column_config.TextColumn("H1 Heading"),
+                "h1_status": st.column_config.TextColumn("H1 Status"),
+                "h1_count": st.column_config.NumberColumn("H1 Count", format="%d"),
+                "h2_first": st.column_config.TextColumn("First H2 Subheading"),
+                "h2_status": st.column_config.TextColumn("H2 Status"),
+                "h2_count": st.column_config.NumberColumn("H2 Count", format="%d"),
+                "status_code": st.column_config.NumberColumn("HTTP Status", format="%d")
             },
             hide_index=True
         )
+
+        with st.expander("💡 SEO Guide: Heading Hierarchy Best Practices"):
+            st.markdown("""
+            - **Exactly One H1 per page**: ✅ The H1 is the main topic of your page. Having 0 H1s hurts topical relevance; having multiple H1s dilutes ranking signals.
+            - **Unique H1s**: ⚠️ Every page should have a unique H1 matching its unique title and search intent.
+            - **Logical Structure**: Use H2 tags to divide sections under your primary H1 heading.
+            """)
 
 # ==============================================================================
 # TAB 7: LINK ANALYSIS
