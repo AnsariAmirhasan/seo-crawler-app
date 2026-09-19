@@ -20,6 +20,7 @@ from sitemap_generator import (
     build_html_sitemap,
     build_gzipped_xml
 )
+from query_fanout import render_query_fanout_page
 
 # 1. Streamlit Page Configuration - Must be first
 st.set_page_config(
@@ -368,6 +369,7 @@ with st.sidebar:
         options=[
             "🕷️ SEO Spider & Crawler",
             "🗺️ XML Sitemap Generator",
+            "🎯 Query Fan-Out Extractor",
             "📊 SERP Rank Tracker (Coming Soon)",
             "🔗 Backlink Explorer (Coming Soon)",
             "⚡ Core Web Vitals (Coming Soon)"
@@ -689,6 +691,10 @@ def render_xml_sitemap_generator():
 
 if selected_tool == "🗺️ XML Sitemap Generator":
     render_xml_sitemap_generator()
+    st.stop()
+
+if selected_tool == "🎯 Query Fan-Out Extractor":
+    render_query_fanout_page()
     st.stop()
 
 if selected_tool != "🕷️ SEO Spider & Crawler":
