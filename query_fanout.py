@@ -213,29 +213,47 @@ def render_query_fanout_page():
 
         if ai_provider == "Google Gemini":
             model_options = [
+                "gemini-3.6-flash",
+                "gemini-3.6-pro",
+                "gemini-3.5-flash",
+                "gemini-3.5-flash-lite",
+                "gemini-3.5-pro",
                 "gemini-2.5-flash",
                 "gemini-2.5-pro",
-                "gemini-1.5-flash",
-                "gemini-1.5-pro"
+                "Custom Model"
             ]
         elif ai_provider == "ChatGPT (OpenAI)":
             model_options = [
+                "gpt-4.1",
+                "gpt-4.1-mini",
                 "gpt-4o",
                 "gpt-4o-mini",
-                "gpt-4-turbo"
+                "o3-mini",
+                "Custom Model"
             ]
         else:
             model_options = [
+                "claude-sonnet-4-20250514",
+                "claude-haiku-4-20250514",
                 "claude-3-5-sonnet-20241022",
-                "claude-3-5-haiku-20241022"
+                "claude-3-5-haiku-20241022",
+                "Custom Model"
             ]
 
-        selected_model = st.selectbox(
+        selected_model_choice = st.selectbox(
             "Model",
             options=model_options,
             index=0,
-            key="fanout_model"
+            key="fanout_model_choice"
         )
+        if selected_model_choice == "Custom Model":
+            selected_model = st.text_input(
+                "Custom Model Name",
+                placeholder="e.g. gemini-3.6-ultra",
+                key="fanout_custom_model"
+            ).strip()
+        else:
+            selected_model = selected_model_choice
 
     with cfg_col2:
         if ai_provider == "Google Gemini":
@@ -313,6 +331,10 @@ def render_query_fanout_page():
     if btn_extract:
         if not api_key or not api_key.strip():
             st.error(f"⚠️ Please enter your **{ai_provider} API Key** in the configuration panel above to run extraction.")
+            st.stop()
+
+        if not selected_model or not str(selected_model).strip():
+            st.error("⚠️ Please select or enter a valid model name.")
             st.stop()
 
         if not user_query or not user_query.strip():
