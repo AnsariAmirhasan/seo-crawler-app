@@ -3,16 +3,20 @@ import re
 from urllib.parse import urlparse, urljoin, urldefrag
 from urllib.robotparser import RobotFileParser
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
+# Suppress insecure request warnings when SSL fallback is active
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 USER_AGENTS = {
-    "Screaming Frog Spider / SEO Bot": "Mozilla/5.0 (compatible; ScreamingFrogSEOSpider/19.0; +https://www.screamingfrog.co.uk/seo-spider/)",
-    "Googlebot Desktop": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-    "Googlebot Smartphone": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
     "Chrome (Windows 11)": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Safari (macOS)": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
+    "Googlebot Desktop": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "Googlebot Smartphone": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "Screaming Frog Spider / SEO Bot": "Mozilla/5.0 (compatible; ScreamingFrogSEOSpider/19.0; +https://www.screamingfrog.co.uk/seo-spider/)",
     "LibreCrawl Bot": "Mozilla/5.0 (compatible; LibreCrawl/1.0; +https://librecrawl.com)"
 }
 
@@ -26,17 +30,19 @@ def normalize_url(url: str) -> str:
         url = url + "/"
     return url
 
-def is_internal_url(target_url: str, base_domain: str) -> bool:
-    """Check if target_url belongs to the same domain / subdomain."""
+def is_internal_url(target_url: str, allowed_domains) -> bool:
+    """Check if target_url belongs to any allowed internal domain / subdomain."""
     try:
         parsed_target = urlparse(target_url)
         target_netloc = parsed_target.netloc.lower()
-        base_netloc = base_domain.lower()
-        
         target_clean = re.sub(r"^www\.", "", target_netloc)
-        base_clean = re.sub(r"^www\.", "", base_netloc)
         
-        return target_clean == base_clean or target_clean.endswith("." + base_clean)
+        domains = allowed_domains if isinstance(allowed_domains, (set, list, tuple)) else [allowed_domains]
+        for base_domain in domains:
+            base_clean = re.sub(r"^www\.", "", str(base_domain).lower())
+            if target_clean == base_clean or target_clean.endswith("." + base_clean):
+                return True
+        return False
     except Exception:
         return False
 
@@ -59,7 +65,7 @@ class SEOSpider:
         max_pages: int = 2000,
         max_depth: int = 5,
         concurrency: int = 10,
-        user_agent_name: str = "Screaming Frog Spider / SEO Bot",
+        user_agent_name: str = "Chrome (Windows 11)",
         respect_robots: bool = False,
         timeout: int = 10,
         include_regex: str = "",
@@ -68,11 +74,12 @@ class SEOSpider:
         self.start_url = normalize_url(start_url)
         parsed_start = urlparse(self.start_url)
         self.base_domain = parsed_start.netloc
+        self.allowed_domains = {self.base_domain}
         self.scheme = parsed_start.scheme or "https"
         self.max_pages = max_pages
         self.max_depth = max_depth
         self.concurrency = concurrency
-        self.user_agent = USER_AGENTS.get(user_agent_name, USER_AGENTS["Screaming Frog Spider / SEO Bot"])
+        self.user_agent = USER_AGENTS.get(user_agent_name, USER_AGENTS["Chrome (Windows 11)"])
         self.respect_robots = respect_robots
         self.timeout = timeout
         self.include_regex = re.compile(include_regex) if include_regex else None
@@ -91,13 +98,22 @@ class SEOSpider:
         self.session.mount("http://", adapter)
         self.session.headers.update({
             "User-Agent": self.user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Sec-Ch-Ua": "\"Not A(Brand\";v=\"99\", \"Google Chrome\";v=\"124\", \"Chromium\";v=\"124\"",
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": "\"Windows\"",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1"
         })
 
     def fetch_single_url(self, url: str):
-        """Fetch a single URL and measure latency, headers, status."""
+        """Fetch a single URL and measure latency, headers, status with smart SSL fallback."""
         start_time = time.time()
+        response = None
         try:
             response = self.session.get(
                 url,
@@ -105,23 +121,28 @@ class SEOSpider:
                 allow_redirects=True,
                 verify=True
             )
-            latency_ms = round((time.time() - start_time) * 1000, 2)
-            redirect_chain = [r.url for r in response.history] + [response.url] if response.history else []
-            content_type = response.headers.get("Content-Type", "")
-            content_length = len(response.content) if response.content else 0
-            
-            return {
-                "url": url,
-                "final_url": response.url,
-                "status_code": response.status_code,
-                "latency_ms": latency_ms,
-                "content_type": content_type,
-                "size_bytes": content_length,
-                "headers": dict(response.headers),
-                "redirect_chain": redirect_chain,
-                "html": response.text if "text/html" in content_type.lower() else "",
-                "error": None
-            }
+        except requests.exceptions.SSLError:
+            # Fallback for sites with missing intermediate SSL certificates (e.g. cairnindia.com)
+            try:
+                response = self.session.get(
+                    url,
+                    timeout=self.timeout,
+                    allow_redirects=True,
+                    verify=False
+                )
+            except Exception as e:
+                return {
+                    "url": url,
+                    "final_url": url,
+                    "status_code": 0,
+                    "latency_ms": round((time.time() - start_time) * 1000, 2),
+                    "content_type": "",
+                    "size_bytes": 0,
+                    "headers": {},
+                    "redirect_chain": [],
+                    "html": "",
+                    "error": f"SSL Certificate Error: {e}"
+                }
         except requests.exceptions.Timeout:
             return {
                 "url": url,
@@ -134,19 +155,6 @@ class SEOSpider:
                 "redirect_chain": [],
                 "html": "",
                 "error": "Request Timeout"
-            }
-        except requests.exceptions.SSLError:
-            return {
-                "url": url,
-                "final_url": url,
-                "status_code": 0,
-                "latency_ms": round((time.time() - start_time) * 1000, 2),
-                "content_type": "",
-                "size_bytes": 0,
-                "headers": {},
-                "redirect_chain": [],
-                "html": "",
-                "error": "SSL Certificate Error"
             }
         except Exception as e:
             return {
@@ -162,8 +170,26 @@ class SEOSpider:
                 "error": str(e)
             }
 
+        latency_ms = round((time.time() - start_time) * 1000, 2)
+        redirect_chain = [r.url for r in response.history] + [response.url] if response.history else []
+        content_type = response.headers.get("Content-Type", "")
+        content_length = len(response.content) if response.content else 0
+        
+        return {
+            "url": url,
+            "final_url": response.url,
+            "status_code": response.status_code,
+            "latency_ms": latency_ms,
+            "content_type": content_type,
+            "size_bytes": content_length,
+            "headers": dict(response.headers),
+            "redirect_chain": redirect_chain,
+            "html": response.text if "text/html" in content_type.lower() else "",
+            "error": None
+        }
+
     def should_crawl(self, url: str, depth: int) -> bool:
-        """Evaluate if URL passes filters and should be crawled."""
+        """Evaluate if URL passes filters and belongs to allowed internal domains."""
         if not url or depth > self.max_depth:
             return False
         
@@ -179,7 +205,7 @@ class SEOSpider:
         if parsed.path.lower().endswith(non_html_extensions):
             return False
 
-        if not is_internal_url(url, self.base_domain):
+        if not is_internal_url(url, self.allowed_domains):
             return False
 
         if self.include_regex and not self.include_regex.search(url):
@@ -221,6 +247,13 @@ class SEOSpider:
                     fetch_res["depth"] = depth
                     fetch_res["source_page"] = source_page
                     
+                    # If root URL redirected to a new domain (e.g. cairnindia.com -> vedantaoilandgas.com),
+                    # allow the destination domain so all internal pages get crawled!
+                    if depth == 0 and fetch_res.get("final_url"):
+                        final_netloc = urlparse(fetch_res["final_url"]).netloc
+                        if final_netloc:
+                            self.allowed_domains.add(final_netloc)
+
                     self.crawled_data.append(fetch_res)
 
                     # Extract outgoing links & images
@@ -235,7 +268,7 @@ class SEOSpider:
                                     continue
                                 
                                 abs_url = normalize_url(urljoin(fetch_res["final_url"], raw_href))
-                                is_internal = is_internal_url(abs_url, self.base_domain)
+                                is_internal = is_internal_url(abs_url, self.allowed_domains)
                                 rel_val = a_tag.get("rel", [])
                                 is_nofollow = "nofollow" in (rel_val if isinstance(rel_val, list) else [rel_val])
                                 anchor_text = a_tag.get_text(strip=True)[:100]
