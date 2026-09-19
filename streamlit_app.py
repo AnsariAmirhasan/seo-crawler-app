@@ -11,8 +11,7 @@ from visualizer import (
     create_health_gauge,
     create_status_code_chart,
     create_issues_bar_chart,
-    create_site_architecture_graph,
-    create_silo_structure_graph
+    create_site_architecture_graph
 )
 from exporter import generate_excel_report, generate_csv
 from sitemap_generator import (
@@ -22,6 +21,7 @@ from sitemap_generator import (
     build_gzipped_xml
 )
 from query_fanout import render_query_fanout_page
+from silo_architect import render_silo_architect_page
 
 # 1. Streamlit Page Configuration - Must be first
 st.set_page_config(
@@ -371,6 +371,7 @@ with st.sidebar:
             "🕷️ SEO Spider & Crawler",
             "🗺️ XML Sitemap Generator",
             "🎯 Query Fan-Out Extractor",
+            "🏛️ AI Silo Structure Architect",
             "📊 SERP Rank Tracker (Coming Soon)",
             "🔗 Backlink Explorer (Coming Soon)",
             "⚡ Core Web Vitals (Coming Soon)"
@@ -696,6 +697,10 @@ if selected_tool == "🗺️ XML Sitemap Generator":
 
 if selected_tool == "🎯 Query Fan-Out Extractor":
     render_query_fanout_page()
+    st.stop()
+
+if selected_tool == "🏛️ AI Silo Structure Architect":
+    render_silo_architect_page()
     st.stop()
 
 if selected_tool != "🕷️ SEO Spider & Crawler":
@@ -2593,455 +2598,217 @@ with tab_architecture:
         if df_pages.empty or df_links.empty:
             st.info("No internal link relationships found.")
         else:
-            subtab_network, subtab_silo = st.tabs([
-                "🌐 Visual Architecture & Network Graph",
-                "🏛️ Silo Structure & Interlinking Strategist"
-            ])
+            st.subheader("🧭 Internal Link Structure Visualization")
+            st.caption("Interactive visualization of your website's internal linking architecture, crawl depth and page relationships.")
 
-            # ------------------------------------------------------------------
-            # SUB-TAB 1: VISUAL ARCHITECTURE & NETWORK GRAPH
-            # ------------------------------------------------------------------
-            with subtab_network:
-                st.subheader("🧭 Internal Link Structure Visualization")
-                st.caption("Interactive visualization of your website's internal linking architecture, crawl depth and page relationships.")
+            # --- 1. Compact SEO Summary Cards ---
+            total_pages = len(df_pages)
+            total_internal_links = len(df_links[df_links["is_internal"] == True]) if not df_links.empty else 0
+            orphan_count = int(df_pages["is_orphan"].sum()) if "is_orphan" in df_pages.columns else 0
+            broken_count = len(df_pages[df_pages["status_code"] >= 400]) if "status_code" in df_pages.columns else 0
+            redirects_count = len(df_pages[(df_pages["status_code"] >= 300) & (df_pages["status_code"] < 400)]) if "status_code" in df_pages.columns else 0
+            redirect_chains_count = int(df_pages["is_redirect_chain"].sum()) if "is_redirect_chain" in df_pages.columns else 0
+            max_depth = int(df_pages["depth"].max()) if "depth" in df_pages.columns and not df_pages.empty else 0
+            deep_count = len(df_pages[df_pages["depth"] >= 4]) if "depth" in df_pages.columns else 0
 
-                # --- 1. Compact SEO Summary Cards ---
-                total_pages = len(df_pages)
-                total_internal_links = len(df_links[df_links["is_internal"] == True]) if not df_links.empty else 0
-                orphan_count = int(df_pages["is_orphan"].sum()) if "is_orphan" in df_pages.columns else 0
-                broken_count = len(df_pages[df_pages["status_code"] >= 400]) if "status_code" in df_pages.columns else 0
-                redirects_count = len(df_pages[(df_pages["status_code"] >= 300) & (df_pages["status_code"] < 400)]) if "status_code" in df_pages.columns else 0
-                redirect_chains_count = int(df_pages["is_redirect_chain"].sum()) if "is_redirect_chain" in df_pages.columns else 0
-                max_depth = int(df_pages["depth"].max()) if "depth" in df_pages.columns and not df_pages.empty else 0
-                deep_count = len(df_pages[df_pages["depth"] >= 4]) if "depth" in df_pages.columns else 0
+            sc1, sc2, sc3, sc4, sc5, sc6, sc7 = st.columns(7)
+            sc1.metric("Total Pages", f"{total_pages:,}")
+            sc2.metric("Internal Links", f"{total_internal_links:,}")
+            sc3.metric("Orphan Pages", f"{orphan_count}", delta="Needs links" if orphan_count else "None", delta_color="inverse" if orphan_count else "normal")
+            sc4.metric("Broken Links", f"{broken_count}", delta="4xx/5xx errors" if broken_count else "None", delta_color="inverse" if broken_count else "normal")
+            sc5.metric("Redirects", f"{redirects_count}", delta="3xx redirects" if redirects_count else "None", delta_color="inverse" if redirects_count else "normal")
+            sc6.metric("Redirect Chains", f"{redirect_chains_count}", delta="Multi-hop" if redirect_chains_count else "None", delta_color="inverse" if redirect_chains_count else "normal")
+            sc7.metric("Max Crawl Depth", f"Depth {max_depth}")
 
-                sc1, sc2, sc3, sc4, sc5, sc6, sc7 = st.columns(7)
-                sc1.metric("Total Pages", f"{total_pages:,}")
-                sc2.metric("Internal Links", f"{total_internal_links:,}")
-                sc3.metric("Orphan Pages", f"{orphan_count}", delta="Needs links" if orphan_count else "None", delta_color="inverse" if orphan_count else "normal")
-                sc4.metric("Broken Links", f"{broken_count}", delta="4xx/5xx errors" if broken_count else "None", delta_color="inverse" if broken_count else "normal")
-                sc5.metric("Redirects", f"{redirects_count}", delta="3xx redirects" if redirects_count else "None", delta_color="inverse" if redirects_count else "normal")
-                sc6.metric("Redirect Chains", f"{redirect_chains_count}", delta="Multi-hop" if redirect_chains_count else "None", delta_color="inverse" if redirect_chains_count else "normal")
-                sc7.metric("Max Crawl Depth", f"Depth {max_depth}")
+            # --- 2. SEO Issues Quick Highlight Pills ---
+            st.markdown(f"""
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; margin-bottom: 16px; align-items: center;">
+                <span style="font-size: 12px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em;">SEO Issues Detected:</span>
+                <span style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); color: #C084FC; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {orphan_count} Orphan Pages</span>
+                <span style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #FBBF24; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {redirects_count} Redirects</span>
+                <span style="background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.4); color: #FB923C; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {redirect_chains_count} Redirect Chains</span>
+                <span style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #F87171; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">🔴 {broken_count} Broken Pages</span>
+                <span style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38BDF8; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">ℹ️ {deep_count} Deep Pages (Depth 4+)</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-                # --- 2. SEO Issues Quick Highlight Pills ---
-                st.markdown(f"""
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; margin-bottom: 16px; align-items: center;">
-                    <span style="font-size: 12px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em;">SEO Issues Detected:</span>
-                    <span style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); color: #C084FC; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {orphan_count} Orphan Pages</span>
-                    <span style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #FBBF24; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {redirects_count} Redirects</span>
-                    <span style="background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.4); color: #FB923C; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {redirect_chains_count} Redirect Chains</span>
-                    <span style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #F87171; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">🔴 {broken_count} Broken Pages</span>
-                    <span style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38BDF8; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">ℹ️ {deep_count} Deep Pages (Depth 4+)</span>
-                </div>
-                """, unsafe_allow_html=True)
+            # --- 3. Graph Controls Bar ---
+            fc1, fc2, fc3, fc4, fc5 = st.columns([1.6, 1.3, 1.1, 1.2, 1.0])
+            with fc1:
+                arch_search = st.text_input("🔍 Search URL / Title / Slug:", value="", key="arch_search_input")
+            with fc2:
+                arch_view_mode = st.selectbox(
+                    "View Mode:",
+                    [
+                        "Hierarchy by Depth",
+                        "Radial / Depth Rings",
+                        "Force-Directed (Organic Clusters)",
+                        "Hubs & Authorities"
+                    ],
+                    key="arch_view_mode_select"
+                )
+            with fc3:
+                arch_depth = st.selectbox(
+                    "Crawl Depth:",
+                    ["All", "Depth 0", "Depth 1", "Depth 2", "Depth 3", "Depth 4", "5+"],
+                    key="arch_depth_select"
+                )
+            with fc4:
+                arch_seo_state = st.selectbox(
+                    "SEO State Filter:",
+                    ["All", "Healthy", "Hubs / Categories", "Orphans", "Broken Pages", "Redirect Chains", "Redirects"],
+                    key="arch_seo_state_select"
+                )
+            with fc5:
+                arch_max_nodes = st.slider(
+                    "Node Capacity:",
+                    min_value=30,
+                    max_value=min(250, max(50, total_pages)),
+                    value=min(80, max(30, total_pages)),
+                    step=10,
+                    key="arch_max_nodes_slider",
+                    help="Limit displayed nodes for maximum responsiveness on large sites."
+                )
 
-                # --- 3. Graph Controls Bar ---
-                fc1, fc2, fc3, fc4, fc5 = st.columns([1.6, 1.3, 1.1, 1.2, 1.0])
-                with fc1:
-                    arch_search = st.text_input("🔍 Search URL / Title / Slug:", value="", key="arch_search_input")
-                with fc2:
-                    arch_view_mode = st.selectbox(
-                        "View Mode:",
-                        [
-                            "Hierarchy by Depth",
-                            "Radial / Depth Rings",
-                            "Force-Directed (Organic Clusters)",
-                            "Hubs & Authorities"
-                        ],
-                        key="arch_view_mode_select"
-                    )
-                with fc3:
-                    arch_depth = st.selectbox(
-                        "Crawl Depth:",
-                        ["All", "Depth 0", "Depth 1", "Depth 2", "Depth 3", "Depth 4", "5+"],
-                        key="arch_depth_select"
-                    )
-                with fc4:
-                    arch_seo_state = st.selectbox(
-                        "SEO State Filter:",
-                        ["All", "Healthy", "Hubs / Categories", "Orphans", "Broken Pages", "Redirect Chains", "Redirects"],
-                        key="arch_seo_state_select"
-                    )
-                with fc5:
-                    arch_max_nodes = st.slider(
-                        "Node Capacity:",
-                        min_value=30,
-                        max_value=min(250, max(50, total_pages)),
-                        value=min(80, max(30, total_pages)),
-                        step=10,
-                        key="arch_max_nodes_slider",
-                        help="Limit displayed nodes for maximum responsiveness on large sites."
-                    )
+            # --- 4. Compact Legend ---
+            st.markdown("""
+            <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; color: #CBD5E1; background: rgba(15, 23, 42, 0.5); padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(51, 65, 85, 0.4); align-items: center;">
+                <span><span style="color: #10B981; font-size: 14px;">●</span> Healthy (200 OK)</span>
+                <span><span style="color: #38BDF8; font-size: 14px;">●</span> Hub / Category</span>
+                <span><span style="color: #F59E0B; font-size: 14px;">●</span> Redirect (3xx)</span>
+                <span><span style="color: #F97316; font-size: 14px;">●</span> Redirect Chain</span>
+                <span><span style="color: #EF4444; font-size: 14px;">●</span> Broken (4xx/5xx)</span>
+                <span><span style="color: #A855F7; font-size: 14px;">●</span> Orphan Page</span>
+                <span style="margin-left: auto; color: #64748B;">Zoom: Scroll • Pan: Drag • Highlight: Click Inspector</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-                # --- 4. Compact Legend ---
-                st.markdown("""
-                <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; color: #CBD5E1; background: rgba(15, 23, 42, 0.5); padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(51, 65, 85, 0.4); align-items: center;">
-                    <span><span style="color: #10B981; font-size: 14px;">●</span> Healthy (200 OK)</span>
-                    <span><span style="color: #38BDF8; font-size: 14px;">●</span> Hub / Category</span>
-                    <span><span style="color: #F59E0B; font-size: 14px;">●</span> Redirect (3xx)</span>
-                    <span><span style="color: #F97316; font-size: 14px;">●</span> Redirect Chain</span>
-                    <span><span style="color: #EF4444; font-size: 14px;">●</span> Broken (4xx/5xx)</span>
-                    <span><span style="color: #A855F7; font-size: 14px;">●</span> Orphan Page</span>
-                    <span style="margin-left: auto; color: #64748B;">Zoom: Scroll • Pan: Drag • Highlight: Click Inspector</span>
-                </div>
-                """, unsafe_allow_html=True)
+            # --- 5. Responsive Split View: Graph (72%) vs Details Panel (28%) ---
+            col_graph, col_details = st.columns([2.6, 1.0])
 
-                # --- 5. Responsive Split View: Graph (72%) vs Details Panel (28%) ---
-                col_graph, col_details = st.columns([2.6, 1.0])
+            # Prepare list of URLs for interactive node selection
+            all_urls_list = list(df_pages["url"].dropna().unique())
+            current_selected_url = st.session_state.get("arch_selected_url")
+            if not current_selected_url or current_selected_url not in all_urls_list:
+                current_selected_url = all_urls_list[0] if all_urls_list else None
 
-                # Prepare list of URLs for interactive node selection
-                all_urls_list = list(df_pages["url"].dropna().unique())
-                current_selected_url = st.session_state.get("arch_selected_url")
-                if not current_selected_url or current_selected_url not in all_urls_list:
-                    current_selected_url = all_urls_list[0] if all_urls_list else None
+            with col_details:
+                st.markdown("#### 📄 Page Details Panel")
+                selected_url_box = st.selectbox(
+                    "Select Node to Inspect:",
+                    all_urls_list,
+                    index=all_urls_list.index(current_selected_url) if current_selected_url in all_urls_list else 0,
+                    key="arch_node_inspect_select"
+                )
+                if selected_url_box != current_selected_url:
+                    st.session_state["arch_selected_url"] = selected_url_box
+                    current_selected_url = selected_url_box
 
-                with col_details:
-                    st.markdown("#### 📄 Page Details Panel")
-                    selected_url_box = st.selectbox(
-                        "Select Node to Inspect:",
-                        all_urls_list,
-                        index=all_urls_list.index(current_selected_url) if current_selected_url in all_urls_list else 0,
-                        key="arch_node_inspect_select"
-                    )
-                    if selected_url_box != current_selected_url:
-                        st.session_state["arch_selected_url"] = selected_url_box
-                        current_selected_url = selected_url_box
+                # Render Page Details Card
+                if current_selected_url:
+                    page_row_df = df_pages[df_pages["url"] == current_selected_url]
+                    if not page_row_df.empty:
+                        p_row = page_row_df.iloc[0]
+                        p_title = str(p_row.get("title") or "No Page Title Found").strip()
+                        p_status = int(p_row.get("status_code", 200))
+                        p_status_desc = str(p_row.get("status_description") or f"{p_status}")
+                        p_depth = int(p_row.get("depth", 0))
+                        p_inlinks = int(p_row.get("inlinks_count", 0))
+                        p_outlinks = int(p_row.get("internal_outlinks_count", 0))
+                        p_canonical = str(p_row.get("canonical_url") or "None")
+                        p_indexable = bool(p_row.get("is_indexable", True))
+                        p_is_rc = bool(p_row.get("is_redirect_chain", False))
+                        p_is_orphan = bool(p_row.get("is_orphan", False))
 
-                    # Render Page Details Card
-                    if current_selected_url:
-                        page_row_df = df_pages[df_pages["url"] == current_selected_url]
-                        if not page_row_df.empty:
-                            p_row = page_row_df.iloc[0]
-                            p_title = str(p_row.get("title") or "No Page Title Found").strip()
-                            p_status = int(p_row.get("status_code", 200))
-                            p_status_desc = str(p_row.get("status_description") or f"{p_status}")
-                            p_depth = int(p_row.get("depth", 0))
-                            p_inlinks = int(p_row.get("inlinks_count", 0))
-                            p_outlinks = int(p_row.get("internal_outlinks_count", 0))
-                            p_canonical = str(p_row.get("canonical_url") or "None")
-                            p_indexable = bool(p_row.get("is_indexable", True))
-                            p_is_rc = bool(p_row.get("is_redirect_chain", False))
-                            p_is_orphan = bool(p_row.get("is_orphan", False))
-
-                            # Card Container
-                            status_badge_color = "#10B981" if p_status == 200 else ("#EF4444" if p_status >= 400 else "#F59E0B")
-                            st.markdown(f"""
-                            <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(71, 85, 105, 0.4); border-radius: 10px; padding: 14px; margin-bottom: 12px;">
-                                <div style="font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Page Title</div>
-                                <div style="font-size: 14px; font-weight: 600; color: #F8FAFC; margin-bottom: 8px;">{p_title}</div>
-                                <div style="font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase;">URL</div>
-                                <div style="font-size: 12px; color: #38BDF8; word-break: break-all; margin-bottom: 10px;">
-                                    <a href="{current_selected_url}" target="_blank" style="color: #38BDF8; text-decoration: none;">{current_selected_url} ↗</a>
-                                </div>
-                                <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
-                                    <span style="background: {status_badge_color}22; border: 1px solid {status_badge_color}55; color: {status_badge_color}; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">{p_status_desc}</span>
-                                    <span style="background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.3); color: #CBD5E1; padding: 2px 8px; border-radius: 6px; font-size: 11px;">Depth: {p_depth}</span>
-                                    <span style="background: {'rgba(16, 185, 129, 0.15)' if p_indexable else 'rgba(239, 68, 68, 0.15)'}; border: 1px solid {'rgba(16, 185, 129, 0.3)' if p_indexable else 'rgba(239, 68, 68, 0.3)'}; color: {'#34D399' if p_indexable else '#F87171'}; padding: 2px 8px; border-radius: 6px; font-size: 11px;">{'Indexable' if p_indexable else 'Noindex'}</span>
-                                    {f'<span style="background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.5); color: #C084FC; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Orphan Page</span>' if p_is_orphan else ''}
-                                </div>
+                        # Card Container
+                        status_badge_color = "#10B981" if p_status == 200 else ("#EF4444" if p_status >= 400 else "#F59E0B")
+                        st.markdown(f"""
+                        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(71, 85, 105, 0.4); border-radius: 10px; padding: 14px; margin-bottom: 12px;">
+                            <div style="font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Page Title</div>
+                            <div style="font-size: 14px; font-weight: 600; color: #F8FAFC; margin-bottom: 8px;">{p_title}</div>
+                            <div style="font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase;">URL</div>
+                            <div style="font-size: 12px; color: #38BDF8; word-break: break-all; margin-bottom: 10px;">
+                                <a href="{current_selected_url}" target="_blank" style="color: #38BDF8; text-decoration: none;">{current_selected_url} ↗</a>
                             </div>
-                            """, unsafe_allow_html=True)
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
+                                <span style="background: {status_badge_color}22; border: 1px solid {status_badge_color}55; color: {status_badge_color}; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">{p_status_desc}</span>
+                                <span style="background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.3); color: #CBD5E1; padding: 2px 8px; border-radius: 6px; font-size: 11px;">Depth: {p_depth}</span>
+                                <span style="background: {'rgba(16, 185, 129, 0.15)' if p_indexable else 'rgba(239, 68, 68, 0.15)'}; border: 1px solid {'rgba(16, 185, 129, 0.3)' if p_indexable else 'rgba(239, 68, 68, 0.3)'}; color: {'#34D399' if p_indexable else '#F87171'}; padding: 2px 8px; border-radius: 6px; font-size: 11px;">{'Indexable' if p_indexable else 'Noindex'}</span>
+                                {f'<span style="background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.5); color: #C084FC; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Orphan Page</span>' if p_is_orphan else ''}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-                            dcol1, dcol2 = st.columns(2)
-                            dcol1.metric("Incoming Links", f"{p_inlinks}")
-                            dcol2.metric("Outgoing Links", f"{p_outlinks}")
+                        dcol1, dcol2 = st.columns(2)
+                        dcol1.metric("Incoming Links", f"{p_inlinks}")
+                        dcol2.metric("Outgoing Links", f"{p_outlinks}")
 
-                            st.caption(f"**Canonical:** `{p_canonical}`")
+                        st.caption(f"**Canonical:** `{p_canonical}`")
 
-                            # Redirect Chain Visualizer in Panel
-                            if p_is_rc or p_status >= 300 and p_status < 400:
-                                rc_path = str(p_row.get("redirect_chain_str") or current_selected_url)
-                                rc_hops = int(p_row.get("redirect_hops", 1))
-                                st.warning(f"**Redirect Path ({rc_hops} hops):**\n`{rc_path}`")
+                        # Redirect Chain Visualizer in Panel
+                        if p_is_rc or p_status >= 300 and p_status < 400:
+                            rc_path = str(p_row.get("redirect_chain_str") or current_selected_url)
+                            rc_hops = int(p_row.get("redirect_hops", 1))
+                            st.warning(f"**Redirect Path ({rc_hops} hops):**\n`{rc_path}`")
 
-                            # Incoming Links Table
-                            incoming_links_df = df_links[(df_links["target_url"] == current_selected_url) & (df_links["is_internal"] == True)]
-                            with st.expander(f"📥 Incoming Links ({len(incoming_links_df)})", expanded=False):
-                                if incoming_links_df.empty:
-                                    st.info("No incoming internal links found pointing to this page.")
-                                else:
-                                    st.dataframe(
-                                        incoming_links_df[["source_url", "anchor_text"]].rename(columns={"source_url": "Source Page", "anchor_text": "Anchor Text"}),
-                                        use_container_width=True,
-                                        hide_index=True
-                                    )
+                        # Incoming Links Table
+                        incoming_links_df = df_links[(df_links["target_url"] == current_selected_url) & (df_links["is_internal"] == True)]
+                        with st.expander(f"📥 Incoming Links ({len(incoming_links_df)})", expanded=False):
+                            if incoming_links_df.empty:
+                                st.info("No incoming internal links found pointing to this page.")
+                            else:
+                                st.dataframe(
+                                    incoming_links_df[["source_url", "anchor_text"]].rename(columns={"source_url": "Source Page", "anchor_text": "Anchor Text"}),
+                                    use_container_width=True,
+                                    hide_index=True
+                                )
 
-                            # Outgoing Links Table
-                            outgoing_links_df = df_links[(df_links["source_url"] == current_selected_url) & (df_links["is_internal"] == True)]
-                            with st.expander(f"📤 Outgoing Links ({len(outgoing_links_df)})", expanded=False):
-                                if outgoing_links_df.empty:
-                                    st.info("No outgoing internal links found on this page.")
-                                else:
-                                    st.dataframe(
-                                        outgoing_links_df[["target_url", "anchor_text"]].rename(columns={"target_url": "Target URL", "anchor_text": "Anchor Text"}),
-                                        use_container_width=True,
-                                        hide_index=True
-                                    )
+                        # Outgoing Links Table
+                        outgoing_links_df = df_links[(df_links["source_url"] == current_selected_url) & (df_links["is_internal"] == True)]
+                        with st.expander(f"📤 Outgoing Links ({len(outgoing_links_df)})", expanded=False):
+                            if outgoing_links_df.empty:
+                                st.info("No outgoing internal links found on this page.")
+                            else:
+                                st.dataframe(
+                                    outgoing_links_df[["target_url", "anchor_text"]].rename(columns={"target_url": "Target URL", "anchor_text": "Anchor Text"}),
+                                    use_container_width=True,
+                                    hide_index=True
+                                )
 
-                with col_graph:
-                    # Generate and Render Architecture Graph
-                    arch_fig = create_site_architecture_graph(
-                        df_links=df_links,
-                        df_pages=df_pages,
-                        view_mode=arch_view_mode,
-                        depth_filter=arch_depth,
-                        status_filter="All",
-                        seo_state_filter=arch_seo_state,
-                        search_query=arch_search,
-                        selected_url=current_selected_url,
-                        max_nodes=arch_max_nodes
-                    )
-                    st.plotly_chart(
-                        arch_fig,
-                        use_container_width=True,
-                        config={
-                            "displayModeBar": True,
-                            "scrollZoom": True,
-                            "displaylogo": False,
-                            "modeBarButtonsToRemove": ["lasso2d", "select2d"]
-                        }
-                    )
-
-            # ------------------------------------------------------------------
-            # SUB-TAB 2: SILO STRUCTURE & INTERLINKING STRATEGIST
-            # ------------------------------------------------------------------
-            with subtab_silo:
-                st.subheader("🏛️ Silo Structure & Strategic Interlinking Architect")
-                st.caption("Select any industry-standard SEO Silo Architecture type to dynamically visualize its linking blueprint, analyze your website's topical cluster health, and generate actionable interlinking recommendations.")
-
-                # Helper to detect silo from URL
-                def detect_page_silo(u):
-                    from urllib.parse import urlparse
-                    p = urlparse(str(u)).path.strip('/')
-                    if not p:
-                        return "Home"
-                    top = p.split('/')[0].replace('-', ' ').title()
-                    if top.lower() in ["about", "about us", "contact", "contact us", "privacy", "privacy policy", "terms", "disclaimer"]:
-                        return "Company & Utility"
-                    return top
-
-                df_pages["detected_silo"] = df_pages["url"].apply(detect_page_silo)
-                available_silos = sorted([s for s in df_pages["detected_silo"].dropna().unique() if s != "Home"])
-                if not available_silos:
-                    available_silos = ["Main Topic"]
-
-                # 1. Controls for Silo Structure Selection
-                scol1, scol2, scol3 = st.columns([1.5, 1.3, 1.0])
-                with scol1:
-                    silo_type_select = st.selectbox(
-                        "Select Silo Structure Architecture:",
-                        [
-                            "Strict Hierarchical Silo (Directory-Isolated Silo)",
-                            "Hub & Spoke Topic Cluster Silo (Semantic Silo)",
-                            "Sequential / Serial Silo (Step-by-Step Chain)",
-                            "Reverse Silo (Bottom-Up Equity Flow)",
-                            "Hybrid / Matrix Silo (Cross-Pillar Bridge Links)"
-                        ],
-                        key="silo_type_selector"
-                    )
-                with scol2:
-                    silo_topic_filter = st.selectbox(
-                        "Target Silo / Category:",
-                        ["All Silos"] + available_silos,
-                        key="silo_topic_filter_select"
-                    )
-                with scol3:
-                    silo_max_children = st.slider(
-                        "Pages per Silo:",
-                        min_value=2,
-                        max_value=12,
-                        value=5,
-                        key="silo_max_children_slider"
-                    )
-
-                # 2. Silo Concept Explainer Card
-                if "Strict" in silo_type_select:
-                    silo_badge = "Directory Isolation"
-                    silo_desc = "<b>Core Rule:</b> Strict top-down and bottom-up vertical linking. Home links to Category Pillars; Category Pillars link down to Supporting Articles; Articles link back up to their Pillar. Sibling linking is allowed <i>strictly within the same silo</i>.<br><b>Prohibited:</b> 🚫 ZERO cross-silo linking between children of different categories to prevent topical PageRank dilution."
-                    silo_best_for = "E-Commerce multi-category stores, corporate websites with distinct business verticals, large content publishers."
-                elif "Hub" in silo_type_select:
-                    silo_badge = "Semantic Topic Cluster"
-                    silo_desc = "<b>Core Rule:</b> Radial star topology. One master Pillar Page targeting high-volume head keyword, surrounded by long-tail Spoke Articles. Every spoke links directly to the Pillar with targeted anchor text, and spokes interlink contextually with neighboring spokes."
-                    silo_best_for = "Topical Authority blogs, SaaS product feature clusters, niche affiliate authority hubs."
-                elif "Sequential" in silo_type_select:
-                    silo_badge = "Linear Step-by-Step Chain"
-                    silo_desc = "<b>Core Rule:</b> Progressive sequence chain: Article 1 ➔ Article 2 ➔ Article 3 ➔ Article 4 with a loopback to Article 1. Every step in the chain links up to the master Guide Pillar page."
-                    silo_best_for = "Tutorials, multi-part course modules, onboarding workflows, structured buyer journeys."
-                elif "Reverse" in silo_type_select:
-                    silo_badge = "Bottom-Up Equity Flow"
-                    silo_desc = "<b>Core Rule:</b> Upward equity funnels. Deep informational and supporting articles aggressively pass PageRank upward into the high-converting Commercial/Money Page. The Money Page minimizes outgoing links to retain equity."
-                    silo_best_for = "High-ticket service lead generation, affiliate product reviews, core commercial conversion pages."
-                else:
-                    silo_badge = "Matrix / Pillar Bridge"
-                    silo_desc = "<b>Core Rule:</b> Strict vertical isolation at child page level, but with controlled <b>Golden Bridge Links</b> allowed exclusively between top-level Silo Pillars to pass authority across related categories."
-                    silo_best_for = "Marketplaces, portals, interconnected product catalogs where categories complement each other."
-
-                st.markdown(f"""
-                <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px; padding: 14px 18px; margin-bottom: 16px;">
-                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
-                        <span style="background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.5); color: #38BDF8; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-transform: uppercase;">{silo_badge}</span>
-                        <span style="color: #F8FAFC; font-weight: 700; font-size: 14px;">{silo_type_select}</span>
-                    </div>
-                    <div style="font-size: 13px; color: #CBD5E1; line-height: 1.5; margin-bottom: 6px;">{silo_desc}</div>
-                    <div style="font-size: 12px; color: #94A3B8;"><b>Best Used For:</b> {silo_best_for}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # 3. Interactive Silo Linking Blueprint Graph
-                silo_fig = create_silo_structure_graph(
-                    df_pages=df_pages,
+            with col_graph:
+                # Generate and Render Architecture Graph
+                arch_fig = create_site_architecture_graph(
                     df_links=df_links,
-                    silo_type=silo_type_select,
-                    selected_silo=silo_topic_filter,
-                    max_children_per_silo=silo_max_children
+                    df_pages=df_pages,
+                    view_mode=arch_view_mode,
+                    depth_filter=arch_depth,
+                    status_filter="All",
+                    seo_state_filter=arch_seo_state,
+                    search_query=arch_search,
+                    selected_url=current_selected_url,
+                    max_nodes=arch_max_nodes
                 )
                 st.plotly_chart(
-                    silo_fig,
+                    arch_fig,
                     use_container_width=True,
-                    config={"displayModeBar": True, "scrollZoom": True, "displaylogo": False}
+                    config={
+                        "displayModeBar": True,
+                        "scrollZoom": True,
+                        "displaylogo": False,
+                        "modeBarButtonsToRemove": ["lasso2d", "select2d"]
+                    }
                 )
 
-                # 4. Website Silo Health & Cross-Silo Leakage Audit
-                internal_links_only = df_links[df_links["is_internal"] == True]
-                cross_leakages = []
-                missing_pillar_links = []
-                silo_recs = []
 
-                existing_edge_set = set(zip(internal_links_only["source_url"], internal_links_only["target_url"]))
-
-                # Check leakages between child pages of different silos
-                for _, r in internal_links_only.iterrows():
-                    src_s = detect_page_silo(r["source_url"])
-                    tgt_s = detect_page_silo(r["target_url"])
-                    if src_s not in ["Home", "Company & Utility"] and tgt_s not in ["Home", "Company & Utility"] and src_s != tgt_s:
-                        cross_leakages.append({
-                            "Source Page": r["source_url"],
-                            "Target Page": r["target_url"],
-                            "Source Silo": src_s,
-                            "Target Silo": tgt_s,
-                            "Anchor Text": r.get("anchor_text", "")
-                        })
-
-                # Check missing links per silo
-                for s_name in available_silos:
-                    s_pages = df_pages[df_pages["detected_silo"] == s_name]
-                    if len(s_pages) > 1:
-                        sorted_p = s_pages.sort_values(by=["depth", "inlinks_count"], ascending=[True, False])
-                        pillar_url = sorted_p.iloc[0]["url"]
-                        pillar_title = str(sorted_p.iloc[0].get("title") or s_name)
-                        child_pages = sorted_p.iloc[1:]
-
-                        for _, c_row in child_pages.iterrows():
-                            c_url = c_row["url"]
-                            c_title = str(c_row.get("title") or urlparse(c_url).path)
-                            # Did child link up to pillar?
-                            if (c_url, pillar_url) not in existing_edge_set:
-                                missing_pillar_links.append(c_url)
-                                silo_recs.append({
-                                    "Source Page": c_url,
-                                    "Target Page": pillar_url,
-                                    "Action": "Add Link: Child ➔ Pillar",
-                                    "Suggested Anchor Text": pillar_title[:30],
-                                    "Silo": s_name,
-                                    "SEO Benefit": f"Passes topical authority upward to master {s_name} pillar."
-                                })
-                            # Did pillar link down to child?
-                            if (pillar_url, c_url) not in existing_edge_set:
-                                silo_recs.append({
-                                    "Source Page": pillar_url,
-                                    "Target Page": c_url,
-                                    "Action": "Add Link: Pillar ➔ Child",
-                                    "Suggested Anchor Text": c_title[:30],
-                                    "Silo": s_name,
-                                    "SEO Benefit": "Distributes internal PageRank down into supporting article."
-                                })
-
-                        # Sibling links
-                        c_list = list(child_pages["url"])
-                        for i in range(len(c_list) - 1):
-                            s1, s2 = c_list[i], c_list[i+1]
-                            s2_title = str(child_pages[child_pages["url"] == s2].iloc[0].get("title") or "Related Topic")
-                            if (s1, s2) not in existing_edge_set:
-                                silo_recs.append({
-                                    "Source Page": s1,
-                                    "Target Page": s2,
-                                    "Action": "Add Link: Sibling ➔ Sibling",
-                                    "Suggested Anchor Text": s2_title[:30],
-                                    "Silo": s_name,
-                                    "SEO Benefit": f"Connects related sibling subtopics horizontally inside {s_name} silo."
-                                })
-
-                # Add cross-leakage fixes to recommendations
-                for lk in cross_leakages:
-                    silo_recs.insert(0, {
-                        "Source Page": lk["Source Page"],
-                        "Target Page": lk["Target Page"],
-                        "Action": "⚠️ Fix Cross-Silo Leakage",
-                        "Suggested Anchor Text": "N/A (Prune / Nofollow Link)",
-                        "Silo": f"{lk['Source Silo']} ➔ {lk['Target Silo']}",
-                        "SEO Benefit": f"Dilutes topical boundary by linking from {lk['Source Silo']} directly to {lk['Target Silo']}."
-                    })
-
-                total_leakages = len(cross_leakages)
-                total_missing = len(missing_pillar_links)
-                silo_purity = max(0, min(100, 100 - (total_leakages * 8) - (total_missing * 3)))
-
-                # Health KPI Cards
-                st.markdown("#### 📊 Website Silo Health & Purity Score")
-                sh1, sh2, sh3, sh4 = st.columns(4)
-                sh1.metric("Topical Silos Detected", f"{len(available_silos)}")
-                sh2.metric("Silo Purity Score", f"{silo_purity}%", delta="High Purity" if silo_purity >= 80 else "Topical Leakage Detected", delta_color="normal" if silo_purity >= 80 else "inverse")
-                sh3.metric("Cross-Silo Leakages", f"{total_leakages}", delta="Diluting Equity" if total_leakages else "Isolated", delta_color="inverse" if total_leakages else "normal")
-                sh4.metric("Missing Pillar Links", f"{total_missing}", delta="Needs Upward Links" if total_missing else "Optimal", delta_color="inverse" if total_missing else "normal")
-
-                # 5. Suggested Interlinking Action Plan
-                st.markdown("#### 🎯 Suggested Interlinking Action Plan & Recommendations")
-                st.caption("Actionable linking instructions tailored to your crawled pages to align your website with the selected Silo Structure:")
-
-                df_silo_recs = pd.DataFrame(silo_recs)
-                if df_silo_recs.empty:
-                    st.success("🎉 Outstanding! Your internal linking already strictly complies with the selected Silo Structure architecture.")
-                else:
-                    if silo_topic_filter != "All Silos":
-                        df_silo_recs = df_silo_recs[df_silo_recs["Silo"].str.contains(silo_topic_filter, case=False, na=False)]
-
-                    rcol1, rcol2 = st.columns([1, 4])
-                    with rcol1:
-                        csv_recs = df_silo_recs.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            label=f"📥 Download Silo Action Plan ({len(df_silo_recs)} Tasks)",
-                            data=csv_recs,
-                            file_name=f"silo_interlinking_plan_{silo_type_select.split(' ')[0].lower()}.csv",
-                            mime="text/csv",
-                            use_container_width=True
-                        )
-                    with rcol2:
-                        st.caption(f"Showing **{len(df_silo_recs)}** recommended interlinking actions for target silo filter: `{silo_topic_filter}`")
-
-                    st.dataframe(
-                        df_silo_recs[["Action", "Source Page", "Target Page", "Suggested Anchor Text", "SEO Benefit"]],
-                        use_container_width=True,
-                        column_config={
-                            "Action": st.column_config.TextColumn("Action"),
-                            "Source Page": st.column_config.LinkColumn("Source Page (Where to Link From)"),
-                            "Target Page": st.column_config.LinkColumn("Target Page (Where to Point)"),
-                            "Suggested Anchor Text": st.column_config.TextColumn("Suggested Anchor Text"),
-                            "SEO Benefit": st.column_config.TextColumn("SEO Rationale"),
-                        },
-                        hide_index=True
-                    )
-
-                    with st.expander("📋 1-Click HTML Link Injection Snippets"):
-                        st.markdown("Use these ready-to-paste HTML anchor snippets to execute the recommendations in your CMS (WordPress, Webflow, Shopify):")
-                        sample_count = min(5, len(df_silo_recs))
-                        for idx in range(sample_count):
-                            row_item = df_silo_recs.iloc[idx]
-                            action_txt = row_item["Action"]
-                            src_u = row_item["Source Page"]
-                            tgt_u = row_item["Target Page"]
-                            anc_t = row_item["Suggested Anchor Text"]
-                            st.code(f'<!-- On {src_u} -->\n<!-- {action_txt} -->\n<a href="{tgt_u}">{anc_t}</a>', language="html")
+            st.markdown("""
+            <div style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(129, 140, 248, 0.35); border-radius: 12px; padding: 16px 22px; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                <div>
+                    <span style="font-weight: 700; color: #FFFFFF; font-size: 0.98rem;">🏛️ Looking for Strategic AI Silo Architecture & Interlinking?</span>
+                    <div style="color: #94A3B8; font-size: 0.85rem; margin-top: 3px;">Harness Gemini (3.5 to 3.8), ChatGPT, or Claude to architect topical silos, eliminate PageRank leaks, and chat with an AI SEO strategist.</div>
+                </div>
+                <span style="background: #6366F1; color: white; padding: 6px 16px; border-radius: 8px; font-size: 0.82rem; font-weight: 700;">Select '🏛️ AI Silo Structure Architect' in Sidebar</span>
+            </div>
+            """, unsafe_allow_html=True)
 
 # ==============================================================================
 # TAB 10: SINGLE URL QUICK INSPECTOR
