@@ -39,6 +39,11 @@ def generate_excel_report(analysis_result: dict, start_url: str) -> bytes:
                 df_pages[canon_cols].to_excel(writer, sheet_name='Canonicals', index=False)
         if not df_issues.empty:
             df_issues.to_excel(writer, sheet_name='Issues & Fixes', index=False)
+        if not df_pages.empty:
+            broken_df = df_pages[(df_pages.get("status_code", 0) >= 400) & (df_pages.get("status_code", 0) < 500)]
+            if not broken_df.empty:
+                b_cols = [c for c in ["url", "status_code", "status_description", "source_url", "anchor_text", "inlinks_count"] if c in broken_df.columns]
+                broken_df[b_cols].to_excel(writer, sheet_name='Broken Links (4xx)', index=False)
         if "is_redirect_chain" in df_pages.columns or "is_redirect_loop" in df_pages.columns:
             redirect_chains_df = df_pages[
                 (df_pages.get("is_redirect_chain", False) == True) | 

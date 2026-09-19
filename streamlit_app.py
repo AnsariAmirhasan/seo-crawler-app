@@ -1192,60 +1192,51 @@ with tab_responses:
     else:
         df_pages = results["df_pages"]
 
+        df_links = results.get("df_links", pd.DataFrame())
+
         # Ensure inlinks_count and is_orphan exist even if viewed from a cached session
         if "inlinks_count" not in df_pages.columns:
-            df_links = results.get("df_links", pd.DataFrame())
             if not df_links.empty and "is_internal" in df_links.columns and "target_url" in df_links.columns:
                 internal_inlinks = df_links[df_links["is_internal"] == True].groupby("target_url").size().to_dict()
                 df_pages["inlinks_count"] = df_pages["url"].map(internal_inlinks).fillna(0).astype(int)
             else:
                 df_pages["inlinks_count"] = 0
 
+        # Ensure source_url and anchor_text exist even if viewed from a cached session
+        if ("source_url" not in df_pages.columns or "anchor_text" not in df_pages.columns) and not df_links.empty:
+            source_map = {}
+            anchor_map = {}
+            for _, r in df_links.iterrows():
+                tgt = str(r.get("target_url", "")).strip()
+                src = str(r.get("source_url", "")).strip()
+                anc = str(r.get("anchor_text", "")).strip()
+                if tgt:
+                    if tgt not in source_map:
+                        source_map[tgt] = src
+                        anchor_map[tgt] = anc
+                    tgt_alt = tgt.rstrip('/') if tgt.endswith('/') else (tgt + '/')
+                    if tgt_alt not in source_map:
+                        source_map[tgt_alt] = src
+                        anchor_map[tgt_alt] = anc
+            if "source_url" not in df_pages.columns:
+                df_pages["source_url"] = df_pages["url"].map(source_map).fillna(df_pages.get("source_page", ""))
+            if "anchor_text" not in df_pages.columns:
+                df_pages["anchor_text"] = df_pages["url"].map(anchor_map).fillna("")
+        else:
+            if "source_url" not in df_pages.columns:
+                df_pages["source_url"] = df_pages.get("source_page", "")
+            if "anchor_text" not in df_pages.columns:
+                df_pages["anchor_text"] = ""
+
         if "is_orphan" not in df_pages.columns:
             start_url = results.get("start_url", "")
             df_pages["is_orphan"] = (df_pages["inlinks_count"] == 0) & (df_pages["url"] != start_url)
 
-        if "status_description" not in df_pages.columns or "response_category" not in df_pages.columns:
-            def classify_temp(row):
-                c = row.get("status_code", 0)
-                e = str(row.get("error") or "").lower()
-                has_meta = row.get("has_meta_refresh", False)
-                has_js = row.get("has_js_redirect", False)
-
-                if c == 200: d = "200 OK"
-                elif c == 301: d = "301 Moved Permanently"
-                elif c == 302: d = "302 Found"
-                elif c == 307: d = "307 Temporary Redirect"
-                elif c == 308: d = "308 Permanent Redirect"
-                elif c == 400: d = "400 Bad Request"
-                elif c == 401: d = "401 Unauthorized"
-                elif c == 403: d = "403 Forbidden"
-                elif c == 404: d = "404 Not Found"
-                elif c == 410: d = "410 Gone"
-                elif c == 500: d = "500 Internal Server Error"
-                elif c == 502: d = "502 Bad Gateway"
-                elif c == 503: d = "503 Service Unavailable"
-                elif c == 0 or "timeout" in e: d = "No Response"
-                else: d = f"HTTP {c}"
-                
-                if "robots" in e: cat = "Blocked by Robots.txt"
-                elif c == 403 or (c != 200 and "blocked" in e): cat = "Blocked Resource"
-                elif c == 0 or "timeout" in e: cat = "No Response"
-                elif 200 <= c < 300:
-                    if has_meta: cat = "Redirection (Meta Refresh)"
-                    elif has_js: cat = "Redirection (JavaScript)"
-                    else: cat = "Success (2xx)"
-                elif 300 <= c < 400: cat = "Redirection (3xx)"
-                elif 400 <= c < 500: cat = "Client Error (4xx)"
-                elif 500 <= c < 600: cat = "Server Error (5xx)"
-                else: cat = "Other"
-                return pd.Series([d, cat], index=["status_description", "response_category"])
-            
         # Ensure columns exist even if viewed from a cached session
         for c in ["redirect_hops", "inlinks_count"]:
             if c not in df_pages.columns:
                 df_pages[c] = 0
-        for c in ["redirect_chain_str", "redirect_issue_type", "redirect_severity"]:
+        for c in ["redirect_chain_str", "redirect_issue_type", "redirect_severity", "source_url", "anchor_text"]:
             if c not in df_pages.columns:
                 df_pages[c] = ""
         for c in ["is_redirect_chain", "is_redirect_loop"]:
@@ -1386,6 +1377,8 @@ with tab_responses:
             cat_str = df_resp_filtered["response_category"].astype(str) if "response_category" in df_resp_filtered.columns else ""
             chain_str = df_resp_filtered["redirect_chain_str"].astype(str) if "redirect_chain_str" in df_resp_filtered.columns else ""
             issue_type_str = df_resp_filtered["redirect_issue_type"].astype(str) if "redirect_issue_type" in df_resp_filtered.columns else ""
+            source_url_str = df_resp_filtered["source_url"].astype(str) if "source_url" in df_resp_filtered.columns else ""
+            anchor_text_str = df_resp_filtered["anchor_text"].astype(str) if "anchor_text" in df_resp_filtered.columns else ""
             
             df_resp_filtered = df_resp_filtered[
                 df_resp_filtered["url"].astype(str).str.contains(resp_search, case=False, na=False) |
@@ -1394,7 +1387,9 @@ with tab_responses:
                 final_url_str.str.contains(resp_search, case=False, na=False) |
                 cat_str.str.contains(resp_search, case=False, na=False) |
                 chain_str.str.contains(resp_search, case=False, na=False) |
-                issue_type_str.str.contains(resp_search, case=False, na=False)
+                issue_type_str.str.contains(resp_search, case=False, na=False) |
+                source_url_str.str.contains(resp_search, case=False, na=False) |
+                anchor_text_str.str.contains(resp_search, case=False, na=False)
             ]
 
         # Download button
@@ -1412,8 +1407,9 @@ with tab_responses:
         with col_rdown2:
             st.caption(f"Showing **{len(df_resp_filtered)}** of **{total_resp_pages}** URLs matching filter: `{filter_choice}`")
 
-        # Table Display: Dedicated view when filtering by Redirect Chain or Loop
+        # Table Display: Dedicated view when filtering by Redirect Chain/Loop or Client Error (4xx)
         is_redirect_issue_view = ("Redirection (Chain)" in resp_filter) or ("Redirection (Loop)" in resp_filter)
+        is_client_error_view = ("Client Error (4xx)" in resp_filter)
         
         if is_redirect_issue_view:
             target_cols = [
@@ -1437,9 +1433,67 @@ with tab_responses:
                 },
                 hide_index=True
             )
+        elif is_client_error_view:
+            target_cols = [
+                "url", "status_code", "status_description", "source_url", "anchor_text", "inlinks_count"
+            ]
+            avail_cols = [c for c in target_cols if c in df_resp_filtered.columns]
+            
+            st.dataframe(
+                df_resp_filtered[avail_cols],
+                use_container_width=True,
+                column_config={
+                    "url": st.column_config.LinkColumn("Broken Page URL (4xx)", width="large"),
+                    "status_code": st.column_config.NumberColumn("Status", format="%d", width="small"),
+                    "status_description": st.column_config.TextColumn("Response Description", width="small"),
+                    "source_url": st.column_config.LinkColumn("Source Page (Found On)", width="large", help="The referring internal page where this broken link was found"),
+                    "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable Link Text)", width="medium", help="Clickable anchor text used for this link"),
+                    "inlinks_count": st.column_config.NumberColumn("Inlinks", format="%d", width="small", help="Total incoming links to this 404 URL"),
+                },
+                hide_index=True
+            )
+
+            # Deep Inlinks Inspector expander for 404 pages
+            with st.expander("🔍 Inlinks Deep-Dive: Exactly Where Each Broken Link Appears & Its Anchor Text", expanded=True):
+                st.markdown("Yeh breakdown har broken (404) page ke liye website par **kis page par link hai (Source Page)** aur **uska anchor text kya hai** dikhata hai:")
+                for _, b_row in df_resp_filtered.iterrows():
+                    b_url = b_row["url"]
+                    b_status = b_row.get("status_code", 404)
+                    
+                    referring = pd.DataFrame()
+                    if not df_links.empty and "target_url" in df_links.columns:
+                        b_clean = b_url.rstrip("/")
+                        referring = df_links[
+                            (df_links["target_url"] == b_url) | 
+                            (df_links["target_url"].str.rstrip("/") == b_clean)
+                        ]
+                    
+                    st.markdown(f"🔴 **Broken URL (404):** `{b_url}` &nbsp;&nbsp;|&nbsp;&nbsp; **Status:** `{b_status}`")
+                    if not referring.empty:
+                        ref_cols = [c for c in ["source_url", "anchor_text", "is_internal", "nofollow"] if c in referring.columns]
+                        st.dataframe(
+                            referring[ref_cols].drop_duplicates(),
+                            use_container_width=True,
+                            column_config={
+                                "source_url": st.column_config.LinkColumn("Source Page (Found On)", width="large"),
+                                "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable text)", width="medium"),
+                                "is_internal": st.column_config.CheckboxColumn("Internal Link"),
+                                "nofollow": st.column_config.CheckboxColumn("Nofollow"),
+                            },
+                            hide_index=True
+                        )
+                    else:
+                        s_url = b_row.get("source_url", "")
+                        a_txt = b_row.get("anchor_text", "")
+                        if s_url:
+                            st.caption(f"Discovered from Source Page: `{s_url}` &nbsp;|&nbsp; Anchor Text: **{a_txt or '[Direct link / No text]'}**")
+                        else:
+                            st.caption("No internal referring page recorded (Discovered directly from initial seed).")
+                    st.markdown("<div style='margin-bottom: 0.8rem;'></div>", unsafe_allow_html=True)
         else:
             resp_cols = [
                 "url", "status_code", "status_description", "response_category",
+                "source_url", "anchor_text",
                 "redirect_hops", "redirect_chain_str", "redirect_issue_type",
                 "inlinks_count", "internal_outlinks_count", "final_url", "latency_ms",
                 "content_type", "is_indexable"
@@ -1454,6 +1508,8 @@ with tab_responses:
                     "status_code": st.column_config.NumberColumn("Status Code", format="%d"),
                     "status_description": st.column_config.TextColumn("Response Description"),
                     "response_category": st.column_config.TextColumn("Response Category"),
+                    "source_url": st.column_config.LinkColumn("Source Page (Found On)"),
+                    "anchor_text": st.column_config.TextColumn("Anchor Text"),
                     "redirect_hops": st.column_config.NumberColumn("Redirect Hops", format="%d"),
                     "redirect_chain_str": st.column_config.TextColumn("Redirect Chain"),
                     "redirect_issue_type": st.column_config.TextColumn("Redirect Issue"),

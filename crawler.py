@@ -453,7 +453,16 @@ class SEOSpider:
                                 is_internal = is_internal_url(abs_url, self.allowed_domains, allow_subdomains=allow_sub)
                                 rel_val = a_tag.get("rel", [])
                                 is_nofollow = "nofollow" in (rel_val if isinstance(rel_val, list) else [rel_val])
-                                anchor_text = a_tag.get_text(strip=True)[:100]
+                                anchor_text = a_tag.get_text(strip=True)
+                                if not anchor_text:
+                                    img_child = a_tag.find("img")
+                                    if img_child and img_child.get("alt"):
+                                        anchor_text = f"[Image: {img_child.get('alt').strip()}]"
+                                    elif img_child:
+                                        anchor_text = "[Image]"
+                                    else:
+                                        anchor_text = "[Empty Anchor]"
+                                anchor_text = anchor_text[:120]
 
                                 if len(self.all_links) < 30000:
                                     self.all_links.append({

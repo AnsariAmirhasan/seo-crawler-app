@@ -36,6 +36,7 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     html = page_data.get("html", "")
     depth = page_data.get("depth", 0)
     error_msg = page_data.get("error", None)
+    source_page = page_data.get("source_page", "")
 
     # Redirect Chain & Loop Data from Crawler
     redirect_chain = page_data.get("redirect_chain", [])
@@ -49,6 +50,9 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     seo_info = {
         "url": url,
         "final_url": final_url,
+        "source_page": source_page,
+        "source_url": source_page,
+        "anchor_text": "",
         "status_code": status_code,
         "depth": depth,
         "latency_ms": latency_ms,
@@ -150,11 +154,12 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     if status_code >= 400:
         seo_info["is_indexable"] = False
         seo_info["indexability_reason"] = f"HTTP {status_code}"
+        rec = f"Fix broken link on referring source page '{source_page}' or configure a 301 redirect if page moved." if source_page else "Fix broken link or configure a 301 redirect if page moved."
         seo_info["issues"].append({
             "type": "Error",
             "category": "Status Code",
             "issue": f"Client/Server Error ({status_code})",
-            "recommendation": f"Fix broken link or configure a 301 redirect if page moved."
+            "recommendation": rec
         })
         return seo_info
 
@@ -455,7 +460,7 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
     df_links = pd.DataFrame(all_links) if all_links else pd.DataFrame(columns=["source_url", "target_url", "anchor_text", "is_internal", "nofollow", "rel"])
     df_images = pd.DataFrame(all_images) if all_images else pd.DataFrame(columns=["page_url", "image_url", "alt", "has_alt", "loading"])
 
-    # Compute link stats per page
+    # Compute link stats and map source_page / anchor_text per page
     if not df_links.empty and not df_pages.empty:
         internal_outlinks = df_links[df_links["is_internal"] == True].groupby("source_url").size().to_dict()
         external_outlinks = df_links[df_links["is_internal"] == False].groupby("source_url").size().to_dict()
@@ -463,10 +468,30 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
         df_pages["internal_outlinks_count"] = df_pages["url"].map(internal_outlinks).fillna(0).astype(int)
         df_pages["external_outlinks_count"] = df_pages["url"].map(external_outlinks).fillna(0).astype(int)
         df_pages["inlinks_count"] = df_pages["url"].map(internal_inlinks).fillna(0).astype(int)
+
+        source_map = {}
+        anchor_map = {}
+        for _, r in df_links.iterrows():
+            tgt = str(r.get("target_url", "")).strip()
+            src = str(r.get("source_url", "")).strip()
+            anc = str(r.get("anchor_text", "")).strip()
+            if tgt:
+                if tgt not in source_map:
+                    source_map[tgt] = src
+                    anchor_map[tgt] = anc
+                tgt_alt = tgt.rstrip('/') if tgt.endswith('/') else (tgt + '/')
+                if tgt_alt not in source_map:
+                    source_map[tgt_alt] = src
+                    anchor_map[tgt_alt] = anc
+
+        df_pages["source_url"] = df_pages["url"].map(source_map).fillna(df_pages.get("source_page", ""))
+        df_pages["anchor_text"] = df_pages["url"].map(anchor_map).fillna("")
     else:
         df_pages["internal_outlinks_count"] = 0
         df_pages["external_outlinks_count"] = 0
         df_pages["inlinks_count"] = 0
+        df_pages["source_url"] = df_pages.get("source_page", "")
+        df_pages["anchor_text"] = ""
 
     # Determine starting seed URL (first crawled URL)
     start_url = crawled_pages[0].get("url") if crawled_pages else ""
