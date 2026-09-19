@@ -362,20 +362,6 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div style="margin-top: 1.2rem; padding: 10px 14px; background: rgba(18, 22, 32, 0.95); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; display: flex; align-items: center; justify-content: space-between;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="width: 36px; height: 36px; border-radius: 50%; background: #1E232E; border: 1.5px solid #FFC107; display: flex; align-items: center; justify-content: center; color: #FFC107; font-weight: 800; font-size: 1rem;">
-                👤
-            </div>
-            <div>
-                <div style="color: #FFFFFF; font-weight: 700; font-size: 0.92rem; line-height: 1.2;">Amir Ansari</div>
-                <div style="color: #94A3B8; font-size: 0.74rem; margin-top: 2px;"><span style="color: #FFC107; font-weight: 600;">Build</span> • Audit • Rank</div>
-            </div>
-        </div>
-        <div style="color: #64748B; font-size: 1.1rem; padding: 0 4px; cursor: pointer;">•••</div>
-    </div>
-    """, unsafe_allow_html=True)
 
 def render_xml_sitemap_generator():
     # Hero section matching xml-sitemaps.com
@@ -699,30 +685,6 @@ if selected_tool != "🕷️ SEO Spider & Crawler":
     st.stop()
 
 
-# 4. Top Stepper Navbar & Quick Actions
-st.html("""
-<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.2rem 0 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.07); margin-bottom: 1.4rem;">
-    <div style="display: flex; align-items: center; gap: 14px;">
-        <span style="color: #94A3B8; font-size: 1.25rem; cursor: pointer;">☰</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 12px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; color: #64748B;">
-        <span style="color: #FFC107;">CRAWL</span>
-        <span style="color: #475569;">→</span>
-        <span style="color: #94A3B8;">ANALYZE</span>
-        <span style="color: #475569;">→</span>
-        <span style="color: #94A3B8;">OPTIMIZE</span>
-        <span style="color: #475569;">→</span>
-        <span style="color: #E2E8F0;">RANK HIGHER</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 16px;">
-        <span style="color: #94A3B8; font-size: 1rem; cursor: pointer;">☀️</span>
-        <span style="color: #94A3B8; font-size: 1rem; cursor: pointer;">❔</span>
-        <div style="background: #FFC107; color: #000000; font-weight: 800; font-size: 0.8rem; padding: 6px 16px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(255,193,7,0.3); cursor: pointer;">
-            <span>🔗</span> Share
-        </div>
-    </div>
-</div>
-""")
 
 # 5. Main Page Hero Banner with 3D Golden Spider Graphic
 st.html("""
