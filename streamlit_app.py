@@ -394,9 +394,6 @@ def render_xml_sitemap_generator():
     # Hero section matching xml-sitemaps.com
     st.markdown("""
     <div style="background: radial-gradient(130% 120% at 50% -10%, #172554 0%, #0F172A 60%, #020617 100%); padding: 3rem 2rem 2.2rem; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.25); text-align: center; margin-bottom: 2rem; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.6);">
-        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(56, 189, 248, 0.12); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 5px 16px; border-radius: 9999px; font-size: 0.76rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1.1rem;">
-            🗺️ Google & W3C Standard XML Engine
-        </div>
         <h1 style="font-size: 2.85rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.03em; margin: 0 0 0.6rem 0; line-height: 1.15;">
             Better Indexing Starts Here
         </h1>
@@ -455,14 +452,7 @@ def render_xml_sitemap_generator():
             cfg_subdomains = st.checkbox("Include subdomains", value=False, key="sitemap_cfg_subdomains")
             cfg_respect_robots = st.checkbox("Respect robots.txt", value=True, key="sitemap_cfg_robots")
 
-    # Trust row directly from xml-sitemaps.com screenshot
-    st.markdown("""
-    <div style="display: flex; justify-content: center; gap: 2.5rem; flex-wrap: wrap; margin-top: 1.2rem; margin-bottom: 2.2rem; color: #64748B; font-size: 0.88rem; font-weight: 600;">
-        <span>🏆 20+ Years Excellence</span>
-        <span>⚡ 51M+ Sitemaps Created</span>
-        <span>🔍 5B+ Pages Indexed</span>
-    </div>
-    """, unsafe_allow_html=True)
+
 
     # Crawl Execution
     if btn_generate:
