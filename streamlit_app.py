@@ -1044,11 +1044,28 @@ with tab_overview:
         """)
 
     else:
-        summary = results["summary"]
-        df_pages = results["df_pages"]
-        df_issues = results["df_issues"]
+        summary = results.get("summary", {})
+        df_pages = results.get("df_pages", pd.DataFrame())
+        df_issues = results.get("df_issues", pd.DataFrame())
+        df_links = results.get("df_links", pd.DataFrame())
+        df_images = results.get("df_images", pd.DataFrame())
         elapsed = results.get("elapsed_seconds", 0)
         target = results.get("start_url", "")
+
+        # Compute safe metrics for KPI cards
+        missing_titles_cnt = len(df_pages[(df_pages["title"].fillna("").str.strip() == "") & (df_pages["status_code"] == 200)]) if not df_pages.empty and "title" in df_pages.columns else 0
+        if not df_pages.empty and "images_missing_alt_count" in df_pages.columns:
+            missing_alt_cnt = int(df_pages["images_missing_alt_count"].sum())
+        elif not df_images.empty and "has_alt" in df_images.columns:
+            missing_alt_cnt = len(df_images[df_images["has_alt"] == False])
+        else:
+            missing_alt_cnt = summary.get("images_missing_alt_count", summary.get("images_missing_alt", 0))
+
+        avg_latency = round(df_pages['latency_ms'].mean(), 1) if not df_pages.empty and 'latency_ms' in df_pages.columns else 0
+        https_count = len(df_pages[df_pages['url'].str.startswith('https://')]) if not df_pages.empty and 'url' in df_pages.columns else 0
+        total_links_val = summary.get('total_links', len(df_links))
+        total_crawled_val = summary.get('total_crawled', len(df_pages))
+        issues_val = summary.get('critical_errors', 0) + summary.get('warnings', 0)
 
         # Target Quick Status Strip
         st.html(f"""
@@ -1059,8 +1076,8 @@ with tab_overview:
             </div>
             <div style="display:flex; gap:16px; font-size:0.85rem; color:#94A3B8;">
                 <span>⏱️ Crawl Time: <b style="color:#CBD5E1;">{elapsed}s</b></span>
-                <span>⚡ Avg Latency: <b style="color:#CBD5E1;">{round(df_pages['latency_ms'].mean(), 1) if not df_pages.empty else 0} ms</b></span>
-                <span>🔒 HTTPS Pages: <b style="color:#CBD5E1;">{len(df_pages[df_pages['url'].str.startswith('https://')])} / {len(df_pages)}</b></span>
+                <span>⚡ Avg Latency: <b style="color:#CBD5E1;">{avg_latency} ms</b></span>
+                <span>🔒 HTTPS Pages: <b style="color:#CBD5E1;">{https_count} / {len(df_pages)}</b></span>
             </div>
         </div>
         """)
@@ -1074,7 +1091,7 @@ with tab_overview:
                     <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↑ 12%</span>
                 </div>
                 <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Internal Links</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{summary['total_links']:,}</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{total_links_val:,}</div>
             </div>
             <div class="kpi-card-gold">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -1082,7 +1099,7 @@ with tab_overview:
                     <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↑ 8%</span>
                 </div>
                 <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Pages Crawled</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{summary['total_crawled']:,}</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{total_crawled_val:,}</div>
             </div>
             <div class="kpi-card-gold">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -1090,7 +1107,7 @@ with tab_overview:
                     <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 24%</span>
                 </div>
                 <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Issues Found</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{(summary['critical_errors'] + summary['warnings']):,}</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{issues_val:,}</div>
             </div>
             <div class="kpi-card-gold">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -1098,7 +1115,7 @@ with tab_overview:
                     <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 40%</span>
                 </div>
                 <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Missing Titles</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{len(df_pages[df_pages['title_status'] == 'Missing']):,}</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{missing_titles_cnt:,}</div>
             </div>
             <div class="kpi-card-gold">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -1106,7 +1123,7 @@ with tab_overview:
                     <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 18%</span>
                 </div>
                 <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Missing Images Alt</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{summary.get('images_missing_alt', 0):,}</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{missing_alt_cnt:,}</div>
             </div>
             <div class="kpi-card-gold">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -1114,7 +1131,7 @@ with tab_overview:
                     <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 28%</span>
                 </div>
                 <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Avg. Response Time</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{round(df_pages['latency_ms'].mean(), 1) if not df_pages.empty else 0} ms</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{avg_latency} ms</div>
             </div>
         </div>
         """)

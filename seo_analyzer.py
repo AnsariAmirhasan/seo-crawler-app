@@ -753,6 +753,8 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
             "redirect_loops_count": int(df_pages["is_redirect_loop"].sum()) if not df_pages.empty and "is_redirect_loop" in df_pages.columns else 0,
             "total_links": len(df_links),
             "total_images": len(df_images),
+            "images_missing_alt_count": int(df_pages["images_missing_alt_count"].sum()) if not df_pages.empty and "images_missing_alt_count" in df_pages.columns else 0,
+            "missing_titles_count": len(df_pages[(df_pages["title"].fillna("").str.strip() == "") & (df_pages["status_code"] == 200)]) if not df_pages.empty and "title" in df_pages.columns else 0,
             "images_over_100kb_count": int(df_images["is_over_100kb"].sum()) if not df_images.empty and "is_over_100kb" in df_images.columns else 0
         }
     }
