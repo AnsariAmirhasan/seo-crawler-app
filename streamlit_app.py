@@ -318,7 +318,48 @@ with st.sidebar:
     st.markdown("""
     <div style="padding: 0.2rem 0 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 1rem;">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-size: 2.2rem; filter: drop-shadow(0 0 10px rgba(255,193,7,0.5));">🕷️</span>
+            <div style="width: 48px; height: 48px; flex-shrink: 0; background: radial-gradient(circle at center, #1E293B 0%, #0F172A 100%); border: 1.5px solid rgba(255, 255, 255, 0.25); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.6), 0 0 12px rgba(255, 255, 255, 0.15);">
+                <svg width="42" height="42" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <filter id="sbWebGlow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="0.8" result="blur"/>
+                            <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+                        </filter>
+                    </defs>
+                    <!-- White Spider Web Spokes -->
+                    <g stroke="#FFFFFF" stroke-opacity="0.88" stroke-width="1.2" filter="url(#sbWebGlow)">
+                        <line x1="30" y1="30" x2="6" y2="6"/>
+                        <line x1="30" y1="30" x2="30" y2="3"/>
+                        <line x1="30" y1="30" x2="54" y2="6"/>
+                        <line x1="30" y1="30" x2="57" y2="30"/>
+                        <line x1="30" y1="30" x2="54" y2="54"/>
+                        <line x1="30" y1="30" x2="30" y2="57"/>
+                        <line x1="30" y1="30" x2="6" y2="54"/>
+                        <line x1="30" y1="30" x2="3" y2="30"/>
+                    </g>
+                    <!-- White Spider Web Concentric Spiral Rings -->
+                    <polygon points="30,22 36,24 38,30 36,36 30,38 24,36 22,30 24,24" stroke="#FFFFFF" stroke-opacity="0.75" stroke-width="1.1" fill="none"/>
+                    <polygon points="30,13 42,17 47,30 42,43 30,47 18,43 13,30 18,17" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="1.1" fill="none"/>
+                    <polygon points="30,4 50,9 56,30 50,51 30,56 10,51 4,30 10,9" stroke="#FFFFFF" stroke-opacity="0.85" stroke-width="1.2" fill="none"/>
+                    <!-- Golden Spider Perched in Web Center -->
+                    <!-- Legs -->
+                    <path d="M27,27 Q18,15 11,20" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    <path d="M26,29 Q16,24 8,32" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    <path d="M26,31 Q17,37 10,43" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    <path d="M27,33 Q20,44 14,48" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    <path d="M33,27 Q42,15 49,20" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    <path d="M34,29 Q44,24 52,32" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    <path d="M34,31 Q43,37 50,43" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    <path d="M33,33 Q40,44 46,48" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    <!-- Abdomen -->
+                    <ellipse cx="30" cy="35" rx="5.5" ry="7" fill="#FFC107" stroke="#B45309" stroke-width="1"/>
+                    <ellipse cx="30" cy="35" rx="2.5" ry="4" fill="#FEF08A"/>
+                    <!-- Cephalothorax & Eyes -->
+                    <circle cx="30" cy="27" r="4.2" fill="#D97706" stroke="#FFC107" stroke-width="0.8"/>
+                    <circle cx="28.5" cy="25.5" r="1" fill="#FFFFFF"/>
+                    <circle cx="31.5" cy="25.5" r="1" fill="#FFFFFF"/>
+                </svg>
+            </div>
             <div>
                 <div style="font-size: 1.35rem; font-weight: 800; color: #FFFFFF; line-height: 1.2; letter-spacing: -0.02em;">
                     Amir's <span style="color: #FFC107;">SEO Spider</span>
@@ -701,45 +742,79 @@ st.html("""
         </p>
     </div>
     <div style="position: relative; text-align: center; z-index: 2; padding-right: 10px;">
-        <svg width="190" height="130" viewBox="0 0 200 145" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg width="220" height="150" viewBox="0 0 220 150" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
                 <radialGradient id="spiderGoldBody" cx="35%" cy="35%" r="65%">
-                    <stop offset="0%" stop-color="#FFF3B0"/>
-                    <stop offset="45%" stop-color="#FFC107"/>
-                    <stop offset="85%" stop-color="#B45309"/>
-                    <stop offset="100%" stop-color="#451A03"/>
+                    <stop offset="0%" stop-color="#FFFBEB"/>
+                    <stop offset="35%" stop-color="#FCD34D"/>
+                    <stop offset="70%" stop-color="#F59E0B"/>
+                    <stop offset="100%" stop-color="#B45309"/>
                 </radialGradient>
-                <radialGradient id="spiderDarkHead" cx="30%" cy="30%" r="70%">
-                    <stop offset="0%" stop-color="#475569"/>
-                    <stop offset="70%" stop-color="#0F172A"/>
-                    <stop offset="100%" stop-color="#020617"/>
+                <radialGradient id="spiderHeadGold" cx="30%" cy="30%" r="70%">
+                    <stop offset="0%" stop-color="#FEF08A"/>
+                    <stop offset="50%" stop-color="#F59E0B"/>
+                    <stop offset="100%" stop-color="#92400E"/>
                 </radialGradient>
-                <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur stdDeviation="3.5" result="blur" />
+                <filter id="whiteWebGlow" x="-25%" y="-25%" width="150%" height="150%">
+                    <feGaussianBlur stdDeviation="1.2" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+                <filter id="goldSpiderGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="2.5" result="blur" />
                     <feComposite in="SourceGraphic" in2="blur" operator="over" />
                 </filter>
             </defs>
-            <path d="M195,5 L120,70 M180,0 L110,60 M200,40 L130,80" stroke="rgba(255, 193, 7, 0.3)" stroke-width="1.2" stroke-dasharray="3,3"/>
-            <!-- Left Legs -->
-            <path d="M90,75 Q60,40 30,55 Q15,65 10,95" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
-            <path d="M92,80 Q55,65 25,90 Q12,105 18,135" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
-            <path d="M94,85 Q65,95 40,120 Q30,135 38,145" stroke="url(#spiderGoldBody)" stroke-width="3.8" stroke-linecap="round" fill="none"/>
-            <path d="M96,90 Q75,115 65,138 Q60,148 70,145" stroke="url(#spiderGoldBody)" stroke-width="3.5" stroke-linecap="round" fill="none"/>
-            <!-- Right Legs -->
-            <path d="M110,75 Q140,40 170,55 Q185,65 190,95" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
-            <path d="M108,80 Q145,65 175,90 Q188,105 182,135" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
-            <path d="M106,85 Q135,95 160,120 Q170,135 162,145" stroke="url(#spiderGoldBody)" stroke-width="3.8" stroke-linecap="round" fill="none"/>
-            <path d="M104,90 Q125,115 135,138 Q140,148 130,145" stroke="url(#spiderGoldBody)" stroke-width="3.5" stroke-linecap="round" fill="none"/>
-            <!-- Abdomen -->
-            <ellipse cx="100" cy="98" rx="20" ry="26" fill="url(#spiderDarkHead)" stroke="url(#spiderGoldBody)" stroke-width="2.2" filter="url(#goldGlow)"/>
-            <path d="M93,92 Q100,85 107,92 Q104,102 107,112 Q100,118 93,112 Q96,102 93,92 Z" fill="url(#spiderGoldBody)"/>
+
+            <!-- Prominent Glowing White Spider Web -->
+            <g stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="1.3" filter="url(#whiteWebGlow)">
+                <!-- Radial Anchor Spokes from Center (110, 80) -->
+                <line x1="110" y1="80" x2="10" y2="15"/>
+                <line x1="110" y1="80" x2="60" y2="5"/>
+                <line x1="110" y1="80" x2="110" y2="3"/>
+                <line x1="110" y1="80" x2="160" y2="5"/>
+                <line x1="110" y1="80" x2="210" y2="15"/>
+                <line x1="110" y1="80" x2="218" y2="80"/>
+                <line x1="110" y1="80" x2="210" y2="140"/>
+                <line x1="110" y1="80" x2="160" y2="148"/>
+                <line x1="110" y1="80" x2="110" y2="148"/>
+                <line x1="110" y1="80" x2="60" y2="148"/>
+                <line x1="110" y1="80" x2="10" y2="140"/>
+                <line x1="110" y1="80" x2="2" y2="80"/>
+
+                <!-- Concentric Web Rings (Polygon Spirals) in Pure White -->
+                <!-- Ring 1: Inner -->
+                <polygon points="110,63 124,65 136,70 140,80 136,91 124,95 110,97 96,95 84,91 80,80 84,70 96,65" stroke="#FFFFFF" stroke-opacity="0.75" stroke-width="1.1" fill="none"/>
+                <!-- Ring 2: Mid-Inner -->
+                <polygon points="110,48 136,52 158,61 166,80 158,99 136,108 110,112 84,108 62,99 54,80 62,61 84,52" stroke="#FFFFFF" stroke-opacity="0.82" stroke-width="1.2" fill="none"/>
+                <!-- Ring 3: Mid-Outer -->
+                <polygon points="110,30 148,34 180,48 192,80 180,112 148,124 110,128 72,124 40,112 28,80 40,48 72,34" stroke="#FFFFFF" stroke-opacity="0.88" stroke-width="1.3" fill="none"/>
+                <!-- Ring 4: Outer -->
+                <polygon points="110,12 158,16 198,32 214,80 198,126 158,140 110,144 62,140 22,126 6,80 22,32 62,16" stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="1.4" fill="none"/>
+            </g>
+
+            <!-- Spider Perched Directly on Center of White Web -->
+            <!-- Left Legs (Golden with High Contrast) -->
+            <path d="M100,74 Q70,38 40,52 Q25,62 18,92" stroke="url(#spiderGoldBody)" stroke-width="4.2" stroke-linecap="round" fill="none" filter="url(#goldSpiderGlow)"/>
+            <path d="M102,79 Q65,62 35,88 Q22,102 26,132" stroke="url(#spiderGoldBody)" stroke-width="4.2" stroke-linecap="round" fill="none" filter="url(#goldSpiderGlow)"/>
+            <path d="M104,84 Q75,94 50,118 Q40,132 46,143" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
+            <path d="M106,89 Q85,114 74,136 Q68,146 78,144" stroke="url(#spiderGoldBody)" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+
+            <!-- Right Legs (Golden with High Contrast) -->
+            <path d="M120,74 Q150,38 180,52 Q195,62 202,92" stroke="url(#spiderGoldBody)" stroke-width="4.2" stroke-linecap="round" fill="none" filter="url(#goldSpiderGlow)"/>
+            <path d="M118,79 Q155,62 185,88 Q198,102 194,132" stroke="url(#spiderGoldBody)" stroke-width="4.2" stroke-linecap="round" fill="none" filter="url(#goldSpiderGlow)"/>
+            <path d="M116,84 Q145,94 170,118 Q180,132 174,143" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
+            <path d="M114,89 Q135,114 146,136 Q152,146 142,144" stroke="url(#spiderGoldBody)" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+
+            <!-- Abdomen (Bright 3D Gold with White Highlights) -->
+            <ellipse cx="110" cy="98" rx="20" ry="26" fill="url(#spiderGoldBody)" stroke="#FFFFFF" stroke-width="2.2" filter="url(#goldSpiderGlow)"/>
+            <path d="M103,92 Q110,84 117,92 Q114,103 117,114 Q110,120 103,114 Q106,103 103,92 Z" fill="#FFFFFF" opacity="0.85"/>
             <!-- Cephalothorax -->
-            <circle cx="100" cy="74" r="13" fill="url(#spiderDarkHead)" stroke="url(#spiderGoldBody)" stroke-width="2"/>
-            <!-- Glowing Yellow Eyes -->
-            <circle cx="95" cy="68" r="2.6" fill="#FFC107" filter="url(#goldGlow)"/>
-            <circle cx="105" cy="68" r="2.6" fill="#FFC107" filter="url(#goldGlow)"/>
-            <circle cx="91" cy="72" r="1.6" fill="#FFC107"/>
-            <circle cx="109" cy="72" r="1.6" fill="#FFC107"/>
+            <circle cx="110" cy="73" r="13" fill="url(#spiderHeadGold)" stroke="#FFFFFF" stroke-width="2"/>
+            <!-- Glowing Eyes -->
+            <circle cx="105" cy="67" r="2.8" fill="#FFFFFF" filter="url(#goldSpiderGlow)"/>
+            <circle cx="115" cy="67" r="2.8" fill="#FFFFFF" filter="url(#goldSpiderGlow)"/>
+            <circle cx="101" cy="71" r="1.8" fill="#FFFBEB"/>
+            <circle cx="119" cy="71" r="1.8" fill="#FFFBEB"/>
         </svg>
         <div style="font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif; font-size: 1.35rem; color: #FDE047; transform: rotate(-6deg); margin-top: 2px; text-shadow: 0 2px 8px rgba(0,0,0,0.8);">
             Let's make the web better!
@@ -966,18 +1041,7 @@ with tab_overview:
                 </div>
             </div>
         </div>
-        <div style="text-align: center; margin-top: 1.5rem; margin-bottom: 1.5rem;">
-            <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(18, 22, 32, 0.9); border: 1px solid rgba(255, 193, 7, 0.4); padding: 7px 22px; border-radius: 9999px; font-size: 0.82rem; color: #F8FAFC; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.3); cursor: pointer;">
-                <span>☁️</span> Run Enterprise Audits at Cloud Scale <span style="color: #FFC107; font-weight: 800;">›</span>
-            </div>
-        </div>
         """)
-
-        col_demo1, col_demo2, col_demo3 = st.columns([1, 2, 1])
-        with col_demo2:
-            if st.button("🚀 Load Sample Target (books.toscrape.com)", use_container_width=True):
-                st.session_state["cfg_target_url"] = "https://books.toscrape.com"
-                st.rerun()
 
     else:
         summary = results["summary"]
