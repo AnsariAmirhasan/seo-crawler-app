@@ -1244,10 +1244,18 @@ with tab_headings:
         df_pages = results["df_pages"].copy()
         total_pages = len(df_pages)
 
-        # Prepare Clean Heading Columns
-        df_headings = df_pages[[
-            "url", "h1", "h1_count", "h2_first", "h2_count", "status_code", "is_indexable"
-        ]].copy()
+        # Prepare Clean Heading Columns with H1-1, H1-2, H2-1, H2-2
+        cols_to_extract = ["url", "h1", "h1_count", "h2_first", "h2_count", "status_code", "is_indexable"]
+        if "h1_2" in df_pages.columns:
+            cols_to_extract.append("h1_2")
+        if "h2_2" in df_pages.columns:
+            cols_to_extract.append("h2_2")
+
+        df_headings = df_pages[cols_to_extract].copy()
+        if "h1_2" not in df_headings.columns:
+            df_headings["h1_2"] = ""
+        if "h2_2" not in df_headings.columns:
+            df_headings["h2_2"] = ""
 
         # Calculate H1 and H2 duplicates with partner URL matching (Only 200 OK & Indexable pages!)
         valid_h1_df = df_headings[
@@ -1317,14 +1325,14 @@ with tab_headings:
         missing_h2_count = len(df_headings[df_headings["h2_status"] == "Missing"])
 
         st.subheader("🧱 Heading Hierarchy & Structure Audit (H1 / H2)")
-        st.caption("Inspect heading tags across your site — isolate missing H1s, identify duplicate headings with matching partner URLs, and detect multiple H1 tags per page.")
+        st.caption("Inspect heading tags across your site — view primary and secondary H1s (H1-1 / H1-2), detect multiple H1 tags per page, and catch duplicate cannibalization.")
 
         # 5 Metric Cards
         hm1, hm2, hm3, hm4, hm5 = st.columns(5)
         hm1.metric("H1 Optimal (OK)", f"{h1_ok_count}", delta=f"{round(h1_ok_count/max(total_pages,1)*100)}% of pages")
         hm2.metric("Missing H1", f"{missing_h1_count}", delta="No H1 tag" if missing_h1_count else "None", delta_color="inverse" if missing_h1_count else "normal")
-        hm3.metric("Duplicate H1", f"{dup_h1_count}", delta=f"{len(dup_h1_set)} unique shared" if dup_h1_count else "Unique", delta_color="inverse" if dup_h1_count else "normal")
-        hm4.metric("Multiple H1s", f"{multiple_h1_count}", delta="More than 1 H1" if multiple_h1_count else "Single H1", delta_color="inverse" if multiple_h1_count else "normal")
+        hm3.metric("Multiple H1s", f"{multiple_h1_count}", delta="2+ H1s on page" if multiple_h1_count else "Clean", delta_color="inverse" if multiple_h1_count else "normal")
+        hm4.metric("Duplicate H1", f"{dup_h1_count}", delta=f"{len(dup_h1_set)} unique shared" if dup_h1_count else "Unique", delta_color="inverse" if dup_h1_count else "normal")
         hm5.metric("Missing H2", f"{missing_h2_count}", delta="Needs subheadings" if missing_h2_count else "Structured", delta_color="inverse" if missing_h2_count else "normal")
 
         # Filters and Search
@@ -1334,9 +1342,9 @@ with tab_headings:
                 "Filter Headings by Status:",
                 [
                     "All Headings",
+                    "Multiple H1s",
                     "Missing H1",
                     "Duplicate H1",
-                    "Multiple H1s",
                     "H1 Over 70 Chars",
                     "Missing H2",
                     "Multiple H2s",
@@ -1344,16 +1352,16 @@ with tab_headings:
                 ]
             )
         with hfcol2:
-            heading_search = st.text_input("🔍 Search URL, Heading Text (H1/H2), or Partner URL:", "", key="heading_search_input")
+            heading_search = st.text_input("🔍 Search URL or Heading Text (H1/H2):", "", key="heading_search_input")
 
         df_filtered_hd = df_headings.copy()
 
         if heading_filter == "Missing H1":
             df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Missing"]
-        elif heading_filter == "Duplicate H1":
-            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Duplicate"]
         elif heading_filter == "Multiple H1s":
             df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Multiple H1s"]
+        elif heading_filter == "Duplicate H1":
+            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Duplicate"]
         elif heading_filter == "H1 Over 70 Chars":
             df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Over 70 Chars"]
         elif heading_filter == "Missing H2":
@@ -1367,8 +1375,9 @@ with tab_headings:
             df_filtered_hd = df_filtered_hd[
                 df_filtered_hd["url"].str.contains(heading_search, case=False, na=False) |
                 df_filtered_hd["h1"].str.contains(heading_search, case=False, na=False) |
+                df_filtered_hd["h1_2"].str.contains(heading_search, case=False, na=False) |
                 df_filtered_hd["h2_first"].str.contains(heading_search, case=False, na=False) |
-                df_filtered_hd["duplicate_h1_matches"].str.contains(heading_search, case=False, na=False)
+                df_filtered_hd["h2_2"].str.contains(heading_search, case=False, na=False)
             ]
 
         # Download button for filtered headings
@@ -1385,20 +1394,38 @@ with tab_headings:
         with col_hdown2:
             st.caption(f"Showing **{len(df_filtered_hd)}** of **{total_pages}** pages matching filter: `{heading_filter}`")
 
-        st.dataframe(
-            df_filtered_hd[[
+        # Select clean, contextual columns:
+        # If user is specifically looking at cross-page Duplicate H1s, show duplicate partner URL.
+        # For Multiple H1s, show H1-1 and H1-2 without confusing duplicate partner column!
+        if heading_filter == "Duplicate H1":
+            display_cols = [
                 "url", "h1", "h1_status", "duplicate_h1_matches", "duplicate_h1_count",
-                "h1_count", "h2_first", "h2_status", "h2_count", "status_code"
-            ]],
+                "h1_count", "h2_first", "status_code"
+            ]
+        elif heading_filter == "Multiple H1s":
+            display_cols = [
+                "url", "h1_status", "h1_count", "h1", "h1_2",
+                "h2_first", "status_code"
+            ]
+        else:
+            display_cols = [
+                "url", "h1_status", "h1_count", "h1", "h1_2",
+                "h2_first", "h2_2", "h2_status", "h2_count", "status_code"
+            ]
+
+        st.dataframe(
+            df_filtered_hd[display_cols],
             use_container_width=True,
             column_config={
                 "url": st.column_config.LinkColumn("Page URL"),
-                "h1": st.column_config.TextColumn("H1 Heading"),
+                "h1": st.column_config.TextColumn("H1-1 (First H1)"),
+                "h1_2": st.column_config.TextColumn("H1-2 (Second H1)", help="Second H1 tag found on this page when Multiple H1s exist"),
                 "h1_status": st.column_config.TextColumn("H1 Status"),
+                "h1_count": st.column_config.NumberColumn("H1 Count", format="%d", help="Total number of H1 tags on this single page"),
                 "duplicate_h1_matches": st.column_config.TextColumn("Duplicate With (Other URL(s))", help="The exact other URLs on your site sharing this identical H1"),
                 "duplicate_h1_count": st.column_config.NumberColumn("Total Copies", format="%d"),
-                "h1_count": st.column_config.NumberColumn("H1 Count", format="%d"),
-                "h2_first": st.column_config.TextColumn("First H2 Subheading"),
+                "h2_first": st.column_config.TextColumn("H2-1 (First H2)"),
+                "h2_2": st.column_config.TextColumn("H2-2 (Second H2)"),
                 "h2_status": st.column_config.TextColumn("H2 Status"),
                 "h2_count": st.column_config.NumberColumn("H2 Count", format="%d"),
                 "status_code": st.column_config.NumberColumn("HTTP Status", format="%d")

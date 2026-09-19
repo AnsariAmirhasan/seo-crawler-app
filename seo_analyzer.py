@@ -56,9 +56,11 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         "meta_description_length": 0,
         # Headings
         "h1": "",
+        "h1_2": "",
         "h1_count": 0,
-        "h2_count": 0,
         "h2_first": "",
+        "h2_2": "",
+        "h2_count": 0,
         # Directives & Indexability
         "meta_robots": "",
         "is_indexable": True,
@@ -217,10 +219,11 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     if h1_tags:
         seo_info["h1"] = h1_tags[0].get_text(strip=True)
         if len(h1_tags) > 1:
+            seo_info["h1_2"] = h1_tags[1].get_text(strip=True)
             seo_info["issues"].append({
                 "type": "Warning",
                 "category": "H1 Heading",
-                "issue": f"Multiple H1 tags found ({len(h1_tags)})",
+                "issue": f"Multiple H1 tags found ({len(h1_tags)}): H1-1 ('{seo_info['h1'][:28]}...') & H1-2 ('{seo_info['h1_2'][:28]}...')",
                 "recommendation": "Use exactly one primary H1 tag per page for clean structural hierarchy."
             })
     else:
@@ -235,6 +238,8 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     seo_info["h2_count"] = len(h2_tags)
     if h2_tags:
         seo_info["h2_first"] = h2_tags[0].get_text(strip=True)
+        if len(h2_tags) > 1:
+            seo_info["h2_2"] = h2_tags[1].get_text(strip=True)
     else:
         seo_info["issues"].append({
             "type": "Notice",
