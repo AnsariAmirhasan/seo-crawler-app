@@ -375,7 +375,7 @@ with st.sidebar:
     <div class="sidebar-box">
         <div style="font-weight: 700; color: #F8FAFC; margin-bottom: 8px; font-size: 0.85rem;">⚡ Crawl Engine Specs:</div>
         <div style="font-size: 0.82rem; color: #94A3B8; line-height: 1.65;">
-            • <b>Fixed Capacity:</b> <span style="color:#34D399; font-weight:700;">1,000 URLs / Crawl</span><br>
+            • <b>Fixed Capacity:</b> <span style="color:#34D399; font-weight:700;">10,000 URLs / Crawl</span><br>
             • <b>Depth Limit:</b> Max 10 Click Depth<br>
             • <b>Engine:</b> 12 Multi-Threaded Workers<br>
             • <b>Default Agent:</b> Chrome Desktop (WAF Safe)<br>
@@ -386,41 +386,17 @@ with st.sidebar:
 
 # 4. Main Page Header Banner
 st.markdown("""
-<div class="main-header" style="padding: 1.5rem 2.2rem; margin-bottom: 1.5rem;">
-    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-        <div>
-            <div style="font-size:1.55rem; font-weight:800; color:#FFFFFF; letter-spacing:-0.025em; display:flex; align-items:center; gap:8px;">
-                <span>⚡ High-Speed Technical SEO Crawler</span>
-            </div>
-            <div style="font-size:0.92rem; color:#94A3B8; margin-top:4px;">
-                Enter any website URL to audit internal links, canonical tags, titles, headings, and images up to 1,000 URLs.
-            </div>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <span class="header-pill">🎯 Canonicals</span>
-            <span class="header-pill">🏷️ Page Titles</span>
-            <span class="header-pill">📝 Meta Description</span>
-            <span class="header-pill">🧱 Headings (H1/H2)</span>
-            <span class="header-pill">🖼️ Images Audit</span>
-        </div>
+<div class="main-header" style="padding: 1.3rem 2rem; margin-bottom: 1.2rem;">
+    <div style="font-size:1.55rem; font-weight:800; color:#FFFFFF; letter-spacing:-0.025em; display:flex; align-items:center; gap:8px;">
+        <span>⚡ High-Speed Technical SEO Crawler</span>
+    </div>
+    <div style="font-size:0.92rem; color:#94A3B8; margin-top:4px;">
+        Enter any website URL to audit internal links, canonical tags, titles, headings, and images up to 10,000 URLs.
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# 5. Screaming Frog Top Search Bar (Front and Center)
-st.markdown("""
-<div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(51, 65, 85, 0.65); border-radius: 14px; padding: 12px 18px; margin-bottom: 1.5rem; backdrop-filter: blur(10px); box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-        <span style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94A3B8;">
-            🕸️ Spider Crawl Target & Scope (Fixed 1,000 URLs Limit)
-        </span>
-        <span style="font-size: 0.75rem; color: #64748B;">
-            Screaming Frog Style Search & Mode Selection
-        </span>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
+# 5. Screaming Frog Top Search Bar
 col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([5, 2.2, 1.3, 1.1])
 
 with col_sf_url:
@@ -452,8 +428,8 @@ if btn_clear:
     st.session_state["single_inspect_result"] = None
     st.rerun()
 
-# Fixed Optimized Engine Parameters (1,000 URLs limit)
-max_pages = 1000
+# Fixed Optimized Engine Parameters (10,000 URLs limit)
+max_pages = 10000
 max_depth = 10
 concurrency = 12
 timeout = 10
@@ -469,7 +445,7 @@ if btn_start:
     else:
         st.session_state["cfg_target_url"] = target_url
         st.session_state["is_crawling"] = True
-        progress_bar = st.progress(0, text=f"Initializing High-Speed SEO Spider Engine [{crawl_mode} Mode - 1,000 URL Limit]...")
+        progress_bar = st.progress(0, text=f"Initializing High-Speed SEO Spider Engine [{crawl_mode} Mode - 10,000 URL Limit]...")
         status_box = st.empty()
 
         spider = SEOSpider(
@@ -564,7 +540,7 @@ with tab_overview:
                 Ready to Audit Any Website with Zero Limitations
             </h2>
             <p style="color:#94A3B8; font-size:1.05rem; max-width:720px; margin:0.6rem auto 1.8rem; line-height:1.6;">
-                Enter your target URL in the top search bar, select your crawl mode, and click Start. The crawler will audit internal links, canonical tags, metadata, status codes, and headings up to 1,000 URLs.
+                Enter your target URL in the top search bar, select your crawl mode, and click Start. The crawler will audit internal links, canonical tags, metadata, status codes, and headings up to 10,000 URLs.
             </p>
         </div>
         """, unsafe_allow_html=True)

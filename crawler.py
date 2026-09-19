@@ -83,7 +83,7 @@ class SEOSpider:
     def __init__(
         self,
         start_url: str,
-        max_pages: int = 2000,
+        max_pages: int = 10000,
         max_depth: int = 5,
         concurrency: int = 10,
         user_agent_name: str = "Chrome (Windows 11)",
