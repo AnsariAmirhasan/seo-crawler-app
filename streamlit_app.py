@@ -369,7 +369,8 @@ st.markdown("""
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <span class="header-pill">🎯 Canonicals</span>
-            <span class="header-pill">🏷️ Titles & Meta</span>
+            <span class="header-pill">🏷️ Page Titles</span>
+            <span class="header-pill">📝 Meta Description</span>
             <span class="header-pill">🧱 Headings (H1/H2)</span>
             <span class="header-pill">🖼️ Images Audit</span>
         </div>
@@ -502,12 +503,13 @@ if selected_tool != "🕷️ SEO Spider & Crawler":
     st.stop()
 
 # Main Application Tabs
-tab_overview, tab_issues, tab_pages, tab_canonicals, tab_titles, tab_headings, tab_links, tab_images, tab_architecture, tab_inspector, tab_sitemap = st.tabs([
+tab_overview, tab_issues, tab_pages, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_inspector, tab_sitemap = st.tabs([
     "📊 Overview",
     "🚨 Issues & Fixes",
     "📑 Internal Pages",
     "🎯 Canonicals",
-    "🏷️ Titles & Meta",
+    "🏷️ Page Titles",
+    "📝 Meta Description",
     "🧱 Headings (H1/H2)",
     "🔗 Link Analysis",
     "🖼️ Images Audit",
@@ -873,27 +875,36 @@ with tab_canonicals:
             """)
 
 # ==============================================================================
-# TAB 5: PAGE TITLES & META DESCRIPTIONS AUDIT
+# TAB 5: PAGE TITLES AUDIT
 # ==============================================================================
 with tab_titles:
     if not results:
-        st.info("Run a crawl to inspect titles, meta descriptions, missing tags, and duplicates.")
+        st.info("Run a crawl to inspect page titles, detect duplicate cannibalization, and verify SERP length.")
     else:
         df_pages = results["df_pages"].copy()
         total_pages = len(df_pages)
 
-        # Prepare Clean Status Columns
-        df_titles_meta = df_pages[[
-            "url", "status_code", "title", "title_length", "title_pixel_width", 
-            "meta_description", "meta_description_length", "is_indexable"
+        # Prepare Clean Title Columns
+        df_titles = df_pages[[
+            "url", "status_code", "title", "title_length", "title_pixel_width", "is_indexable"
         ]].copy()
-        
-        # Calculate Title and Description Duplicates
-        title_counts = df_titles_meta[df_titles_meta["title"].str.strip() != ""]["title"].value_counts()
-        dup_titles_set = set(title_counts[title_counts > 1].index)
 
-        desc_counts = df_titles_meta[df_titles_meta["meta_description"].str.strip() != ""]["meta_description"].value_counts()
-        dup_desc_set = set(desc_counts[desc_counts > 1].index)
+        # Map Duplicate Partners (Identify which other URLs share the exact same title)
+        valid_titles_df = df_titles[df_titles["title"].str.strip() != ""]
+        title_to_urls = valid_titles_df.groupby("title")["url"].apply(list).to_dict()
+        dup_titles_set = {t for t, urls in title_to_urls.items() if len(urls) > 1}
+
+        def get_title_dup_info(row):
+            t = str(row["title"]).strip()
+            if t and t in title_to_urls and len(title_to_urls[t]) > 1:
+                all_urls = title_to_urls[t]
+                other_urls = [u for u in all_urls if u != row["url"]]
+                return len(all_urls), " | ".join(other_urls)
+            return 1, "—"
+
+        dup_title_info = df_titles.apply(get_title_dup_info, axis=1)
+        df_titles["duplicate_count"] = [d[0] for d in dup_title_info]
+        df_titles["duplicate_matches"] = [d[1] for d in dup_title_info]
 
         # Title Status Tag
         def get_title_status(row):
@@ -908,123 +919,114 @@ with tab_titles:
                 return "Below 30 Chars"
             return "OK"
 
-        # Meta Description Status Tag
-        def get_desc_status(row):
-            d = str(row["meta_description"]).strip()
-            if not d:
-                return "Missing"
-            if d in dup_desc_set:
-                return "Duplicate"
-            if row["meta_description_length"] > 160:
-                return "Over 160 Chars"
-            if row["meta_description_length"] < 70:
-                return "Below 70 Chars"
-            return "OK"
+        df_titles["title_status"] = df_titles.apply(get_title_status, axis=1)
 
-        df_titles_meta["title_status"] = df_titles_meta.apply(get_title_status, axis=1)
-        df_titles_meta["meta_desc_status"] = df_titles_meta.apply(get_desc_status, axis=1)
+        # Title Metrics
+        ok_titles_count = len(df_titles[df_titles["title_status"] == "OK"])
+        missing_titles_count = len(df_titles[df_titles["title_status"] == "Missing"])
+        dup_titles_count = len(df_titles[df_titles["title_status"] == "Duplicate"])
+        over_titles_count = len(df_titles[df_titles["title_status"] == "Over 60 Chars (>600px)"])
+        below_titles_count = len(df_titles[df_titles["title_status"] == "Below 30 Chars"])
 
-        # KPI Counters
-        missing_titles_count = len(df_titles_meta[df_titles_meta["title_status"] == "Missing"])
-        dup_titles_count = len(df_titles_meta[df_titles_meta["title_status"] == "Duplicate"])
-        missing_desc_count = len(df_titles_meta[df_titles_meta["meta_desc_status"] == "Missing"])
-        dup_desc_count = len(df_titles_meta[df_titles_meta["meta_desc_status"] == "Duplicate"])
-        ok_titles_count = len(df_titles_meta[df_titles_meta["title_status"] == "OK"])
-
-        st.subheader("🏷️ Page Titles & Meta Descriptions Audit")
-        st.caption("Deep inspection of Titles and Meta Descriptions — extract missing tags, identify duplicate metadata, and check SERP lengths.")
+        st.subheader("🏷️ Page Titles Audit")
+        st.caption("Deep inspection of Page Titles — detect missing titles, isolate duplicate cannibalization with exact matching partner URLs, and verify SERP pixel limits.")
 
         # 5 Metric Cards
         tm1, tm2, tm3, tm4, tm5 = st.columns(5)
-        tm1.metric("Titles Optimal (OK)", f"{ok_titles_count}", delta=f"{round(ok_titles_count/max(total_pages,1)*100)}% of pages")
-        tm2.metric("Missing Titles", f"{missing_titles_count}", delta="Needs title tag" if missing_titles_count else "None", delta_color="inverse" if missing_titles_count else "normal")
-        tm3.metric("Duplicate Titles", f"{dup_titles_count}", delta="Cannibalization" if dup_titles_count else "Unique", delta_color="inverse" if dup_titles_count else "normal")
-        tm4.metric("Missing Meta Desc", f"{missing_desc_count}", delta="Needs snippet" if missing_desc_count else "None", delta_color="inverse" if missing_desc_count else "normal")
-        tm5.metric("Duplicate Meta Desc", f"{dup_desc_count}", delta="Identical snippet" if dup_desc_count else "Unique", delta_color="inverse" if dup_desc_count else "normal")
+        tm1.metric("Optimal Titles (OK)", f"{ok_titles_count}", delta=f"{round(ok_titles_count/max(total_pages,1)*100)}% of pages")
+        tm2.metric("Duplicate Titles", f"{dup_titles_count}", delta=f"{len(dup_titles_set)} unique shared" if dup_titles_count else "Unique", delta_color="inverse" if dup_titles_count else "normal")
+        tm3.metric("Missing Titles", f"{missing_titles_count}", delta="Requires <title>" if missing_titles_count else "None", delta_color="inverse" if missing_titles_count else "normal")
+        tm4.metric("Over 60 Chars (>600px)", f"{over_titles_count}", delta="SERP Truncated" if over_titles_count else "None", delta_color="inverse" if over_titles_count else "normal")
+        tm5.metric("Below 30 Chars", f"{below_titles_count}", delta="Too short" if below_titles_count else "Good", delta_color="inverse" if below_titles_count else "normal")
 
         # Filters and Search
         fcol1, fcol2 = st.columns([1.5, 2])
         with fcol1:
             title_filter = st.selectbox(
-                "Filter Titles & Meta by Status:",
+                "Filter Titles by Status:",
                 [
                     "All Pages",
-                    "Missing Title",
                     "Duplicate Title",
+                    "Missing Title",
                     "Title Over 60 Chars (>600px)",
                     "Title Below 30 Chars",
-                    "Missing Meta Description",
-                    "Duplicate Meta Description",
-                    "Meta Desc Over 160 Chars",
-                    "Meta Desc Below 70 Chars"
+                    "Optimal Title (OK)"
                 ]
             )
         with fcol2:
-            title_search = st.text_input("🔍 Search URL, Page Title, or Meta Description:", "")
+            title_search = st.text_input("🔍 Search URL, Page Title, or Duplicate Partner URL:", "", key="title_search_input")
 
-        df_filtered_tm = df_titles_meta.copy()
+        df_filtered_t = df_titles.copy()
 
-        if title_filter == "Missing Title":
-            df_filtered_tm = df_filtered_tm[df_filtered_tm["title_status"] == "Missing"]
-        elif title_filter == "Duplicate Title":
-            df_filtered_tm = df_filtered_tm[df_filtered_tm["title_status"] == "Duplicate"]
+        if title_filter == "Duplicate Title":
+            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "Duplicate"]
+        elif title_filter == "Missing Title":
+            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "Missing"]
         elif title_filter == "Title Over 60 Chars (>600px)":
-            df_filtered_tm = df_filtered_tm[df_filtered_tm["title_status"] == "Over 60 Chars (>600px)"]
+            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "Over 60 Chars (>600px)"]
         elif title_filter == "Title Below 30 Chars":
-            df_filtered_tm = df_filtered_tm[df_filtered_tm["title_status"] == "Below 30 Chars"]
-        elif title_filter == "Missing Meta Description":
-            df_filtered_tm = df_filtered_tm[df_filtered_tm["meta_desc_status"] == "Missing"]
-        elif title_filter == "Duplicate Meta Description":
-            df_filtered_tm = df_filtered_tm[df_filtered_tm["meta_desc_status"] == "Duplicate"]
-        elif title_filter == "Meta Desc Over 160 Chars":
-            df_filtered_tm = df_filtered_tm[df_filtered_tm["meta_desc_status"] == "Over 160 Chars"]
-        elif title_filter == "Meta Desc Below 70 Chars":
-            df_filtered_tm = df_filtered_tm[df_filtered_tm["meta_desc_status"] == "Below 70 Chars"]
+            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "Below 30 Chars"]
+        elif title_filter == "Optimal Title (OK)":
+            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "OK"]
 
         if title_search:
-            df_filtered_tm = df_filtered_tm[
-                df_filtered_tm["url"].str.contains(title_search, case=False, na=False) |
-                df_filtered_tm["title"].str.contains(title_search, case=False, na=False) |
-                df_filtered_tm["meta_description"].str.contains(title_search, case=False, na=False)
+            df_filtered_t = df_filtered_t[
+                df_filtered_t["url"].str.contains(title_search, case=False, na=False) |
+                df_filtered_t["title"].str.contains(title_search, case=False, na=False) |
+                df_filtered_t["duplicate_matches"].str.contains(title_search, case=False, na=False)
             ]
 
         # Download button for filtered data
         col_down1, col_down2 = st.columns([1, 4])
         with col_down1:
-            csv_tm = generate_csv(df_filtered_tm)
+            csv_t = generate_csv(df_filtered_t)
             st.download_button(
-                label=f"📥 Download Filtered Titles & Meta ({len(df_filtered_tm)} URLs)",
-                data=csv_tm,
-                file_name=f"titles_meta_{title_filter.replace(' ', '_').lower()}.csv",
+                label=f"📥 Download Filtered Titles ({len(df_filtered_t)} URLs)",
+                data=csv_t,
+                file_name=f"page_titles_{title_filter.replace(' ', '_').lower()}.csv",
                 mime="text/csv",
                 use_container_width=True
             )
         with col_down2:
-            st.caption(f"Showing **{len(df_filtered_tm)}** of **{total_pages}** pages matching filter: `{title_filter}`")
+            st.caption(f"Showing **{len(df_filtered_t)}** of **{total_pages}** pages matching filter: `{title_filter}`")
 
+        # Display Dataframe with Duplicate Partner URL(s)
         st.dataframe(
-            df_filtered_tm[[
-                "url", "title", "title_status", "title_length", "title_pixel_width",
-                "meta_description", "meta_desc_status", "meta_description_length", "status_code"
+            df_filtered_t[[
+                "url", "title", "title_status", "duplicate_matches", "duplicate_count",
+                "title_length", "title_pixel_width", "status_code"
             ]],
             use_container_width=True,
             column_config={
                 "url": st.column_config.LinkColumn("Page URL"),
                 "title": st.column_config.TextColumn("Page Title"),
                 "title_status": st.column_config.TextColumn("Title Status"),
-                "title_length": st.column_config.NumberColumn("Title Chars"),
+                "duplicate_matches": st.column_config.TextColumn("Duplicate With (Other URL(s))", help="The exact other URLs on your site sharing this identical title"),
+                "duplicate_count": st.column_config.NumberColumn("Total Copies", format="%d", help="Total number of crawled pages with this exact title"),
+                "title_length": st.column_config.NumberColumn("Chars"),
                 "title_pixel_width": st.column_config.NumberColumn("Pixels (px)"),
-                "meta_description": st.column_config.TextColumn("Meta Description"),
-                "meta_desc_status": st.column_config.TextColumn("Meta Status"),
-                "meta_description_length": st.column_config.NumberColumn("Meta Chars"),
                 "status_code": st.column_config.NumberColumn("HTTP Status", format="%d")
             },
             hide_index=True
         )
 
+        # Grouped Duplicate Title Clusters Explorer
+        if dup_titles_set:
+            with st.expander(f"👥 View Grouped Duplicate Titles Clusters ({len(dup_titles_set)} Unique Duplicate Groups)", expanded=(title_filter == "Duplicate Title")):
+                st.markdown("Here is the grouped breakdown of duplicate titles and every competing URL:")
+                for dup_t in sorted(dup_titles_set, key=lambda x: len(title_to_urls[x]), reverse=True):
+                    matched_urls = title_to_urls[dup_t]
+                    st.markdown(f"**📌 Title:** `{dup_t}` — *(Shared across **{len(matched_urls)}** pages)*")
+                    dup_cluster_df = pd.DataFrame({
+                        "Matching Page URL": matched_urls,
+                        "Status Code": [df_titles[df_titles["url"] == u]["status_code"].values[0] if not df_titles[df_titles["url"] == u].empty else 200 for u in matched_urls]
+                    })
+                    st.dataframe(dup_cluster_df, use_container_width=True, hide_index=True)
+                    st.markdown("<hr style='margin:0.4rem 0; border-color:#334155;'>", unsafe_allow_html=True)
+
         st.markdown("---")
         st.subheader("🔍 Google SERP Preview Simulator")
-        selected_url = st.selectbox("Select Page URL to preview Google Search snippet:", options=df_pages["url"].tolist())
+        selected_url = st.selectbox("Select Page URL to preview Google Search snippet:", options=df_pages["url"].tolist(), key="serp_title_select")
         
         if selected_url:
             row = df_pages[df_pages["url"] == selected_url].iloc[0]
@@ -1035,7 +1037,6 @@ with tab_titles:
 
             parsed_p = urlparse(p_url)
             domain_display = parsed_p.netloc
-            path_display = parsed_p.path if parsed_p.path != "/" else ""
 
             st.markdown(f"""
             <div class="serp-card">
@@ -1051,13 +1052,168 @@ with tab_titles:
             </div>
             """, unsafe_allow_html=True)
 
-            col_sp1, col_sp2, col_sp3 = st.columns(3)
+            col_sp1, col_sp2 = st.columns(2)
             col_sp1.metric("Title Length", f"{len(p_title)} chars", delta="Optimal (30-60)" if 30 <= len(p_title) <= 60 else "Check Length")
             col_sp2.metric("Title Pixel Width", f"{p_pixels} px", delta="Fits Google Desktop (<600px)" if p_pixels <= 600 else "Truncated by Google (>600px)", delta_color="normal" if p_pixels <= 600 else "inverse")
-            col_sp3.metric("Meta Description", f"{len(p_desc)} chars", delta="Optimal (70-160)" if 70 <= len(p_desc) <= 160 else "Check Length")
 
 # ==============================================================================
-# TAB 6: HEADINGS (H1/H2) HIERARCHY AUDIT
+# TAB 6: META DESCRIPTIONS AUDIT
+# ==============================================================================
+with tab_descriptions:
+    if not results:
+        st.info("Run a crawl to inspect meta descriptions, detect duplicate snippets, and verify length limits.")
+    else:
+        df_pages = results["df_pages"].copy()
+        total_pages = len(df_pages)
+
+        # Prepare Clean Meta Description Columns
+        df_desc = df_pages[[
+            "url", "status_code", "meta_description", "meta_description_length", "is_indexable"
+        ]].copy()
+
+        # Map Duplicate Partners (Group URLs sharing exact same meta description)
+        valid_desc_df = df_desc[df_desc["meta_description"].str.strip() != ""]
+        desc_to_urls = valid_desc_df.groupby("meta_description")["url"].apply(list).to_dict()
+        dup_desc_set = {d for d, urls in desc_to_urls.items() if len(urls) > 1}
+
+        def get_desc_dup_info(row):
+            d = str(row["meta_description"]).strip()
+            if d and d in desc_to_urls and len(desc_to_urls[d]) > 1:
+                all_urls = desc_to_urls[d]
+                other_urls = [u for u in all_urls if u != row["url"]]
+                return len(all_urls), " | ".join(other_urls)
+            return 1, "—"
+
+        dup_desc_info = df_desc.apply(get_desc_dup_info, axis=1)
+        df_desc["duplicate_count"] = [d[0] for d in dup_desc_info]
+        df_desc["duplicate_matches"] = [d[1] for d in dup_desc_info]
+
+        # Meta Description Status Tag
+        def get_desc_status(row):
+            d = str(row["meta_description"]).strip()
+            if not d:
+                return "Missing"
+            if d in dup_desc_set:
+                return "Duplicate"
+            if row["meta_description_length"] > 160:
+                return "Over 160 Chars"
+            if row["meta_description_length"] < 70:
+                return "Below 70 Chars"
+            return "OK"
+
+        df_desc["meta_desc_status"] = df_desc.apply(get_desc_status, axis=1)
+
+        # Meta Description Metrics
+        ok_desc_count = len(df_desc[df_desc["meta_desc_status"] == "OK"])
+        missing_desc_count = len(df_desc[df_desc["meta_desc_status"] == "Missing"])
+        dup_desc_count = len(df_desc[df_desc["meta_desc_status"] == "Duplicate"])
+        over_desc_count = len(df_desc[df_desc["meta_desc_status"] == "Over 160 Chars"])
+        below_desc_count = len(df_desc[df_desc["meta_desc_status"] == "Below 70 Chars"])
+
+        st.subheader("📝 Meta Description Audit")
+        st.caption("Deep inspection of Meta Descriptions — isolate duplicate snippets with matching partner URLs, detect missing descriptions, and optimize SERP click-through rate.")
+
+        # 5 Metric Cards
+        dm1, dm2, dm3, dm4, dm5 = st.columns(5)
+        dm1.metric("Optimal Descriptions (OK)", f"{ok_desc_count}", delta=f"{round(ok_desc_count/max(total_pages,1)*100)}% of pages")
+        dm2.metric("Duplicate Descriptions", f"{dup_desc_count}", delta=f"{len(dup_desc_set)} unique shared" if dup_desc_count else "Unique", delta_color="inverse" if dup_desc_count else "normal")
+        dm3.metric("Missing Descriptions", f"{missing_desc_count}", delta="Needs snippet" if missing_desc_count else "None", delta_color="inverse" if missing_desc_count else "normal")
+        dm4.metric("Over 160 Chars", f"{over_desc_count}", delta="SERP Truncated" if over_desc_count else "None", delta_color="inverse" if over_desc_count else "normal")
+        dm5.metric("Below 70 Chars", f"{below_desc_count}", delta="Too short" if below_desc_count else "Good", delta_color="inverse" if below_desc_count else "normal")
+
+        # Filters and Search
+        dfcol1, dfcol2 = st.columns([1.5, 2])
+        with dfcol1:
+            desc_filter = st.selectbox(
+                "Filter Meta Descriptions by Status:",
+                [
+                    "All Pages",
+                    "Duplicate Meta Description",
+                    "Missing Meta Description",
+                    "Meta Desc Over 160 Chars",
+                    "Meta Desc Below 70 Chars",
+                    "Optimal Meta Description (OK)"
+                ]
+            )
+        with dfcol2:
+            desc_search = st.text_input("🔍 Search URL, Meta Description, or Duplicate Partner URL:", "", key="desc_search_input")
+
+        df_filtered_d = df_desc.copy()
+
+        if desc_filter == "Duplicate Meta Description":
+            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "Duplicate"]
+        elif desc_filter == "Missing Meta Description":
+            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "Missing"]
+        elif desc_filter == "Meta Desc Over 160 Chars":
+            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "Over 160 Chars"]
+        elif desc_filter == "Meta Desc Below 70 Chars":
+            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "Below 70 Chars"]
+        elif desc_filter == "Optimal Meta Description (OK)":
+            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "OK"]
+
+        if desc_search:
+            df_filtered_d = df_filtered_d[
+                df_filtered_d["url"].str.contains(desc_search, case=False, na=False) |
+                df_filtered_d["meta_description"].str.contains(desc_search, case=False, na=False) |
+                df_filtered_d["duplicate_matches"].str.contains(desc_search, case=False, na=False)
+            ]
+
+        # Download button for filtered data
+        col_ddown1, col_ddown2 = st.columns([1, 4])
+        with col_ddown1:
+            csv_d = generate_csv(df_filtered_d)
+            st.download_button(
+                label=f"📥 Download Filtered Meta Descriptions ({len(df_filtered_d)} URLs)",
+                data=csv_d,
+                file_name=f"meta_descriptions_{desc_filter.replace(' ', '_').lower()}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with col_ddown2:
+            st.caption(f"Showing **{len(df_filtered_d)}** of **{total_pages}** pages matching filter: `{desc_filter}`")
+
+        # Display Dataframe with Duplicate Partner URL(s)
+        st.dataframe(
+            df_filtered_d[[
+                "url", "meta_description", "meta_desc_status", "duplicate_matches", "duplicate_count",
+                "meta_description_length", "status_code"
+            ]],
+            use_container_width=True,
+            column_config={
+                "url": st.column_config.LinkColumn("Page URL"),
+                "meta_description": st.column_config.TextColumn("Meta Description"),
+                "meta_desc_status": st.column_config.TextColumn("Description Status"),
+                "duplicate_matches": st.column_config.TextColumn("Duplicate With (Other URL(s))", help="The exact other URLs on your site sharing this identical description"),
+                "duplicate_count": st.column_config.NumberColumn("Total Copies", format="%d", help="Total number of crawled pages with this exact description"),
+                "meta_description_length": st.column_config.NumberColumn("Chars (Length)"),
+                "status_code": st.column_config.NumberColumn("HTTP Status", format="%d")
+            },
+            hide_index=True
+        )
+
+        # Grouped Duplicate Meta Descriptions Clusters Explorer
+        if dup_desc_set:
+            with st.expander(f"👥 View Grouped Duplicate Descriptions Clusters ({len(dup_desc_set)} Unique Duplicate Groups)", expanded=(desc_filter == "Duplicate Meta Description")):
+                st.markdown("Here is the grouped breakdown of duplicate meta descriptions and all URLs sharing them:")
+                for dup_d in sorted(dup_desc_set, key=lambda x: len(desc_to_urls[x]), reverse=True):
+                    matched_urls = desc_to_urls[dup_d]
+                    st.markdown(f"**📌 Meta Description:** `{dup_d}` — *(Shared across **{len(matched_urls)}** pages)*")
+                    dup_cluster_df = pd.DataFrame({
+                        "Matching Page URL": matched_urls,
+                        "Status Code": [df_desc[df_desc["url"] == u]["status_code"].values[0] if not df_desc[df_desc["url"] == u].empty else 200 for u in matched_urls]
+                    })
+                    st.dataframe(dup_cluster_df, use_container_width=True, hide_index=True)
+                    st.markdown("<hr style='margin:0.4rem 0; border-color:#334155;'>", unsafe_allow_html=True)
+
+        with st.expander("💡 SEO Guide: Meta Description Best Practices"):
+            st.markdown("""
+            - **Unique Snippets for Every Page**: ⚠️ Identical meta descriptions result in duplicate snippets across search results, harming CTR.
+            - **Optimal Length (70 - 160 characters)**: Keeps your snippet within Google's desktop and mobile viewports without truncation ellipses (`...`).
+            - **Compelling Call-to-Action**: Encourage clicks with clear value propositions and relevant primary keywords.
+            """)
+
+# ==============================================================================
+# TAB 7: HEADINGS (H1/H2) HIERARCHY AUDIT
 # ==============================================================================
 with tab_headings:
     if not results:
@@ -1071,9 +1227,22 @@ with tab_headings:
             "url", "h1", "h1_count", "h2_first", "h2_count", "status_code", "is_indexable"
         ]].copy()
 
-        # Calculate H1 and H2 duplicates
-        h1_counts = df_headings[df_headings["h1"].str.strip() != ""]["h1"].value_counts()
-        dup_h1_set = set(h1_counts[h1_counts > 1].index)
+        # Calculate H1 and H2 duplicates with partner URL matching
+        valid_h1_df = df_headings[df_headings["h1"].str.strip() != ""]
+        h1_to_urls = valid_h1_df.groupby("h1")["url"].apply(list).to_dict()
+        dup_h1_set = {h for h, urls in h1_to_urls.items() if len(urls) > 1}
+
+        def get_h1_dup_info(row):
+            h = str(row["h1"]).strip()
+            if h and h in h1_to_urls and len(h1_to_urls[h]) > 1:
+                all_urls = h1_to_urls[h]
+                other_urls = [u for u in all_urls if u != row["url"]]
+                return len(all_urls), " | ".join(other_urls)
+            return 1, "—"
+
+        dup_h1_info = df_headings.apply(get_h1_dup_info, axis=1)
+        df_headings["duplicate_h1_count"] = [d[0] for d in dup_h1_info]
+        df_headings["duplicate_h1_matches"] = [d[1] for d in dup_h1_info]
 
         h2_counts = df_headings[df_headings["h2_first"].str.strip() != ""]["h2_first"].value_counts()
         dup_h2_set = set(h2_counts[h2_counts > 1].index)
@@ -1115,13 +1284,13 @@ with tab_headings:
         missing_h2_count = len(df_headings[df_headings["h2_status"] == "Missing"])
 
         st.subheader("🧱 Heading Hierarchy & Structure Audit (H1 / H2)")
-        st.caption("Inspect heading tags across your site — isolate missing H1s, identify duplicate headings, and detect multiple H1 tags per page.")
+        st.caption("Inspect heading tags across your site — isolate missing H1s, identify duplicate headings with matching partner URLs, and detect multiple H1 tags per page.")
 
         # 5 Metric Cards
         hm1, hm2, hm3, hm4, hm5 = st.columns(5)
         hm1.metric("H1 Optimal (OK)", f"{h1_ok_count}", delta=f"{round(h1_ok_count/max(total_pages,1)*100)}% of pages")
         hm2.metric("Missing H1", f"{missing_h1_count}", delta="No H1 tag" if missing_h1_count else "None", delta_color="inverse" if missing_h1_count else "normal")
-        hm3.metric("Duplicate H1", f"{dup_h1_count}", delta="Shared H1" if dup_h1_count else "Unique", delta_color="inverse" if dup_h1_count else "normal")
+        hm3.metric("Duplicate H1", f"{dup_h1_count}", delta=f"{len(dup_h1_set)} unique shared" if dup_h1_count else "Unique", delta_color="inverse" if dup_h1_count else "normal")
         hm4.metric("Multiple H1s", f"{multiple_h1_count}", delta="More than 1 H1" if multiple_h1_count else "Single H1", delta_color="inverse" if multiple_h1_count else "normal")
         hm5.metric("Missing H2", f"{missing_h2_count}", delta="Needs subheadings" if missing_h2_count else "Structured", delta_color="inverse" if missing_h2_count else "normal")
 
@@ -1142,7 +1311,7 @@ with tab_headings:
                 ]
             )
         with hfcol2:
-            heading_search = st.text_input("🔍 Search URL or Heading Text (H1/H2):", "")
+            heading_search = st.text_input("🔍 Search URL, Heading Text (H1/H2), or Partner URL:", "", key="heading_search_input")
 
         df_filtered_hd = df_headings.copy()
 
@@ -1165,7 +1334,8 @@ with tab_headings:
             df_filtered_hd = df_filtered_hd[
                 df_filtered_hd["url"].str.contains(heading_search, case=False, na=False) |
                 df_filtered_hd["h1"].str.contains(heading_search, case=False, na=False) |
-                df_filtered_hd["h2_first"].str.contains(heading_search, case=False, na=False)
+                df_filtered_hd["h2_first"].str.contains(heading_search, case=False, na=False) |
+                df_filtered_hd["duplicate_h1_matches"].str.contains(heading_search, case=False, na=False)
             ]
 
         # Download button for filtered headings
@@ -1184,13 +1354,16 @@ with tab_headings:
 
         st.dataframe(
             df_filtered_hd[[
-                "url", "h1", "h1_status", "h1_count", "h2_first", "h2_status", "h2_count", "status_code"
+                "url", "h1", "h1_status", "duplicate_h1_matches", "duplicate_h1_count",
+                "h1_count", "h2_first", "h2_status", "h2_count", "status_code"
             ]],
             use_container_width=True,
             column_config={
                 "url": st.column_config.LinkColumn("Page URL"),
                 "h1": st.column_config.TextColumn("H1 Heading"),
                 "h1_status": st.column_config.TextColumn("H1 Status"),
+                "duplicate_h1_matches": st.column_config.TextColumn("Duplicate With (Other URL(s))", help="The exact other URLs on your site sharing this identical H1"),
+                "duplicate_h1_count": st.column_config.NumberColumn("Total Copies", format="%d"),
                 "h1_count": st.column_config.NumberColumn("H1 Count", format="%d"),
                 "h2_first": st.column_config.TextColumn("First H2 Subheading"),
                 "h2_status": st.column_config.TextColumn("H2 Status"),
@@ -1199,6 +1372,20 @@ with tab_headings:
             },
             hide_index=True
         )
+
+        # Grouped Duplicate H1 Explorer
+        if dup_h1_set:
+            with st.expander(f"👥 View Grouped Duplicate H1 Clusters ({len(dup_h1_set)} Unique Duplicate Groups)", expanded=(heading_filter == "Duplicate H1")):
+                st.markdown("Here is the grouped breakdown of duplicate H1 headings and competing URLs:")
+                for dup_h in sorted(dup_h1_set, key=lambda x: len(h1_to_urls[x]), reverse=True):
+                    matched_urls = h1_to_urls[dup_h]
+                    st.markdown(f"**📌 H1 Heading:** `{dup_h}` — *(Shared across **{len(matched_urls)}** pages)*")
+                    dup_cluster_df = pd.DataFrame({
+                        "Matching Page URL": matched_urls,
+                        "Status Code": [df_headings[df_headings["url"] == u]["status_code"].values[0] if not df_headings[df_headings["url"] == u].empty else 200 for u in matched_urls]
+                    })
+                    st.dataframe(dup_cluster_df, use_container_width=True, hide_index=True)
+                    st.markdown("<hr style='margin:0.4rem 0; border-color:#334155;'>", unsafe_allow_html=True)
 
         with st.expander("💡 SEO Guide: Heading Hierarchy Best Practices"):
             st.markdown("""
