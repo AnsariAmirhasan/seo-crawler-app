@@ -1441,7 +1441,7 @@ with tab_responses:
             
             broken_urls = df_resp_filtered["url"].tolist()
 
-            st.caption("💡 **Interactive**: Niche table me kisi bhi **Broken URL** ki row par click karein, ya dropdown se select karein — uske **Source Pages aur Anchor Texts** turant inspect ho jayenge.")
+            st.caption("💡 **Interactive**: Click any **Broken URL** row in the table above, or select from the dropdown below to inspect its referring **Source Pages** and **Anchor Texts**.")
 
             table_event = st.dataframe(
                 df_resp_filtered[avail_cols],
@@ -1480,7 +1480,7 @@ with tab_responses:
                 c_sel1, c_sel2 = st.columns([3, 1.2])
                 with c_sel1:
                     active_broken_url = st.selectbox(
-                        "🔍 Selected Broken Page (Table me click karein ya yahan se choose karein):",
+                        "🔍 Selected Broken Page (Click table row above or choose here):",
                         options=broken_urls,
                         index=active_idx,
                         key="sb_inspect_404_picker"
@@ -1508,8 +1508,8 @@ with tab_responses:
                         referring[ref_cols].drop_duplicates(),
                         use_container_width=True,
                         column_config={
-                            "source_url": st.column_config.LinkColumn("Source Page (Jahan ye link laga hua hai)", width="large"),
-                            "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable text)", width="medium"),
+                            "source_url": st.column_config.LinkColumn("Source Page (Referring URL)", width="large"),
+                            "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable Link Text)", width="medium"),
                             "is_internal": st.column_config.CheckboxColumn("Internal Link"),
                             "nofollow": st.column_config.CheckboxColumn("Nofollow"),
                         },
@@ -1530,8 +1530,8 @@ with tab_responses:
                             single_ref_df,
                             use_container_width=True,
                             column_config={
-                                "source_url": st.column_config.LinkColumn("Source Page (Jahan ye link laga hua hai)", width="large"),
-                                "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable text)", width="medium"),
+                                "source_url": st.column_config.LinkColumn("Source Page (Referring URL)", width="large"),
+                                "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable Link Text)", width="medium"),
                                 "is_internal": st.column_config.CheckboxColumn("Internal Link"),
                                 "nofollow": st.column_config.CheckboxColumn("Nofollow"),
                             },
@@ -1586,7 +1586,7 @@ with tab_responses:
             """)
 
 # ==============================================================================
-# TAB 5: CANONICAL TAGS AUDIT ("Ye Page -> Iska Canonical Ye")
+# TAB 5: CANONICAL TAGS AUDIT (Page URL -> Canonical Target)
 # ==============================================================================
 with tab_canonicals:
     if not results:
