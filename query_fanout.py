@@ -206,6 +206,10 @@ def render_query_fanout_page():
     """, unsafe_allow_html=True)
 
     # 2. Central API Configuration Card (Placed in Center of Page)
+    if "fanout_reset_id" not in st.session_state:
+        st.session_state["fanout_reset_id"] = 0
+    reset_id = st.session_state["fanout_reset_id"]
+
     st.markdown("""
     <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(99, 102, 241, 0.28); border-radius: 16px; padding: 1.4rem 1.6rem 1rem; margin-bottom: 1.6rem;">
         <div style="font-size: 1.1rem; font-weight: 700; color: #F8FAFC; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
@@ -268,7 +272,7 @@ def render_query_fanout_page():
             selected_model = st.text_input(
                 "Custom Model Name",
                 placeholder="e.g. gemini-3.6-ultra",
-                key="fanout_custom_model"
+                key=f"fanout_custom_model_{reset_id}"
             ).strip()
         else:
             selected_model = selected_model_choice
@@ -295,7 +299,7 @@ def render_query_fanout_page():
             value=st.session_state.get(f"api_key_{ai_provider}", ""),
             type="password",
             placeholder=key_placeholder,
-            key=f"input_key_{ai_provider}"
+            key=f"input_key_{ai_provider}_{reset_id}"
         )
         st.caption(f"🔑 <a href='{help_url}' target='_blank' style='color:#818CF8; text-decoration:none;'>{help_text}</a>", unsafe_allow_html=True)
         if api_key:
@@ -331,7 +335,7 @@ def render_query_fanout_page():
             value=st.session_state.get("fanout_user_query", ""),
             placeholder="e.g. best running shoes for flat feet, how to start investing in mutual funds, etc.",
             label_visibility="collapsed",
-            key="fanout_query_input"
+            key=f"fanout_query_input_{reset_id}"
         )
 
     with q_col2:
@@ -342,12 +346,11 @@ def render_query_fanout_page():
 
     # Clear Execution Logic
     if btn_clear_cfg or btn_clear_search:
-        for p in ["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"]:
-            st.session_state[f"api_key_{p}"] = ""
-            st.session_state[f"input_key_{p}"] = ""
-        st.session_state["fanout_user_query"] = ""
-        st.session_state["fanout_query_input"] = ""
+        st.session_state["fanout_reset_id"] = reset_id + 1
         st.session_state["fanout_results"] = None
+        for p in ["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"]:
+            st.session_state.pop(f"api_key_{p}", None)
+        st.session_state.pop("fanout_user_query", None)
         st.rerun()
 
     # Example chips
