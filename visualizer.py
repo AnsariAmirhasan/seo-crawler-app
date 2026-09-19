@@ -1,7 +1,10 @@
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
-import networkx as nx
+try:
+    import networkx as nx
+except ImportError:
+    nx = None
 import math
 from urllib.parse import urlparse
 
@@ -356,6 +359,17 @@ def create_site_architecture_graph(
         candidate_urls = set(prioritized)
 
     # 4. Build NetworkX Graph
+    if nx is None:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="<b>NetworkX library is not installed.</b><br>Please add networkx to requirements.txt",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=14, color="#EF4444", family=FONT_FAMILY)
+        )
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400)
+        return fig
+
     G = nx.DiGraph()
     for u in candidate_urls:
         G.add_node(u)
