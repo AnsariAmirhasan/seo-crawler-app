@@ -877,6 +877,60 @@ with tab_responses:
         st.info("Run a crawl to audit HTTP response codes, redirection types, errors, and orphan pages.")
     else:
         df_pages = results["df_pages"]
+
+        # Ensure inlinks_count and is_orphan exist even if viewed from a cached session
+        if "inlinks_count" not in df_pages.columns:
+            df_links = results.get("df_links", pd.DataFrame())
+            if not df_links.empty and "is_internal" in df_links.columns and "target_url" in df_links.columns:
+                internal_inlinks = df_links[df_links["is_internal"] == True].groupby("target_url").size().to_dict()
+                df_pages["inlinks_count"] = df_pages["url"].map(internal_inlinks).fillna(0).astype(int)
+            else:
+                df_pages["inlinks_count"] = 0
+
+        if "is_orphan" not in df_pages.columns:
+            start_url = results.get("start_url", "")
+            df_pages["is_orphan"] = (df_pages["inlinks_count"] == 0) & (df_pages["url"] != start_url)
+
+        if "status_description" not in df_pages.columns or "response_category" not in df_pages.columns:
+            def classify_temp(row):
+                c = row.get("status_code", 0)
+                e = str(row.get("error") or "").lower()
+                has_meta = row.get("has_meta_refresh", False)
+                has_js = row.get("has_js_redirect", False)
+
+                if c == 200: d = "200 OK"
+                elif c == 301: d = "301 Moved Permanently"
+                elif c == 302: d = "302 Found"
+                elif c == 307: d = "307 Temporary Redirect"
+                elif c == 308: d = "308 Permanent Redirect"
+                elif c == 400: d = "400 Bad Request"
+                elif c == 401: d = "401 Unauthorized"
+                elif c == 403: d = "403 Forbidden"
+                elif c == 404: d = "404 Not Found"
+                elif c == 410: d = "410 Gone"
+                elif c == 500: d = "500 Internal Server Error"
+                elif c == 502: d = "502 Bad Gateway"
+                elif c == 503: d = "503 Service Unavailable"
+                elif c == 0 or "timeout" in e: d = "No Response"
+                else: d = f"HTTP {c}"
+                
+                if "robots" in e: cat = "Blocked by Robots.txt"
+                elif c == 403 or (c != 200 and "blocked" in e): cat = "Blocked Resource"
+                elif c == 0 or "timeout" in e: cat = "No Response"
+                elif 200 <= c < 300:
+                    if has_meta: cat = "Redirection (Meta Refresh)"
+                    elif has_js: cat = "Redirection (JavaScript)"
+                    else: cat = "Success (2xx)"
+                elif 300 <= c < 400: cat = "Redirection (3xx)"
+                elif 400 <= c < 500: cat = "Client Error (4xx)"
+                elif 500 <= c < 600: cat = "Server Error (5xx)"
+                else: cat = "Other"
+                return pd.Series([d, cat], index=["status_description", "response_category"])
+            
+            temp_res = df_pages.apply(classify_temp, axis=1)
+            df_pages["status_description"] = temp_res["status_description"]
+            df_pages["response_category"] = temp_res["response_category"]
+
         total_resp_pages = len(df_pages)
 
         st.subheader("🚦 Response Codes & HTTP Status Breakdown")
@@ -887,7 +941,7 @@ with tab_responses:
         c_3xx = len(df_pages[(df_pages["status_code"] >= 300) & (df_pages["status_code"] < 400)])
         c_4xx = len(df_pages[(df_pages["status_code"] >= 400) & (df_pages["status_code"] < 500)])
         c_5xx = len(df_pages[(df_pages["status_code"] >= 500) & (df_pages["status_code"] < 600)])
-        c_orphan = int(df_pages["is_orphan"].sum()) if "is_orphan" in df_pages.columns else 0
+        c_orphan = len(df_pages[(df_pages.get("is_orphan", False) == True) | (df_pages.get("inlinks_count", 0) == 0)])
 
         rm1, rm2, rm3, rm4, rm5 = st.columns(5)
         rm1.metric("Success (2xx)", f"{c_2xx}", delta=f"{round(c_2xx/max(total_resp_pages,1)*100)}% of pages")
@@ -901,7 +955,7 @@ with tab_responses:
         # Build Screaming Frog Filter Options matching user's screenshot + Orphan pages
         c_robots = len(df_pages[df_pages["response_category"] == "Blocked by Robots.txt"]) if "response_category" in df_pages.columns else 0
         c_blocked_res = len(df_pages[df_pages["response_category"] == "Blocked Resource"]) if "response_category" in df_pages.columns else 0
-        c_no_resp = len(df_pages[df_pages["response_category"] == "No Response"]) if "response_category" in df_pages.columns else 0
+        c_no_resp = len(df_pages[(df_pages["status_code"] == 0) | (df_pages["response_category"] == "No Response")]) if "response_category" in df_pages.columns else 0
         c_js_red = len(df_pages[df_pages.get("has_js_redirect", False) == True]) if "has_js_redirect" in df_pages.columns else 0
         c_meta_red = len(df_pages[df_pages.get("has_meta_refresh", False) == True]) if "has_meta_refresh" in df_pages.columns else 0
 
@@ -934,49 +988,55 @@ with tab_responses:
                 key="txt_response_code_search"
             )
 
-        # Filter the DataFrame
+        # Filter the DataFrame using substring detection (immune to split parenthesis bugs!)
         df_resp_filtered = df_pages.copy()
 
-        filter_choice = resp_filter.split(" (")[0]
-        if filter_choice == "Blocked by Robots.txt":
+        filter_choice = resp_filter.rsplit(" (", 1)[0]
+        if "Blocked by Robots.txt" in resp_filter:
             df_resp_filtered = df_resp_filtered[df_resp_filtered["response_category"] == "Blocked by Robots.txt"]
-        elif filter_choice == "Blocked Resource":
+        elif "Blocked Resource" in resp_filter:
             df_resp_filtered = df_resp_filtered[df_resp_filtered["response_category"] == "Blocked Resource"]
-        elif filter_choice == "No Response":
-            df_resp_filtered = df_resp_filtered[df_resp_filtered["response_category"] == "No Response"]
-        elif filter_choice == "Success (2xx)":
+        elif "No Response" in resp_filter:
+            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] == 0) | (df_resp_filtered["response_category"] == "No Response")]
+        elif "Success (2xx)" in resp_filter:
             df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 200) & (df_resp_filtered["status_code"] < 300)]
-        elif filter_choice == "Redirection (3xx)":
-            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 300) & (df_resp_filtered["status_code"] < 400)]
-        elif filter_choice == "Redirection (JavaScript)":
+        elif "Redirection (JavaScript)" in resp_filter:
             df_resp_filtered = df_resp_filtered[df_resp_filtered.get("has_js_redirect", False) == True]
-        elif filter_choice == "Redirection (Meta Refresh)":
+        elif "Redirection (Meta Refresh)" in resp_filter:
             df_resp_filtered = df_resp_filtered[df_resp_filtered.get("has_meta_refresh", False) == True]
-        elif filter_choice == "Client Error (4xx)":
+        elif "Redirection (3xx)" in resp_filter:
+            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 300) & (df_resp_filtered["status_code"] < 400)]
+        elif "Client Error (4xx)" in resp_filter:
             df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 400) & (df_resp_filtered["status_code"] < 500)]
-        elif filter_choice == "Server Error (5xx)":
+        elif "Server Error (5xx)" in resp_filter:
             df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 500) & (df_resp_filtered["status_code"] < 600)]
-        elif filter_choice == "Orphan URLs (0 Inlinks)":
-            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("inlinks_count", 0) == 0]
+        elif "Orphan URLs" in resp_filter:
+            df_resp_filtered = df_resp_filtered[(df_resp_filtered.get("is_orphan", False) == True) | (df_resp_filtered.get("inlinks_count", 0) == 0)]
+        else:
+            df_resp_filtered = df_pages.copy()
 
         if resp_search:
-            status_desc_col = df_resp_filtered["status_description"] if "status_description" in df_resp_filtered.columns else ""
-            final_url_col = df_resp_filtered["final_url"] if "final_url" in df_resp_filtered.columns else ""
+            status_desc_str = df_resp_filtered["status_description"].astype(str) if "status_description" in df_resp_filtered.columns else ""
+            final_url_str = df_resp_filtered["final_url"].astype(str) if "final_url" in df_resp_filtered.columns else ""
+            cat_str = df_resp_filtered["response_category"].astype(str) if "response_category" in df_resp_filtered.columns else ""
+            
             df_resp_filtered = df_resp_filtered[
-                df_resp_filtered["url"].str.contains(resp_search, case=False, na=False) |
-                status_desc_col.astype(str).str.contains(resp_search, case=False, na=False) |
+                df_resp_filtered["url"].astype(str).str.contains(resp_search, case=False, na=False) |
                 df_resp_filtered["status_code"].astype(str).str.contains(resp_search, case=False, na=False) |
-                final_url_col.astype(str).str.contains(resp_search, case=False, na=False)
+                status_desc_str.str.contains(resp_search, case=False, na=False) |
+                final_url_str.str.contains(resp_search, case=False, na=False) |
+                cat_str.str.contains(resp_search, case=False, na=False)
             ]
 
         # Download button
         col_rdown1, col_rdown2 = st.columns([1.2, 3.8])
         with col_rdown1:
             csv_resp = generate_csv(df_resp_filtered)
+            clean_slug = filter_choice.replace(' ', '_').replace('(', '').replace(')', '').lower()
             st.download_button(
                 label=f"📥 Download Filtered ({len(df_resp_filtered)} URLs)",
                 data=csv_resp,
-                file_name=f"response_codes_{filter_choice.replace(' ', '_').lower()}.csv",
+                file_name=f"response_codes_{clean_slug}.csv",
                 mime="text/csv",
                 use_container_width=True
             )
