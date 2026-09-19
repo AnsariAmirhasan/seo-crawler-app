@@ -11,8 +11,8 @@ def create_health_gauge(score: int):
         mode="gauge+number",
         value=score,
         domain={'x': [0, 1], 'y': [0, 1]},
-        title={'text': "SEO Health Score", 'font': {'size': 20, 'color': '#E2E8F0', 'family': FONT_FAMILY}},
-        number={'suffix': "/100", 'font': {'size': 38, 'color': '#FFFFFF', 'family': FONT_FAMILY, 'weight': 800}},
+        title={'text': "SEO Health Score", 'font': {'size': 18, 'color': '#E2E8F0', 'family': FONT_FAMILY}},
+        number={'suffix': "/100", 'font': {'size': 36, 'color': '#FFFFFF', 'family': FONT_FAMILY, 'weight': 800}},
         gauge={
             'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#64748B", 'tickfont': {'color': '#94A3B8'}},
             'bar': {'color': "#6366F1", 'thickness': 0.26},
@@ -34,8 +34,8 @@ def create_health_gauge(score: int):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        height=260,
-        margin=dict(l=20, r=20, t=40, b=20),
+        height=350,
+        margin=dict(l=20, r=20, t=50, b=20),
         font=dict(family=FONT_FAMILY)
     )
     return fig
@@ -57,25 +57,32 @@ def create_status_code_chart(df_pages: pd.DataFrame):
         status_counts,
         names="Status Label",
         values="Count",
-        hole=0.6,
+        hole=0.62,
         color_discrete_sequence=color_palette
     )
     fig.update_traces(
-        textposition='inside',
-        textinfo='percent+label',
+        textposition='auto',
+        textinfo='percent',
+        hoverinfo='label+percent+value',
+        hovertemplate="<b>%{label}</b><br>Count: %{value}<br>Ratio: %{percent}<extra></extra>",
         marker=dict(line=dict(color='#0F172A', width=2.5))
     )
     fig.update_layout(
-        title={'text': "HTTP Status Distribution", 'font': {'color': '#F1F5F9', 'size': 17, 'family': FONT_FAMILY}},
+        title={
+            'text': "HTTP Status Distribution",
+            'x': 0.05,
+            'xanchor': 'left',
+            'font': {'color': '#F1F5F9', 'size': 16, 'family': FONT_FAMILY}
+        },
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#CBD5E1", family=FONT_FAMILY),
-        height=280,
-        margin=dict(l=10, r=10, t=45, b=10),
+        height=350,
+        margin=dict(l=15, r=15, t=55, b=45),
         legend=dict(
             orientation="h",
-            yanchor="bottom",
-            y=-0.25,
+            yanchor="top",
+            y=-0.05,
             xanchor="center",
             x=0.5,
             font=dict(size=11, color="#94A3B8")
@@ -92,7 +99,7 @@ def create_issues_bar_chart(df_issues: pd.DataFrame):
             showarrow=False,
             font=dict(size=15, color="#10B981", family=FONT_FAMILY)
         )
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=280)
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=350)
         return fig
 
     issue_summary = df_issues.groupby(["category", "type"]).size().reset_index(name="count")
@@ -113,20 +120,35 @@ def create_issues_bar_chart(df_issues: pd.DataFrame):
         labels={"count": "Issues Count", "category": "SEO Category", "type": "Severity"}
     )
     fig.update_layout(
-        title={'text': "Issues by Category & Severity", 'font': {'color': '#F1F5F9', 'size': 17, 'family': FONT_FAMILY}},
+        title={
+            'text': "Issues by Category & Severity",
+            'x': 0.02,
+            'xanchor': 'left',
+            'font': {'color': '#F1F5F9', 'size': 16, 'family': FONT_FAMILY}
+        },
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#CBD5E1", family=FONT_FAMILY),
-        height=280,
-        margin=dict(l=10, r=10, t=45, b=10),
-        xaxis=dict(gridcolor="rgba(51, 65, 85, 0.4)", tickfont=dict(color="#94A3B8")),
-        yaxis=dict(gridcolor="rgba(51, 65, 85, 0.4)", tickfont=dict(color="#CBD5E1")),
+        height=350,
+        margin=dict(l=10, r=20, t=55, b=45),
+        xaxis=dict(
+            title=dict(text="Issues Count", standoff=8, font=dict(size=11, color="#94A3B8")),
+            gridcolor="rgba(51, 65, 85, 0.4)",
+            tickfont=dict(color="#94A3B8", size=10)
+        ),
+        yaxis=dict(
+            title=None,
+            gridcolor="rgba(51, 65, 85, 0.4)",
+            tickfont=dict(color="#CBD5E1", size=11),
+            automargin=True
+        ),
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=-0.25,
-            xanchor="center",
-            x=0.5,
+            y=1.02,
+            xanchor="right",
+            x=1.0,
+            title=dict(text=""),
             font=dict(size=11, color="#94A3B8")
         )
     )
