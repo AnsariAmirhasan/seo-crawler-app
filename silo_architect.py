@@ -283,18 +283,6 @@ def render_silo_architect_page():
         st.session_state["silo_reset_id"] = 0
     reset_id = st.session_state["silo_reset_id"]
 
-    st.markdown("""
-    <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 16px; padding: 1.5rem 1.8rem 1.2rem; margin-bottom: 1.8rem; box-shadow: 0 10px 30px rgba(0,0,0,0.4);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.15); padding-bottom: 0.6rem;">
-            <div style="font-size: 1.05rem; font-weight: 700; color: #F1F5F9; display: flex; align-items: center; gap: 8px;">
-                <span>⚙️ AI Engine & API Key Setup</span>
-            </div>
-            <div style="font-size: 0.8rem; color: #94A3B8;">
-                Keys are saved securely in your private session
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
     c_prov, c_model, c_key = st.columns([1.2, 1.4, 2.0])
 
