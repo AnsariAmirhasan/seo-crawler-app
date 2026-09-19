@@ -1287,29 +1287,122 @@ with tab_links:
 # ==============================================================================
 with tab_images:
     if not results:
-        st.info("Run a crawl to inspect image tags and missing alt attributes.")
+        st.info("Run a crawl to inspect image tags, missing alt attributes, and duplicate alt text.")
     else:
-        df_images = results["df_images"]
+        df_images = results["df_images"].copy()
         if df_images.empty:
             st.info("No images detected on crawled pages.")
         else:
-            missing_alt_count = len(df_images[df_images["has_alt"] == False])
-            st.metric("Total Images Discovered", len(df_images), delta=f"{missing_alt_count} Missing Alt" if missing_alt_count else "All have Alt", delta_color="inverse" if missing_alt_count else "normal")
+            total_images = len(df_images)
+
+            # Clean and calculate Alt statistics
+            df_images["alt_clean"] = df_images["alt"].fillna("").astype(str).str.strip()
+            df_images["alt_length"] = df_images["alt_clean"].str.len()
             
-            filter_alt = st.checkbox("Show only images missing ALT text", value=False)
-            display_imgs = df_images[df_images["has_alt"] == False] if filter_alt else df_images
+            # Identify Duplicate Alt Texts
+            alt_counts = df_images[df_images["alt_clean"] != ""]["alt_clean"].value_counts()
+            dup_alts_set = set(alt_counts[alt_counts > 1].index)
+
+            # Assign Status Tag
+            def get_image_status(row):
+                a = row["alt_clean"]
+                if not a or not row.get("has_alt", False):
+                    return "Missing Alt Text"
+                if a in dup_alts_set:
+                    return "Duplicate Alt Text"
+                if len(a) > 100:
+                    return "Alt Text Over 100 Chars"
+                return "OK"
+
+            df_images["alt_status"] = df_images.apply(get_image_status, axis=1)
+
+            # KPI Counters
+            missing_alt_count = len(df_images[df_images["alt_status"] == "Missing Alt Text"])
+            dup_alt_count = len(df_images[df_images["alt_status"] == "Duplicate Alt Text"])
+            over_len_alt_count = len(df_images[df_images["alt_status"] == "Alt Text Over 100 Chars"])
+            ok_alt_count = len(df_images[df_images["alt_status"] == "OK"])
+
+            st.subheader("🖼️ Images SEO & Alt Text Audit")
+            st.caption("Deep inspection of image elements across crawled pages — extract missing alt text, detect duplicate alt descriptions, and identify overly long descriptions.")
+
+            # 5 Metric Cards
+            im1, im2, im3, im4, im5 = st.columns(5)
+            im1.metric("Total Images", f"{total_images}")
+            im2.metric("Alt Text Optimal (OK)", f"{ok_alt_count}", delta=f"{round(ok_alt_count/max(total_images,1)*100)}% of images")
+            im3.metric("Missing Alt Text", f"{missing_alt_count}", delta="Needs alt attribute" if missing_alt_count else "None", delta_color="inverse" if missing_alt_count else "normal")
+            im4.metric("Duplicate Alt Text", f"{dup_alt_count}", delta="Repeated alt" if dup_alt_count else "Unique", delta_color="inverse" if dup_alt_count else "normal")
+            im5.metric("Alt Over 100 Chars", f"{over_len_alt_count}", delta="Too verbose" if over_len_alt_count else "Concise", delta_color="inverse" if over_len_alt_count else "normal")
+
+            # Filters and Search
+            ifcol1, ifcol2 = st.columns([1.5, 2])
+            with ifcol1:
+                img_filter = st.selectbox(
+                    "Filter Images by Status:",
+                    [
+                        "All Images",
+                        "Missing Alt Text",
+                        "Duplicate Alt Text",
+                        "Alt Text Over 100 Chars",
+                        "Alt Text Optimal (OK)"
+                    ]
+                )
+            with ifcol2:
+                img_search = st.text_input("🔍 Search Image URL, Alt Text, or Page URL:", "")
+
+            df_filtered_img = df_images.copy()
+
+            if img_filter == "Missing Alt Text":
+                df_filtered_img = df_filtered_img[df_filtered_img["alt_status"] == "Missing Alt Text"]
+            elif img_filter == "Duplicate Alt Text":
+                df_filtered_img = df_filtered_img[df_filtered_img["alt_status"] == "Duplicate Alt Text"]
+            elif img_filter == "Alt Text Over 100 Chars":
+                df_filtered_img = df_filtered_img[df_filtered_img["alt_status"] == "Alt Text Over 100 Chars"]
+            elif img_filter == "Alt Text Optimal (OK)":
+                df_filtered_img = df_filtered_img[df_filtered_img["alt_status"] == "OK"]
+
+            if img_search:
+                df_filtered_img = df_filtered_img[
+                    df_filtered_img["page_url"].str.contains(img_search, case=False, na=False) |
+                    df_filtered_img["image_url"].str.contains(img_search, case=False, na=False) |
+                    df_filtered_img["alt_clean"].str.contains(img_search, case=False, na=False)
+                ]
+
+            # Download button for filtered images
+            col_idown1, col_idown2 = st.columns([1, 4])
+            with col_idown1:
+                csv_img = generate_csv(df_filtered_img)
+                st.download_button(
+                    label=f"📥 Download Filtered Images ({len(df_filtered_img)} URLs)",
+                    data=csv_img,
+                    file_name=f"images_{img_filter.replace(' ', '_').lower()}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            with col_idown2:
+                st.caption(f"Showing **{len(df_filtered_img)}** of **{total_images}** images matching filter: `{img_filter}`")
 
             st.dataframe(
-                display_imgs,
+                df_filtered_img[[
+                    "page_url", "image_url", "alt_clean", "alt_status", "alt_length", "has_alt"
+                ]],
                 use_container_width=True,
                 column_config={
                     "page_url": st.column_config.LinkColumn("Found On Page"),
                     "image_url": st.column_config.LinkColumn("Image URL"),
-                    "alt": st.column_config.TextColumn("Alt Text"),
-                    "has_alt": st.column_config.CheckboxColumn("Has Alt Tag"),
+                    "alt_clean": st.column_config.TextColumn("Alt Text"),
+                    "alt_status": st.column_config.TextColumn("Alt Status"),
+                    "alt_length": st.column_config.NumberColumn("Alt Chars", format="%d"),
+                    "has_alt": st.column_config.CheckboxColumn("Has Tag"),
                 },
                 hide_index=True
             )
+
+            with st.expander("💡 SEO Guide: Image Alt Text Best Practices"):
+                st.markdown("""
+                - **Descriptive Alt Text**: Describe the visual content clearly for search engines and screen readers.
+                - **Avoid Keyword Stuffing**: Keep alt text natural, relevant, and concise (under 100 characters).
+                - **Unique Alt Text**: Different images should not share generic alt text (like "image" or "banner").
+                """)
 
 # ==============================================================================
 # TAB 9: SITE ARCHITECTURE GRAPH
