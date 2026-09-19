@@ -123,6 +123,7 @@ class SEOSpider:
         self.stop_requested = False
 
         self.session = requests.Session()
+        self.session.max_redirects = 10
         adapter = requests.adapters.HTTPAdapter(pool_connections=concurrency * 2, pool_maxsize=concurrency * 2, max_retries=1)
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
@@ -141,7 +142,7 @@ class SEOSpider:
         })
 
     def fetch_single_url(self, url: str):
-        """Fetch a single URL and measure latency, headers, status with smart SSL fallback."""
+        """Fetch a single URL and measure latency, headers, status with smart SSL fallback and redirect chain/loop tracking."""
         start_time = time.time()
         response = None
         try:
@@ -151,6 +152,44 @@ class SEOSpider:
                 allow_redirects=True,
                 verify=True
             )
+        except requests.exceptions.TooManyRedirects as e:
+            # Handle Redirect Loops or Chain Exceeding 10 hops
+            latency_ms = round((time.time() - start_time) * 1000, 2)
+            resp = getattr(e, "response", None)
+            hist = []
+            final_target = url
+            status = 301
+            headers = {}
+            if resp is not None:
+                hist = list(resp.history) + [resp]
+                status = resp.history[0].status_code if resp.history else resp.status_code
+                final_target = resp.url
+                headers = dict(resp.headers)
+            
+            chain_urls = [r.url for r in hist] if hist else [url]
+            chain_items = [f"{r.url} ({r.status_code})" for r in hist] if hist else [f"{url} (310 Loop)"]
+            chain_str = " → ".join(chain_items)
+            hops = max(len(hist) - 1, 1) if hist else 1
+
+            return {
+                "url": url,
+                "final_url": final_target,
+                "status_code": status,
+                "final_status_code": status,
+                "latency_ms": latency_ms,
+                "content_type": "",
+                "size_bytes": 0,
+                "headers": headers,
+                "redirect_chain": chain_urls,
+                "redirect_chain_str": chain_str,
+                "redirect_hops": hops,
+                "redirect_issue_type": "Redirect Loop",
+                "redirect_severity": "Error",
+                "is_redirect_chain": False,
+                "is_redirect_loop": True,
+                "html": "",
+                "error": "Redirect Loop: Too Many Redirects (>=10 hops)"
+            }
         except requests.exceptions.SSLError:
             # Fallback for sites with missing intermediate SSL certificates (e.g. cairnindia.com)
             try:
@@ -160,6 +199,32 @@ class SEOSpider:
                     allow_redirects=True,
                     verify=False
                 )
+            except requests.exceptions.TooManyRedirects as e:
+                latency_ms = round((time.time() - start_time) * 1000, 2)
+                resp = getattr(e, "response", None)
+                hist = list(resp.history) + [resp] if resp is not None else []
+                status = resp.history[0].status_code if (resp is not None and resp.history) else 301
+                chain_urls = [r.url for r in hist] if hist else [url]
+                chain_items = [f"{r.url} ({r.status_code})" for r in hist] if hist else [f"{url} (310 Loop)"]
+                return {
+                    "url": url,
+                    "final_url": resp.url if resp is not None else url,
+                    "status_code": status,
+                    "final_status_code": status,
+                    "latency_ms": latency_ms,
+                    "content_type": "",
+                    "size_bytes": 0,
+                    "headers": dict(resp.headers) if resp is not None else {},
+                    "redirect_chain": chain_urls,
+                    "redirect_chain_str": " → ".join(chain_items),
+                    "redirect_hops": max(len(hist) - 1, 1) if hist else 1,
+                    "redirect_issue_type": "Redirect Loop",
+                    "redirect_severity": "Error",
+                    "is_redirect_chain": False,
+                    "is_redirect_loop": True,
+                    "html": "",
+                    "error": "Redirect Loop: Too Many Redirects"
+                }
             except Exception as e:
                 return {
                     "url": url,
@@ -170,6 +235,12 @@ class SEOSpider:
                     "size_bytes": 0,
                     "headers": {},
                     "redirect_chain": [],
+                    "redirect_chain_str": "",
+                    "redirect_hops": 0,
+                    "redirect_issue_type": "None",
+                    "redirect_severity": "None",
+                    "is_redirect_chain": False,
+                    "is_redirect_loop": False,
                     "html": "",
                     "error": f"SSL Certificate Error: {e}"
                 }
@@ -183,6 +254,12 @@ class SEOSpider:
                 "size_bytes": 0,
                 "headers": {},
                 "redirect_chain": [],
+                "redirect_chain_str": "",
+                "redirect_hops": 0,
+                "redirect_issue_type": "None",
+                "redirect_severity": "None",
+                "is_redirect_chain": False,
+                "is_redirect_loop": False,
                 "html": "",
                 "error": "Request Timeout"
             }
@@ -196,6 +273,12 @@ class SEOSpider:
                 "size_bytes": 0,
                 "headers": {},
                 "redirect_chain": [],
+                "redirect_chain_str": "",
+                "redirect_hops": 0,
+                "redirect_issue_type": "None",
+                "redirect_severity": "None",
+                "is_redirect_chain": False,
+                "is_redirect_loop": False,
                 "html": "",
                 "error": str(e)
             }
@@ -203,7 +286,38 @@ class SEOSpider:
         latency_ms = round((time.time() - start_time) * 1000, 2)
         has_redirect = bool(response.history)
         initial_status = response.history[0].status_code if has_redirect else response.status_code
-        redirect_chain = [r.url for r in response.history] + [response.url] if has_redirect else []
+        redirect_hops = len(response.history)
+        
+        if has_redirect:
+            redirect_chain_urls = [r.url for r in response.history] + [response.url]
+            chain_items = [f"{r.url} ({r.status_code})" for r in response.history] + [f"{response.url} ({response.status_code})"]
+            redirect_chain_str = " → ".join(chain_items)
+            # Detect loop if any URL in the chain was visited more than once
+            is_loop = len(redirect_chain_urls) != len(set(redirect_chain_urls))
+        else:
+            redirect_chain_urls = []
+            redirect_chain_str = ""
+            is_loop = False
+
+        # Detection Rules:
+        # If:
+        # URL A → Final URL = 1 redirect → No Redirect Chain
+        # URL A → URL B → Final URL = 2 redirects → Redirect Chain
+        # URL A → URL B → URL C → Final URL = 3 redirects → Redirect Chain
+        # If redirects continue back to a previously visited URL, detect it as a Redirect Loop instead of a Redirect Chain.
+        if is_loop:
+            redirect_issue_type = "Redirect Loop"
+            redirect_severity = "Error"
+            is_chain = False
+        elif redirect_hops > 1:
+            redirect_issue_type = "Redirect Chain"
+            redirect_severity = "Warning"
+            is_chain = True
+        else:
+            redirect_issue_type = "None"
+            redirect_severity = "None"
+            is_chain = False
+
         content_type = response.headers.get("Content-Type", "")
         content_length = len(response.content) if response.content else 0
         
@@ -220,7 +334,13 @@ class SEOSpider:
             "content_type": "" if is_redirect else content_type,
             "size_bytes": 0 if is_redirect else content_length,
             "headers": dict(response.history[0].headers) if has_redirect else dict(response.headers),
-            "redirect_chain": redirect_chain,
+            "redirect_chain": redirect_chain_urls,
+            "redirect_chain_str": redirect_chain_str,
+            "redirect_hops": redirect_hops,
+            "redirect_issue_type": redirect_issue_type,
+            "redirect_severity": redirect_severity,
+            "is_redirect_chain": is_chain,
+            "is_redirect_loop": is_loop,
             "html": "" if is_redirect else (response.text if "text/html" in content_type.lower() else ""),
             "error": None
         }
@@ -310,11 +430,12 @@ class SEOSpider:
 
                     # If this URL was a redirect (301, 302, etc.), queue destination URL to crawl
                     if (fetch_res.get("status_code") in [301, 302, 307, 308] or fetch_res.get("final_url") != url) and fetch_res.get("final_url"):
-                        dest_url = normalize_url(fetch_res["final_url"])
-                        allow_sub = (self.crawl_mode == "All Subdomains")
-                        if is_internal_url(dest_url, self.allowed_domains, allow_subdomains=allow_sub):
-                            if dest_url not in visited_urls and self.should_crawl(dest_url, depth):
-                                to_visit.append((dest_url, depth, url))
+                        if not fetch_res.get("is_redirect_loop", False):
+                            dest_url = normalize_url(fetch_res["final_url"])
+                            allow_sub = (self.crawl_mode == "All Subdomains")
+                            if is_internal_url(dest_url, self.allowed_domains, allow_subdomains=allow_sub):
+                                if dest_url not in visited_urls and self.should_crawl(dest_url, depth):
+                                    to_visit.append((dest_url, depth, url))
 
                     # Extract outgoing links & images
                     if fetch_res.get("html"):

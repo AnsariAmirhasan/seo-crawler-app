@@ -37,6 +37,15 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     depth = page_data.get("depth", 0)
     error_msg = page_data.get("error", None)
 
+    # Redirect Chain & Loop Data from Crawler
+    redirect_chain = page_data.get("redirect_chain", [])
+    redirect_chain_str = page_data.get("redirect_chain_str", "")
+    redirect_hops = page_data.get("redirect_hops", 0)
+    redirect_issue_type = page_data.get("redirect_issue_type", "None")
+    redirect_severity = page_data.get("redirect_severity", "None")
+    is_redirect_chain = page_data.get("is_redirect_chain", False)
+    is_redirect_loop = page_data.get("is_redirect_loop", False)
+
     seo_info = {
         "url": url,
         "final_url": final_url,
@@ -46,6 +55,14 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         "size_kb": size_kb,
         "content_type": content_type,
         "error": error_msg,
+        # Redirect Chain & Loop Tracking
+        "redirect_chain": redirect_chain,
+        "redirect_chain_str": redirect_chain_str,
+        "redirect_hops": redirect_hops,
+        "redirect_issue_type": redirect_issue_type,
+        "redirect_severity": redirect_severity,
+        "is_redirect_chain": is_redirect_chain,
+        "is_redirect_loop": is_redirect_loop,
         # Page Title
         "title": "",
         "title_length": 0,
@@ -92,7 +109,7 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     }
 
     # Evaluate HTTP Status Issues
-    if error_msg:
+    if error_msg and not is_redirect_loop:
         seo_info["is_indexable"] = False
         seo_info["indexability_reason"] = f"Fetch Failed ({error_msg})"
         seo_info["issues"].append({
@@ -103,6 +120,33 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         })
         return seo_info
 
+    # 1. Redirect Loop (Severity: Error)
+    if is_redirect_loop:
+        seo_info["is_indexable"] = False
+        seo_info["indexability_reason"] = "Redirect Loop"
+        seo_info["canonical_status"] = "N/A (Redirect Loop)"
+        seo_info["issues"].append({
+            "type": "Error",
+            "category": "Redirect",
+            "issue": f"Redirect Loop Detected ({redirect_hops} Hops)",
+            "recommendation": f"Resolve circular redirects: {redirect_chain_str or url}. Ensure URL resolves directly to the final destination without infinite loops."
+        })
+        return seo_info
+
+    # 2. Redirect Chain (Severity: Warning)
+    if is_redirect_chain:
+        seo_info["is_indexable"] = False
+        seo_info["indexability_reason"] = f"Redirect Chain ({redirect_hops} Hops)"
+        seo_info["canonical_status"] = "N/A (Redirect)"
+        seo_info["issues"].append({
+            "type": "Warning",
+            "category": "Redirect",
+            "issue": f"Redirect Chain Detected ({redirect_hops} Hops) -> {final_url}",
+            "recommendation": f"Eliminate redirect chain: update internal links to point directly to final destination '{final_url}' instead of passing through {redirect_hops} intermediate hops ({redirect_chain_str})."
+        })
+        return seo_info
+
+    # 3. Client / Server Error (4xx, 5xx)
     if status_code >= 400:
         seo_info["is_indexable"] = False
         seo_info["indexability_reason"] = f"HTTP {status_code}"
@@ -114,6 +158,7 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         })
         return seo_info
 
+    # 4. Standard Single Redirect (Severity: Notice)
     if 300 <= status_code < 400:
         seo_info["is_indexable"] = False
         seo_info["indexability_reason"] = f"Redirect ({status_code})"
@@ -472,11 +517,18 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
         else:
             desc = f"HTTP {code}"
 
+        is_loop = row.get("is_redirect_loop", False)
+        is_chain = row.get("is_redirect_chain", False)
+
         # Category for Screaming Frog filter parity
         if "robots" in err:
             cat = "Blocked by Robots.txt"
         elif code == 403 or (code != 200 and "blocked" in err):
             cat = "Blocked Resource"
+        elif is_loop:
+            cat = "Redirection (Loop)"
+        elif is_chain:
+            cat = "Redirection (Chain)"
         elif code == 0 or "timeout" in err or "failed" in err or "connection" in err:
             cat = "No Response"
         elif 200 <= code < 300:
@@ -613,6 +665,8 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
             "duplicate_titles_count": len(duplicate_titles),
             "duplicate_h1_count": len(duplicate_h1s),
             "orphan_pages_count": int(df_pages["is_orphan"].sum()) if not df_pages.empty and "is_orphan" in df_pages.columns else 0,
+            "redirect_chains_count": int(df_pages["is_redirect_chain"].sum()) if not df_pages.empty and "is_redirect_chain" in df_pages.columns else 0,
+            "redirect_loops_count": int(df_pages["is_redirect_loop"].sum()) if not df_pages.empty and "is_redirect_loop" in df_pages.columns else 0,
             "total_links": len(df_links),
             "total_images": len(df_images)
         }

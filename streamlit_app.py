@@ -1242,31 +1242,90 @@ with tab_responses:
                 return pd.Series([d, cat], index=["status_description", "response_category"])
             
             temp_res = df_pages.apply(classify_temp, axis=1)
+        # Ensure columns exist even if viewed from a cached session
+        for c in ["redirect_hops", "inlinks_count"]:
+            if c not in df_pages.columns:
+                df_pages[c] = 0
+        for c in ["redirect_chain_str", "redirect_issue_type", "redirect_severity"]:
+            if c not in df_pages.columns:
+                df_pages[c] = ""
+        for c in ["is_redirect_chain", "is_redirect_loop"]:
+            if c not in df_pages.columns:
+                df_pages[c] = False
+
+        if "status_description" not in df_pages.columns or "response_category" not in df_pages.columns:
+            def classify_temp(row):
+                c = row.get("status_code", 0)
+                e = str(row.get("error") or "").lower()
+                has_meta = row.get("has_meta_refresh", False)
+                has_js = row.get("has_js_redirect", False)
+                is_loop = row.get("is_redirect_loop", False)
+                is_chain = row.get("is_redirect_chain", False)
+
+                if c == 200: d = "200 OK"
+                elif c == 301: d = "301 Moved Permanently"
+                elif c == 302: d = "302 Found"
+                elif c == 307: d = "307 Temporary Redirect"
+                elif c == 308: d = "308 Permanent Redirect"
+                elif c == 400: d = "400 Bad Request"
+                elif c == 401: d = "401 Unauthorized"
+                elif c == 403: d = "403 Forbidden"
+                elif c == 404: d = "404 Not Found"
+                elif c == 410: d = "410 Gone"
+                elif c == 500: d = "500 Internal Server Error"
+                elif c == 502: d = "502 Bad Gateway"
+                elif c == 503: d = "503 Service Unavailable"
+                elif c == 0 or "timeout" in e: d = "No Response"
+                else: d = f"HTTP {c}"
+                
+                if "robots" in e: cat = "Blocked by Robots.txt"
+                elif c == 403 or (c != 200 and "blocked" in e): cat = "Blocked Resource"
+                elif is_loop: cat = "Redirection (Loop)"
+                elif is_chain: cat = "Redirection (Chain)"
+                elif c == 0 or "timeout" in e: cat = "No Response"
+                elif 200 <= c < 300:
+                    if has_meta: cat = "Redirection (Meta Refresh)"
+                    elif has_js: cat = "Redirection (JavaScript)"
+                    else: cat = "Success (2xx)"
+                elif 300 <= c < 400: cat = "Redirection (3xx)"
+                elif 400 <= c < 500: cat = "Client Error (4xx)"
+                elif 500 <= c < 600: cat = "Server Error (5xx)"
+                else: cat = "Other"
+                return pd.Series([d, cat], index=["status_description", "response_category"])
+            
+            temp_res = df_pages.apply(classify_temp, axis=1)
             df_pages["status_description"] = temp_res["status_description"]
             df_pages["response_category"] = temp_res["response_category"]
 
         total_resp_pages = len(df_pages)
 
         st.subheader("🚦 Response Codes & HTTP Status Breakdown")
-        st.caption("Inspect HTTP status codes, redirection chains, server errors, blocked resources, and orphan pages with 0 internal links.")
+        st.caption("Inspect HTTP status codes, redirection chains, redirect loops, server errors, blocked resources, and orphan pages with 0 internal links.")
 
-        # KPI Metrics Row
+        # KPI Metrics Row (7 metrics)
         c_2xx = len(df_pages[(df_pages["status_code"] >= 200) & (df_pages["status_code"] < 300)])
         c_3xx = len(df_pages[(df_pages["status_code"] >= 300) & (df_pages["status_code"] < 400)])
+        c_chain = len(df_pages[df_pages.get("is_redirect_chain", False) == True])
+        c_loop = len(df_pages[df_pages.get("is_redirect_loop", False) == True])
         c_4xx = len(df_pages[(df_pages["status_code"] >= 400) & (df_pages["status_code"] < 500)])
         c_5xx = len(df_pages[(df_pages["status_code"] >= 500) & (df_pages["status_code"] < 600)])
         c_orphan = len(df_pages[(df_pages.get("is_orphan", False) == True) | (df_pages.get("inlinks_count", 0) == 0)])
 
-        rm1, rm2, rm3, rm4, rm5 = st.columns(5)
+        rm1, rm2, rm3, rm4, rm5, rm6, rm7 = st.columns(7)
         rm1.metric("Success (2xx)", f"{c_2xx}", delta=f"{round(c_2xx/max(total_resp_pages,1)*100)}% of pages")
         rm2.metric("Redirection (3xx)", f"{c_3xx}", delta="Redirects" if c_3xx else None)
-        rm3.metric("Client Error (4xx)", f"{c_4xx}", delta="Broken links" if c_4xx else None, delta_color="inverse")
-        rm4.metric("Server Error (5xx)", f"{c_5xx}", delta="Critical" if c_5xx else None, delta_color="inverse")
-        rm5.metric("Orphan URLs (0 Inlinks)", f"{c_orphan}", delta="Needs internal links" if c_orphan else None, delta_color="inverse")
+        rm3.metric("Redirect Chains", f"{c_chain}", delta=">1 Hop" if c_chain else None, delta_color="inverse")
+        rm4.metric("Redirect Loops", f"{c_loop}", delta="Circular Loop" if c_loop else None, delta_color="inverse")
+        rm5.metric("Client Error (4xx)", f"{c_4xx}", delta="Broken links" if c_4xx else None, delta_color="inverse")
+        rm6.metric("Server Error (5xx)", f"{c_5xx}", delta="Critical" if c_5xx else None, delta_color="inverse")
+        rm7.metric("Orphan URLs", f"{c_orphan}", delta="0 Inlinks" if c_orphan else None, delta_color="inverse")
 
         st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
 
-        # Build Screaming Frog Filter Options matching user's screenshot + Orphan pages
+        if c_chain > 0 or c_loop > 0:
+            st.warning(f"⚠️ **Redirect Chain & Loop Alert**: Detected **{c_chain} Redirect Chains (>1 Hop)** and **{c_loop} Redirect Loops**. Multiple hops slow down crawlers and dilute link equity. Filter by `Redirection (Chain)` or `Redirection (Loop)` below to audit full paths.")
+
+        # Build Screaming Frog Filter Options matching user's requirements + Orphan pages
         c_robots = len(df_pages[df_pages["response_category"] == "Blocked by Robots.txt"]) if "response_category" in df_pages.columns else 0
         c_blocked_res = len(df_pages[df_pages["response_category"] == "Blocked Resource"]) if "response_category" in df_pages.columns else 0
         c_no_resp = len(df_pages[(df_pages["status_code"] == 0) | (df_pages["response_category"] == "No Response")]) if "response_category" in df_pages.columns else 0
@@ -1275,6 +1334,8 @@ with tab_responses:
 
         sf_options = [
             f"All ({total_resp_pages})",
+            f"Redirection (Chain) ({c_chain})",
+            f"Redirection (Loop) ({c_loop})",
             f"Blocked by Robots.txt ({c_robots})",
             f"Blocked Resource ({c_blocked_res})",
             f"No Response ({c_no_resp})",
@@ -1306,7 +1367,11 @@ with tab_responses:
         df_resp_filtered = df_pages.copy()
 
         filter_choice = resp_filter.rsplit(" (", 1)[0]
-        if "Blocked by Robots.txt" in resp_filter:
+        if "Redirection (Chain)" in resp_filter:
+            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("is_redirect_chain", False) == True]
+        elif "Redirection (Loop)" in resp_filter:
+            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("is_redirect_loop", False) == True]
+        elif "Blocked by Robots.txt" in resp_filter:
             df_resp_filtered = df_resp_filtered[df_resp_filtered["response_category"] == "Blocked by Robots.txt"]
         elif "Blocked Resource" in resp_filter:
             df_resp_filtered = df_resp_filtered[df_resp_filtered["response_category"] == "Blocked Resource"]
@@ -1333,13 +1398,17 @@ with tab_responses:
             status_desc_str = df_resp_filtered["status_description"].astype(str) if "status_description" in df_resp_filtered.columns else ""
             final_url_str = df_resp_filtered["final_url"].astype(str) if "final_url" in df_resp_filtered.columns else ""
             cat_str = df_resp_filtered["response_category"].astype(str) if "response_category" in df_resp_filtered.columns else ""
+            chain_str = df_resp_filtered["redirect_chain_str"].astype(str) if "redirect_chain_str" in df_resp_filtered.columns else ""
+            issue_type_str = df_resp_filtered["redirect_issue_type"].astype(str) if "redirect_issue_type" in df_resp_filtered.columns else ""
             
             df_resp_filtered = df_resp_filtered[
                 df_resp_filtered["url"].astype(str).str.contains(resp_search, case=False, na=False) |
                 df_resp_filtered["status_code"].astype(str).str.contains(resp_search, case=False, na=False) |
                 status_desc_str.str.contains(resp_search, case=False, na=False) |
                 final_url_str.str.contains(resp_search, case=False, na=False) |
-                cat_str.str.contains(resp_search, case=False, na=False)
+                cat_str.str.contains(resp_search, case=False, na=False) |
+                chain_str.str.contains(resp_search, case=False, na=False) |
+                issue_type_str.str.contains(resp_search, case=False, na=False)
             ]
 
         # Download button
@@ -1357,36 +1426,67 @@ with tab_responses:
         with col_rdown2:
             st.caption(f"Showing **{len(df_resp_filtered)}** of **{total_resp_pages}** URLs matching filter: `{filter_choice}`")
 
-        # Table Display
-        resp_cols = [
-            "url", "status_code", "status_description", "response_category",
-            "inlinks_count", "internal_outlinks_count", "final_url", "latency_ms",
-            "content_type", "is_indexable"
-        ]
-        available_resp_cols = [c for c in resp_cols if c in df_resp_filtered.columns]
+        # Table Display: Dedicated view when filtering by Redirect Chain or Loop
+        is_redirect_issue_view = ("Redirection (Chain)" in resp_filter) or ("Redirection (Loop)" in resp_filter)
+        
+        if is_redirect_issue_view:
+            target_cols = [
+                "url", "status_code", "redirect_chain_str", "redirect_hops",
+                "final_url", "redirect_issue_type", "redirect_severity", "inlinks_count"
+            ]
+            avail_cols = [c for c in target_cols if c in df_resp_filtered.columns]
+            
+            st.dataframe(
+                df_resp_filtered[avail_cols],
+                use_container_width=True,
+                column_config={
+                    "url": st.column_config.LinkColumn("Original URL", width="medium"),
+                    "status_code": st.column_config.NumberColumn("HTTP Status Code", format="%d", width="small"),
+                    "redirect_chain_str": st.column_config.TextColumn("Redirect Chain", width="large", help="Full redirect path with status codes at each hop"),
+                    "redirect_hops": st.column_config.NumberColumn("Redirect Hops", format="%d hops", width="small"),
+                    "final_url": st.column_config.LinkColumn("Final URL", width="medium"),
+                    "redirect_issue_type": st.column_config.TextColumn("Issue Type", width="small"),
+                    "redirect_severity": st.column_config.TextColumn("Severity", width="small"),
+                    "inlinks_count": st.column_config.NumberColumn("Inlinks", format="%d", width="small"),
+                },
+                hide_index=True
+            )
+        else:
+            resp_cols = [
+                "url", "status_code", "status_description", "response_category",
+                "redirect_hops", "redirect_chain_str", "redirect_issue_type",
+                "inlinks_count", "internal_outlinks_count", "final_url", "latency_ms",
+                "content_type", "is_indexable"
+            ]
+            available_resp_cols = [c for c in resp_cols if c in df_resp_filtered.columns]
 
-        st.dataframe(
-            df_resp_filtered[available_resp_cols],
-            use_container_width=True,
-            column_config={
-                "url": st.column_config.LinkColumn("Page URL"),
-                "status_code": st.column_config.NumberColumn("Status Code", format="%d"),
-                "status_description": st.column_config.TextColumn("Response Description"),
-                "response_category": st.column_config.TextColumn("Response Category"),
-                "inlinks_count": st.column_config.NumberColumn("Inlinks (Inbound)", help="Number of internal pages linking to this URL. 0 = Orphan Page!"),
-                "internal_outlinks_count": st.column_config.NumberColumn("Outlinks"),
-                "final_url": st.column_config.LinkColumn("Redirect Target URL"),
-                "latency_ms": st.column_config.NumberColumn("Latency", format="%.0f ms"),
-                "content_type": st.column_config.TextColumn("Content Type"),
-                "is_indexable": st.column_config.CheckboxColumn("Indexable"),
-            },
-            hide_index=True
-        )
+            st.dataframe(
+                df_resp_filtered[available_resp_cols],
+                use_container_width=True,
+                column_config={
+                    "url": st.column_config.LinkColumn("Page URL"),
+                    "status_code": st.column_config.NumberColumn("Status Code", format="%d"),
+                    "status_description": st.column_config.TextColumn("Response Description"),
+                    "response_category": st.column_config.TextColumn("Response Category"),
+                    "redirect_hops": st.column_config.NumberColumn("Redirect Hops", format="%d"),
+                    "redirect_chain_str": st.column_config.TextColumn("Redirect Chain"),
+                    "redirect_issue_type": st.column_config.TextColumn("Redirect Issue"),
+                    "inlinks_count": st.column_config.NumberColumn("Inlinks (Inbound)", help="Number of internal pages linking to this URL. 0 = Orphan Page!"),
+                    "internal_outlinks_count": st.column_config.NumberColumn("Outlinks"),
+                    "final_url": st.column_config.LinkColumn("Redirect Target URL"),
+                    "latency_ms": st.column_config.NumberColumn("Latency", format="%.0f ms"),
+                    "content_type": st.column_config.TextColumn("Content Type"),
+                    "is_indexable": st.column_config.CheckboxColumn("Indexable"),
+                },
+                hide_index=True
+            )
 
-        with st.expander("💡 SEO Guide: Response Codes & Orphan Pages Technical Reference"):
+        with st.expander("💡 SEO Guide: Response Codes, Redirect Chains & Loops Technical Reference"):
             st.markdown("""
             - **Success (2xx)**: HTTP 200 OK indicates the page was fetched successfully and is fully indexable by search engine bots.
             - **Redirection (3xx)**: Permanent redirects (301, 308) pass equity; temporary redirects (302, 307) signify short-term moves.
+            - **Redirect Chain (>1 Hop)**: When URL A redirects to URL B, and URL B redirects to Final URL. Chains increase page load latency, consume crawl budget, and can dilute link equity. Always update links to point directly to the destination URL.
+            - **Redirect Loop**: When redirects continue back to a previously visited URL (or exceed the 10-hop threshold). Search engines fail to crawl looped pages, and browsers error with `ERR_TOO_MANY_REDIRECTS`. Break circular loops immediately.
             - **Redirection (JavaScript & Meta Refresh)**: Client-side redirects cause crawling latency and index delays. Always prioritize 301 server-side redirects.
             - **Client Error (4xx)**: 404 Not Found or 410 Gone mean broken links. Internal links pointing to 4xx URLs should be fixed or removed.
             - **Server Error (5xx)**: 500, 502, 503, 504 errors indicate host/backend instability. High 5xx rates degrade Google crawl frequency.
