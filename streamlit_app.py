@@ -310,6 +310,35 @@ html, body, [class*="css"] {
     padding: 1rem;
     margin-bottom: 1rem;
 }
+/* Custom Button Pills Styling for Filter Controls */
+div[data-testid="stPills"] {
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+}
+div[data-testid="stPills"] button {
+    background: rgba(30, 41, 59, 0.75) !important;
+    border: 1px solid rgba(71, 85, 105, 0.6) !important;
+    color: #CBD5E1 !important;
+    border-radius: 20px !important;
+    padding: 6px 14px !important;
+    font-size: 0.84rem !important;
+    font-weight: 600 !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    cursor: pointer !important;
+}
+div[data-testid="stPills"] button:hover {
+    border-color: #818CF8 !important;
+    background: rgba(99, 102, 241, 0.18) !important;
+    color: #FFFFFF !important;
+    transform: translateY(-1px) !important;
+}
+div[data-testid="stPills"] button[aria-selected="true"] {
+    background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%) !important;
+    border-color: #A5B4FC !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35) !important;
+    font-weight: 700 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -702,39 +731,98 @@ with tab_issues:
         if df_issues.empty:
             st.success("🎉 Outstanding! Zero technical SEO issues detected on crawled pages.")
         else:
+            total_issues_count = len(df_issues)
             err_count = len(df_issues[df_issues["type"] == "Error"])
             warn_count = len(df_issues[df_issues["type"] == "Warning"])
             not_count = len(df_issues[df_issues["type"] == "Notice"])
 
-            st.markdown(f"""
-            <div style="display:flex; gap:12px; margin-bottom:1rem; flex-wrap:wrap;">
-                <span class="status-pill status-red">🔴 Critical Errors: {err_count}</span>
-                <span class="status-pill status-amber">🟡 Warnings: {warn_count}</span>
-                <span class="status-pill status-purple">🔵 Notices: {not_count}</span>
-            </div>
-            """, unsafe_allow_html=True)
+            # 4 Crisp Metric Summary Cards
+            col_im1, col_im2, col_im3, col_im4 = st.columns(4)
+            with col_im1:
+                st.metric("Total Issues", f"{total_issues_count}", delta=f"{len(df_issues['url'].unique())} pages affected")
+            with col_im2:
+                st.metric("Critical Errors", f"{err_count}", delta="Requires immediate fix" if err_count else "None", delta_color="inverse" if err_count else "normal")
+            with col_im3:
+                st.metric("Warnings", f"{warn_count}", delta="Action recommended" if warn_count else "None", delta_color="inverse" if warn_count else "normal")
+            with col_im4:
+                st.metric("Notices", f"{not_count}", delta="Informational" if not_count else "None", delta_color="normal")
 
-            col_f1, col_f2 = st.columns(2)
-            with col_f1:
-                selected_severity = st.multiselect(
-                    "Filter by Severity",
-                    options=["Error", "Warning", "Notice"],
-                    default=["Error", "Warning", "Notice"]
-                )
-            with col_f2:
-                all_categories = sorted(df_issues["category"].unique())
-                selected_cat = st.multiselect(
-                    "Filter by Category",
-                    options=all_categories,
-                    default=all_categories
-                )
+            st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
 
-            filtered_issues = df_issues[
-                (df_issues["type"].isin(selected_severity)) &
-                (df_issues["category"].isin(selected_cat))
+            # Interactive Button Filters (st.pills)
+            sev_options = [
+                f"All Severities ({total_issues_count})",
+                f"🔴 Errors ({err_count})",
+                f"🟡 Warnings ({warn_count})",
+                f"🔵 Notices ({not_count})"
             ]
+            selected_sev = st.pills(
+                "Filter by Severity:",
+                options=sev_options,
+                default=f"All Severities ({total_issues_count})",
+                selection_mode="single",
+                key="pills_sev_filter"
+            )
 
-            st.caption(f"Displaying **{len(filtered_issues)}** filtered issues:")
+            # Resolve Category Counts and Button Options
+            cat_counts = df_issues["category"].value_counts().to_dict()
+            cat_options = [f"All Categories ({total_issues_count})"] + [
+                f"{cat} ({cat_counts[cat]})" for cat in sorted(cat_counts.keys())
+            ]
+            selected_cat = st.pills(
+                "Filter by Issue Category:",
+                options=cat_options,
+                default=f"All Categories ({total_issues_count})",
+                selection_mode="single",
+                key="pills_cat_filter"
+            )
+
+            # Resolve Active Severity
+            if not selected_sev or "All Severities" in selected_sev:
+                active_severities = ["Error", "Warning", "Notice"]
+            elif "Errors" in selected_sev:
+                active_severities = ["Error"]
+            elif "Warnings" in selected_sev:
+                active_severities = ["Warning"]
+            elif "Notices" in selected_sev:
+                active_severities = ["Notice"]
+            else:
+                active_severities = ["Error", "Warning", "Notice"]
+
+            # Resolve Active Category
+            if not selected_cat or "All Categories" in selected_cat:
+                active_category = None
+            else:
+                active_category = selected_cat.rsplit(" (", 1)[0]
+
+            filtered_issues = df_issues[df_issues["type"].isin(active_severities)]
+            if active_category:
+                filtered_issues = filtered_issues[filtered_issues["category"] == active_category]
+
+            # Search Bar & CSV Download Toolbar
+            col_fs1, col_fs2 = st.columns([3, 1.2])
+            with col_fs1:
+                issue_search = st.text_input("🔍 Search issues, fix recommendations, or URLs:", "", key="issues_search_box")
+            with col_fs2:
+                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                csv_iss = generate_csv(filtered_issues)
+                st.download_button(
+                    label=f"📥 Download Filtered Issues ({len(filtered_issues)})",
+                    data=csv_iss,
+                    file_name="audit_issues_filtered.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+
+            if issue_search:
+                filtered_issues = filtered_issues[
+                    filtered_issues["url"].str.contains(issue_search, case=False, na=False) |
+                    filtered_issues["issue"].str.contains(issue_search, case=False, na=False) |
+                    filtered_issues["recommendation"].str.contains(issue_search, case=False, na=False) |
+                    filtered_issues["category"].str.contains(issue_search, case=False, na=False)
+                ]
+
+            st.caption(f"Showing **{len(filtered_issues)}** of **{total_issues_count}** technical issues matching active button filters:")
             st.dataframe(
                 filtered_issues,
                 use_container_width=True,
