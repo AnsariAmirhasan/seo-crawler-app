@@ -402,7 +402,7 @@ col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([5, 2.2, 1.3, 1
 with col_sf_url:
     target_url = st.text_input(
         "Enter URL to spider",
-        value=st.session_state.get("cfg_target_url", "https://example.com"),
+        value=st.session_state.get("cfg_target_url", ""),
         placeholder="https://www.example.com/",
         label_visibility="collapsed",
         help="Enter starting website URL (e.g. https://www.cairnindia.com/)"
@@ -426,6 +426,7 @@ with col_sf_clear:
 if btn_clear:
     st.session_state["crawl_results"] = None
     st.session_state["single_inspect_result"] = None
+    st.session_state["cfg_target_url"] = ""
     st.rerun()
 
 # Fixed Optimized Engine Parameters (10,000 URLs limit)
