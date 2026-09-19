@@ -392,19 +392,24 @@ def render_silo_architect_page():
 
     # Check if crawl results exist
     crawl_data = st.session_state.get("crawl_results")
-    default_url = "https://vashilaindustries.com/"
-    if crawl_data and crawl_data.get("start_url"):
-        default_url = crawl_data.get("start_url")
 
     col_w1, col_w2 = st.columns([2.5, 1.5])
     with col_w1:
         target_site = st.text_input(
             "Website URL to Analyze:",
-            value=st.session_state.get("silo_target_url", default_url),
+            value=st.session_state.get("silo_target_url", ""),
             placeholder="https://example.com/",
-            key="silo_target_url_input"
+            key=f"silo_target_url_input_{reset_id}"
         )
         st.session_state["silo_target_url"] = target_site
+
+        # If crawl data is available and input is empty, offer convenient 1-click fill button
+        if crawl_data and crawl_data.get("start_url") and not target_site:
+            crawled_url = crawl_data.get("start_url")
+            if st.button(f"⚡ Fill from Crawled Site ({crawled_url})", key=f"btn_fill_crawled_{reset_id}"):
+                st.session_state["silo_target_url"] = crawled_url
+                st.rerun()
+
     with col_w2:
         selected_framework = st.selectbox(
             "Silo Architecture Framework:",
@@ -433,7 +438,7 @@ def render_silo_architect_page():
         custom_niche_notes = st.text_input(
             "Niche / Core Focus / Business Goals (Optional):",
             placeholder="e.g. B2B Chicory root manufacturer exporting roasted chicory, chicory powder & inulin fibers",
-            key="silo_niche_notes"
+            key=f"silo_niche_notes_{reset_id}"
         )
     with col_opt2:
         st.markdown("<br>", unsafe_allow_html=True)
@@ -444,7 +449,23 @@ def render_silo_architect_page():
             use_crawl = False
             st.caption("ℹ️ No active spider crawl found. Will live-inspect root URL.")
 
-    btn_generate = st.button("🚀 Architect Silo Structure, Competitor Benchmark & Blog Strategy", type="primary", use_container_width=True)
+    # Action Buttons: Generate & Clear All
+    col_act1, col_act2 = st.columns([3.2, 1.2])
+    with col_act1:
+        btn_generate = st.button("🚀 Architect Silo Structure, Competitor Benchmark & Blog Strategy", type="primary", use_container_width=True)
+    with col_act2:
+        btn_clear = st.button("🧹 Clear All", type="secondary", use_container_width=True, key=f"silo_clear_btn_{reset_id}")
+
+    if btn_clear:
+        st.session_state["silo_target_url"] = ""
+        for p in ["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"]:
+            st.session_state[f"api_key_{p}"] = ""
+        st.session_state.pop("silo_architecture_result", None)
+        st.session_state.pop("silo_architecture_website", None)
+        st.session_state.pop("silo_architecture_framework", None)
+        st.session_state.pop("silo_chat_history", None)
+        st.session_state["silo_reset_id"] = reset_id + 1
+        st.rerun()
 
     # 4. Generate Silo Structure via AI
     if btn_generate:
