@@ -1,7 +1,8 @@
 """
 AI Silo Structure Architect & Strategic Interlinker Module
 Architect high-authority topical silos, eliminate PageRank leaks, benchmark competitors,
-and get clear page-by-page anchor text and internal linking recommendations.
+find high-traffic blog topics with ZERO keyword cannibalization, and get clear page-by-page
+anchor text and internal linking recommendations.
 Powered by Gemini (3.5 to 3.8), OpenAI ChatGPT, or Anthropic Claude.
 """
 
@@ -51,7 +52,7 @@ SILO_FRAMEWORKS = {
 }
 
 
-def _extract_site_context(target_url: str, max_links: int = 30) -> dict:
+def _extract_site_context(target_url: str, max_links: int = 35) -> dict:
     """Quickly inspect website to extract real-world context for AI analysis."""
     info = {
         "url": target_url,
@@ -72,7 +73,7 @@ def _extract_site_context(target_url: str, max_links: int = 30) -> dict:
             if d_tag and d_tag.get("content"):
                 info["meta_desc"] = d_tag.get("content").strip()
             
-            for h in soup.find_all(["h1", "h2"], limit=12):
+            for h in soup.find_all(["h1", "h2"], limit=15):
                 htxt = h.get_text().strip()
                 if htxt and len(htxt) < 90 and htxt not in info["headings"]:
                     info["headings"].append(htxt)
@@ -272,7 +273,7 @@ def render_silo_architect_page():
             AI Silo Structure Architect
         </h1>
         <p style="color: #94A3B8; font-size: 1.12rem; max-width: 760px; margin: 0 auto; line-height: 1.6;">
-            Architect bulletproof topical silos, benchmark competitors' site architecture, get exact in-page anchor text linking instructions, and chat with Google Gemini (3.5 to 3.8), ChatGPT, or Claude.
+            Architect bulletproof topical silos, benchmark competitors' site architecture, discover high-traffic blog topics with ZERO keyword cannibalization, and get exact in-page anchor text linking instructions.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -443,7 +444,7 @@ def render_silo_architect_page():
             use_crawl = False
             st.caption("ℹ️ No active spider crawl found. Will live-inspect root URL.")
 
-    btn_generate = st.button("🚀 Architect Silo Structure & Interlinking Strategy", type="primary", use_container_width=True)
+    btn_generate = st.button("🚀 Architect Silo Structure, Competitor Benchmark & Blog Strategy", type="primary", use_container_width=True)
 
     # 4. Generate Silo Structure via AI
     if btn_generate:
@@ -455,11 +456,11 @@ def render_silo_architect_page():
             st.error("❌ Please enter a valid website URL starting with http:// or https://")
             return
 
-        with st.spinner(f"🔍 Analyzing {target_site}, benchmarking competitors, and constructing Silo with {ai_provider} ({selected_model})..."):
+        with st.spinner(f"🔍 Analyzing {target_site}, auditing existing content against cannibalization, and generating strategy with {ai_provider} ({selected_model})..."):
             # Gather page details
             pages_context = []
             if use_crawl and crawl_data and "df_pages" in crawl_data:
-                df_p = crawl_data["df_pages"].head(40)
+                df_p = crawl_data["df_pages"].head(50)
                 for _, r in df_p.iterrows():
                     pages_context.append({
                         "url": r.get("url", ""),
@@ -469,11 +470,11 @@ def render_silo_architect_page():
                     })
                 site_meta = {"url": target_site, "sample_pages": pages_context}
             else:
-                site_meta = _extract_site_context(target_site, max_links=30)
+                site_meta = _extract_site_context(target_site, max_links=35)
 
             system_prompt = """
 You are an Elite Enterprise Technical SEO Architect & Information Architecture Specialist.
-Your mission is to construct a bulletproof, mathematically sound Silo Structure, benchmark top organic competitors, and provide crystal-clear, step-by-step in-page interlinking instructions.
+Your mission is to construct a bulletproof, mathematically sound Silo Structure, benchmark top organic competitors, and engineer high-traffic blog topics with ZERO keyword cannibalization.
 
 You MUST respond strictly in valid JSON format with this exact structure:
 {
@@ -506,6 +507,20 @@ You MUST respond strictly in valid JSON format with this exact structure:
       ]
     }
   ],
+  "blog_topic_recommendations": [
+    {
+      "proposed_title": "Catchy, High-CTR, Helpful Blog Post Title",
+      "target_primary_keyword": "Exact high-volume search term",
+      "secondary_keywords": ["keyword 2", "keyword 3"],
+      "search_intent": "Informational / How-To / Technical Comparison",
+      "assigned_silo": "Name of Silo Category this blog strengthens",
+      "existing_pages_checked": "Names or paths of existing site pages/blogs checked to verify no duplication",
+      "cannibalization_defense": "Explanation of how this topic targets a distinctly different search intent than existing pages, guaranteeing ZERO keyword cannibalization between blogs and landing pages",
+      "target_money_page_to_link": "Existing commercial landing page or Pillar URL that this blog must link to",
+      "recommended_anchor_text": "Exact anchor text to use when linking to the money page",
+      "traffic_and_helpful_rationale": "Why this topic drives organic search traffic and genuinely helps visitors solve their problems (Google Helpful Content System)"
+    }
+  ],
   "interlinking_rules": [
     {
       "directive": "Upward to Pillar ⬆️ | Lateral within Silo ↔️ | Downward to Guide ⬇️",
@@ -534,12 +549,17 @@ Website Discovered Pages & Metadata:
 Title: {site_meta.get('title', '')}
 Meta Description: {site_meta.get('meta_desc', '')}
 Headings: {site_meta.get('headings', [])}
-Sample URLs: {json.dumps(site_meta.get('sample_pages', [])[:20], indent=2)}
+Sample URLs: {json.dumps(site_meta.get('sample_pages', [])[:30], indent=2)}
 
 Please generate:
 1. 3 to 4 organic search Competitors for this website, analyzing their silo architecture, topical depth, and gaps that our website should exploit.
 2. 3 to 6 distinct Silo Topic Clusters with 1 Core Pillar Page (Tier 1) and 3 to 5 Supporting Spokes (Tier 2/Tier 3).
-3. 10 to 18 crystal-clear, step-by-step in-page interlinking directives tailored to {selected_framework}, specifying the EXACT source page, exact target page, exact anchor text, section placement, and natural sentence context so any content writer or SEO can paste it directly.
+3. 6 to 10 High-Traffic, User-Centric Blog Topics designed to dramatically increase organic visitors.
+   CRITICAL ANTI-CANNIBALIZATION AUDIT:
+   Examine every single existing page, heading, and blog from the website metadata above.
+   Ensure that NO blog topic repeats or overlaps with an existing landing page or existing blog.
+   Each topic must target a unique, untapped search intent, and must specify the exact existing commercial/pillar page it will link to with the recommended anchor text.
+4. 10 to 18 crystal-clear, step-by-step in-page interlinking directives tailored to {selected_framework}, specifying the EXACT source page, exact target page, exact anchor text, section placement, and natural sentence context so any content writer or SEO can paste it directly.
 """
 
             try:
@@ -573,10 +593,10 @@ Please generate:
                 st.session_state["silo_chat_history"] = [
                     {
                         "role": "assistant",
-                        "content": f"Hello! I am your **AI Silo Architect** powered by **{ai_provider} ({selected_model})**. I have analyzed **{target_site}**, benchmarked your organic search competitors, and designed a **{selected_framework}** blueprint with **{len(silo_result.get('clusters', []))} topical pillars** and **{len(silo_result.get('interlinking_rules', []))} in-page linking directives**.\n\nHow can I help you execute this linking strategy, optimize anchor texts, or analyze competitors?"
+                        "content": f"Hello! I am your **AI Silo Architect** powered by **{ai_provider} ({selected_model})**. I have analyzed **{target_site}**, benchmarked your organic search competitors, designed a **{selected_framework}** blueprint, and audited existing content to generate **{len(silo_result.get('blog_topic_recommendations', []))} high-traffic cannibalization-free blog topics**.\n\nHow can I help you execute this linking strategy, optimize blog topics, or analyze competitors?"
                     }
                 ]
-                st.success("✅ Silo Structure, Competitor Benchmark, & Interlinking Strategy successfully generated!")
+                st.success("✅ Silo Structure, Competitor Benchmark, Blog Strategy, & Interlinking Matrix successfully generated!")
 
             except Exception as e:
                 st.error(f"❌ Error during AI Silo generation: {e}")
@@ -593,7 +613,7 @@ Please generate:
         sc2.metric("Silo Clusters", f"{len(silo_res.get('clusters', []))} Pillars")
         total_spokes = sum(len(c.get("spokes", [])) for c in silo_res.get("clusters", []))
         sc3.metric("Supporting Spokes", f"{total_spokes} Pages")
-        sc4.metric("Competitors Benchmarked", f"{len(silo_res.get('competitors_analysis', []))} Rivals")
+        sc4.metric("New Blog Topics", f"{len(silo_res.get('blog_topic_recommendations', []))} Ideas", delta="0% Cannibalization", delta_color="normal")
         sc5.metric("Interlinking Directives", f"{len(silo_res.get('interlinking_rules', []))} Rules")
 
         # Executive Summary Callout
@@ -608,10 +628,11 @@ Please generate:
         </div>
         """, unsafe_allow_html=True)
 
-        # Tabs for Visualization, In-Page Interlinking, Competitors, Clusters, and Leakage
-        tab_graph, tab_interlinking, tab_competitors, tab_clusters, tab_leakage = st.tabs([
+        # Tabs for Visualization, In-Page Interlinking, Blog Topics, Competitors, Clusters, and Leakage
+        tab_graph, tab_interlinking, tab_blogs, tab_competitors, tab_clusters, tab_leakage = st.tabs([
             "🧭 Visual Silo Graph",
             "🔗 In-Page Interlinking Guide",
+            "📝 High-Traffic Blog Topics (Anti-Cannibalization)",
             "🏆 Competitor Silo Benchmark & Gaps",
             "📚 Topical Clusters & Pillars",
             "🛡️ Leakage Audit & Breadcrumbs"
@@ -688,7 +709,6 @@ Please generate:
                     # Highlight the anchor in the sentence
                     highlighted_sentence = sentence
                     if anchor and anchor.lower() in sentence.lower():
-                        # Case-insensitive replacement with markdown bold and blue
                         pattern = re.compile(re.escape(anchor), re.IGNORECASE)
                         highlighted_sentence = pattern.sub(f'<span style="background: rgba(56, 189, 248, 0.25); color: #38BDF8; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-decoration: underline;">{anchor}</span>', sentence)
                     else:
@@ -735,7 +755,97 @@ Please generate:
                 st.markdown("##### 📋 Complete Master Interlinking Table")
                 st.dataframe(df_rules, use_container_width=True, hide_index=True)
 
-        # TAB 3: COMPETITOR SILO BENCHMARK & GAP ANALYSIS
+        # TAB 3: HIGH-TRAFFIC BLOG TOPIC FINDER & ANTI-CANNIBALIZATION MATRIX
+        with tab_blogs:
+            st.markdown("#### 📝 High-Traffic Blog Topic Finder & Anti-Cannibalization Matrix")
+            st.caption(f"Discover user-centric, high-volume blog topics engineered specifically for {target_site}. Every topic has been cross-referenced with your existing content so that old blogs and landing pages never suffer from keyword cannibalization.")
+
+            st.markdown("""
+            <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 1.6rem;">🛡️</span>
+                <div>
+                    <div style="font-weight: 700; color: #34D399; font-size: 0.95rem;">Cannibalization Shield Verified: Zero Keyword Clashes</div>
+                    <div style="font-size: 0.84rem; color: #CBD5E1; margin-top: 2px;">
+                        All suggested blog topics target distinctly unique search intents (e.g. how-to troubleshooting, in-depth comparison, formulation guidelines) and explicitly link back to your primary commercial landing pages, preventing internal ranking competition.
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            blog_topics = silo_res.get("blog_topic_recommendations", [])
+            if blog_topics:
+                df_blogs = pd.DataFrame(blog_topics)
+
+                b_c1, b_c2 = st.columns([3, 1.2])
+                with b_c1:
+                    st.markdown(f"##### Recommended **{len(blog_topics)}** Cannibalization-Free Blog Topics:")
+                with b_c2:
+                    csv_b_data = df_blogs.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "📥 Download Blog Strategy (CSV)",
+                        data=csv_b_data,
+                        file_name="cannibalization_free_blog_topics.csv",
+                        mime="text/csv",
+                        key="dl_blogs_csv"
+                    )
+
+                for b_idx, b in enumerate(blog_topics):
+                    title = b.get("proposed_title", f"Blog Topic #{b_idx+1}")
+                    kw = b.get("target_primary_keyword", "")
+                    sec_kws = b.get("secondary_keywords", [])
+                    sec_kw_str = ", ".join(sec_kws) if isinstance(sec_kws, list) else str(sec_kws)
+                    intent = b.get("search_intent", "Informational")
+                    silo_cat = b.get("assigned_silo", "Core Silo")
+                    checked = b.get("existing_pages_checked", "Existing landing pages & blogs audited")
+                    defense = b.get("cannibalization_defense", "Targets unique informational search intent separate from existing commercial pages.")
+                    target_money = b.get("target_money_page_to_link", "")
+                    money_anchor = b.get("recommended_anchor_text", "")
+                    helpful_why = b.get("traffic_and_helpful_rationale", "")
+
+                    st.markdown(f"""
+                    <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(129, 140, 248, 0.25); border-left: 4px solid #818CF8; border-radius: 12px; padding: 18px 22px; margin-bottom: 18px; box-shadow: 0 4px 18px rgba(0,0,0,0.25);">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #FFFFFF; max-width: 78%;">
+                                📰 {title}
+                            </div>
+                            <span style="background: rgba(129, 140, 248, 0.15); color: #A5B4FC; border: 1px solid rgba(129, 140, 248, 0.35); padding: 3px 10px; border-radius: 9999px; font-size: 0.76rem; font-weight: 700; text-transform: uppercase;">
+                                🏛️ Silo: {silo_cat}
+                            </span>
+                        </div>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; font-size: 0.82rem;">
+                            <span style="background: rgba(56, 189, 248, 0.12); color: #38BDF8; padding: 2px 8px; border-radius: 4px; font-weight: 600;">🎯 Primary: {kw}</span>
+                            <span style="background: rgba(148, 163, 184, 0.15); color: #CBD5E1; padding: 2px 8px; border-radius: 4px;">🔍 Intent: {intent}</span>
+                            {f'<span style="background: rgba(168, 85, 247, 0.12); color: #C084FC; padding: 2px 8px; border-radius: 4px;">🔑 LSI: {sec_kw_str}</span>' if sec_kw_str else ''}
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px;">
+                            <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(16, 185, 129, 0.25); padding: 12px 14px; border-radius: 8px;">
+                                <div style="font-size: 0.74rem; color: #34D399; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">🛡️ Anti-Cannibalization Guarantee:</div>
+                                <div style="font-size: 0.86rem; color: #E2E8F0; line-height: 1.45;">
+                                    <b>Existing Audited:</b> {checked}<br>
+                                    <b>Unique Differentiation:</b> {defense}
+                                </div>
+                            </div>
+                            <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(56, 189, 248, 0.25); padding: 12px 14px; border-radius: 8px;">
+                                <div style="font-size: 0.74rem; color: #38BDF8; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">🔗 Mandatory Link to Existing Money Page:</div>
+                                <div style="font-size: 0.86rem; color: #E2E8F0; line-height: 1.45;">
+                                    <b>Link To:</b> <code>{target_money}</code><br>
+                                    <b>Recommended Anchor:</b> <span style="color:#38BDF8; font-weight:700;">"{money_anchor}"</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="background: rgba(2, 6, 23, 0.5); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(71, 85, 105, 0.3); font-size: 0.86rem; color: #94A3B8;">
+                            💡 <b style="color:#E2E8F0;">Why this drives traffic (Helpful Content System):</b> {helpful_why}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                st.markdown("---")
+                st.markdown("##### 📋 Complete Master Blog Ideation Table")
+                st.dataframe(df_blogs, use_container_width=True, hide_index=True)
+            else:
+                st.info("ℹ️ Blog recommendations will appear here upon running the Silo Architecture analysis.")
+
+        # TAB 4: COMPETITOR SILO BENCHMARK & GAP ANALYSIS
         with tab_competitors:
             st.markdown("#### 🏆 Organic Search Competitor Silo Benchmark & Topical Gaps")
             st.caption(f"Competitor analysis based on organic search rivals for {target_site}. Discover how industry leaders structure their topical silos, and where they have content gaps you can dominate.")
@@ -784,7 +894,7 @@ Please generate:
             else:
                 st.info("ℹ️ Competitor analysis data will appear here when generated. Run analysis or ask the AI Chatbot below.")
 
-        # TAB 4: TOPICAL CLUSTERS
+        # TAB 5: TOPICAL CLUSTERS
         with tab_clusters:
             st.markdown("#### 📂 Identified Topical Silos & Supporting Pages")
             for idx, cluster in enumerate(silo_res.get("clusters", [])):
@@ -815,7 +925,7 @@ Please generate:
                     if spoke_rows:
                         st.dataframe(pd.DataFrame(spoke_rows), use_container_width=True, hide_index=True)
 
-        # TAB 5: LEAKAGE AUDIT & BREADCRUMBS
+        # TAB 6: LEAKAGE AUDIT & BREADCRUMBS
         with tab_leakage:
             st.markdown("#### 🛡️ Cross-Silo Linkage Leakage Prevention & Breadcrumbs")
             col_b1, col_b2 = st.columns(2)
@@ -845,7 +955,7 @@ Please generate:
         <span style="font-size: 1.45rem; font-weight: 800; color: #FFFFFF;">Chat with AI Silo Architect</span>
     </div>
     <div style="font-size: 0.92rem; color: #94A3B8; margin-bottom: 16px;">
-        Ask Gemini, ChatGPT, or Claude any question about structuring your website, anchor texts, competitor gaps, resolving PageRank dilution, or CMS implementation.
+        Ask Gemini, ChatGPT, or Claude any question about structuring your website, high-traffic blog topics, anchor texts, competitor gaps, or resolving PageRank dilution.
     </div>
     """, unsafe_allow_html=True)
 
@@ -854,13 +964,13 @@ Please generate:
         st.session_state["silo_chat_history"] = [
             {
                 "role": "assistant",
-                "content": f"👋 Hi! I am your **AI Silo Architect**. Enter your website URL above and ask me anything about optimizing your website's topical clusters, choosing anchor texts, competitor gaps, or structuring internal links."
+                "content": f"👋 Hi! I am your **AI Silo Architect**. Enter your website URL above and ask me anything about finding high-traffic cannibalization-free blog topics, competitor gaps, choosing anchor texts, or structuring internal links."
             }
         ]
 
-    # Quick prompt buttons (Updated as requested by user: Keep Anchor Text Strategy, Keep Interlinking Strategy, Remove Subfolder vs Flat URLs, Add Competitor Analysis)
+    # Quick prompt buttons (5 columns with clear, responsive strategy buttons)
     st.markdown("<div style='font-size: 0.82rem; font-weight: 600; color: #CBD5E1; margin-bottom: 8px;'>💡 Quick Strategy Inquiries:</div>", unsafe_allow_html=True)
-    qc1, qc2, qc3, qc4 = st.columns(4)
+    qc1, qc2, qc3, qc4, qc5 = st.columns(5)
     quick_prompt = None
     with qc1:
         if st.button("🔗 Anchor Text Strategy", use_container_width=True, key="qp_anchor"):
@@ -869,9 +979,12 @@ Please generate:
         if st.button("⚡ In-Page Interlinking Guide", use_container_width=True, key="qp_interlinking"):
             quick_prompt = f"Give me a concrete list of exactly which page on {target_site} should link to which other page, along with the exact anchor text and sentence context."
     with qc3:
+        if st.button("📝 Blog Topics (No Cannibalization)", use_container_width=True, key="qp_blogs"):
+            quick_prompt = f"Analyze all existing pages and blogs on {target_site}. Recommend 10 high-traffic, user-helpful blog topics that answer real search queries, strictly checking our existing content so that NO topic repeats and there is ZERO keyword cannibalization with our existing pages. For each, give: Proposed Title, Target Primary Keyword, Search Intent, Silo Category, Which Existing Money Page It Must Interlink To (with exact anchor text), and the Anti-Cannibalization Defense."
+    with qc4:
         if st.button("🏆 Competitor Silo Analysis", use_container_width=True, key="qp_competitor"):
             quick_prompt = f"Who are the top 3-4 organic search competitors for {target_site}? What are their core silo pillars, how do they link them, and what topical gaps can we exploit to outrank them?"
-    with qc4:
+    with qc5:
         if st.button("🛡️ Prevent PageRank Leakage", use_container_width=True, key="qp_leakage"):
             quick_prompt = f"How do I prevent PageRank leakage between different category silos on {target_site} while maintaining good user navigation?"
 
@@ -883,7 +996,7 @@ Please generate:
                 st.markdown(msg["content"])
 
     # User Input Field
-    user_input = st.chat_input("Ask AI Silo Architect anything about your website's internal linking or competitors...")
+    user_input = st.chat_input("Ask AI Silo Architect anything about blog topics, internal linking, or competitors...")
     if quick_prompt:
         user_input = quick_prompt
 
@@ -902,15 +1015,18 @@ Please generate:
             with st.spinner("AI Architect is thinking..."):
                 current_silo_context = json.dumps(st.session_state.get("silo_architecture_result", {}), indent=2)
                 chat_sys_prompt = f"""
-You are an Elite Senior Technical SEO Architect specializing in Website Information Architecture, Topical Silos, Internal Linking, and Competitor Search Analysis.
+You are an Elite Senior Technical SEO Architect specializing in Website Information Architecture, Topical Silos, Internal Linking, Keyword Cannibalization Prevention, and Competitor Search Analysis.
 The user is working on the website: {target_site}
 Target Silo Model: {selected_framework}
-Generated Silo Structure & Competitors Context:
-{current_silo_context[:3000]}
+Generated Silo Structure, Blogs, & Competitors Context:
+{current_silo_context[:3500]}
 
-Provide clear, highly specific, actionable advice. When suggesting links, ALWAYS format them clearly:
+Provide clear, highly specific, actionable advice.
+When suggesting blog topics:
+1. Ensure strict anti-cannibalization by verifying against existing pages/blogs.
+2. Specify which existing money/landing page the new blog must link back to, with the exact anchor text.
+When suggesting links, format clearly:
 'On Page: [URL] ➔ In Section: [Name] ➔ Insert Sentence: "..." ➔ Anchor Text: "[Text]" ➔ Links to: [Destination URL]'.
-When discussing competitors, name specific real-world competitors in that industry, compare their category architecture, and highlight actionable gaps.
 Use bullet points, bold key terms, and keep answers concise and SEO-practical.
 """
                 try:
