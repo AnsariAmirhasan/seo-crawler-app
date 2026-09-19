@@ -1405,9 +1405,10 @@ with tab_responses:
         with col_rdown2:
             st.caption(f"Showing **{len(df_resp_filtered)}** of **{total_resp_pages}** URLs matching filter: `{filter_choice}`")
 
-        # Table Display: Dedicated view when filtering by Redirection (3xx/Chain/Loop) or Client Error (4xx)
+        # Table Display: Dedicated view when filtering by Redirection (3xx/Chain/Loop), Client Error (4xx), or Success (2xx)
         is_redirect_view = ("Redirection (3xx)" in resp_filter) or ("Redirection (Chain)" in resp_filter) or ("Redirection (Loop)" in resp_filter)
         is_client_error_view = ("Client Error (4xx)" in resp_filter)
+        is_success_view = ("Success (2xx)" in resp_filter)
         
         if is_redirect_view:
             target_cols = [
@@ -1684,13 +1685,29 @@ with tab_responses:
                         )
                     else:
                         st.info("No internal referring page recorded for this URL (Discovered directly from initial seed).")
+        elif is_success_view:
+            target_cols = [
+                "url", "status_code", "status_description", "response_category", "is_indexable"
+            ]
+            avail_cols = [c for c in target_cols if c in df_resp_filtered.columns]
+
+            st.dataframe(
+                df_resp_filtered[avail_cols],
+                use_container_width=True,
+                column_config={
+                    "url": st.column_config.LinkColumn("Page URL", width="large"),
+                    "status_code": st.column_config.NumberColumn("Status Code", format="%d", width="small"),
+                    "status_description": st.column_config.TextColumn("Response Description", width="medium"),
+                    "response_category": st.column_config.TextColumn("Response Category", width="medium"),
+                    "is_indexable": st.column_config.CheckboxColumn("Indexable", width="small"),
+                },
+                hide_index=True
+            )
         else:
             resp_cols = [
                 "url", "status_code", "status_description", "response_category",
                 "source_url", "anchor_text",
-                "redirect_hops", "redirect_chain_str", "redirect_issue_type",
-                "inlinks_count", "internal_outlinks_count", "final_url", "latency_ms",
-                "content_type", "is_indexable"
+                "inlinks_count", "internal_outlinks_count", "is_indexable"
             ]
             available_resp_cols = [c for c in resp_cols if c in df_resp_filtered.columns]
 
@@ -1704,14 +1721,8 @@ with tab_responses:
                     "response_category": st.column_config.TextColumn("Response Category"),
                     "source_url": st.column_config.LinkColumn("Source Page (Found On)"),
                     "anchor_text": st.column_config.TextColumn("Anchor Text"),
-                    "redirect_hops": st.column_config.NumberColumn("Redirect Hops", format="%d"),
-                    "redirect_chain_str": st.column_config.TextColumn("Redirect Chain"),
-                    "redirect_issue_type": st.column_config.TextColumn("Redirect Issue"),
                     "inlinks_count": st.column_config.NumberColumn("Inlinks (Inbound)", help="Number of internal pages linking to this URL. 0 = Orphan Page!"),
                     "internal_outlinks_count": st.column_config.NumberColumn("Outlinks"),
-                    "final_url": st.column_config.LinkColumn("Redirect Target URL"),
-                    "latency_ms": st.column_config.NumberColumn("Latency", format="%.0f ms"),
-                    "content_type": st.column_config.TextColumn("Content Type"),
                     "is_indexable": st.column_config.CheckboxColumn("Indexable"),
                 },
                 hide_index=True
