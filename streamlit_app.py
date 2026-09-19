@@ -889,12 +889,18 @@ with tab_titles:
             "url", "status_code", "title", "title_length", "title_pixel_width", "is_indexable"
         ]].copy()
 
-        # Map Duplicate Partners (Identify which other URLs share the exact same title)
-        valid_titles_df = df_titles[df_titles["title"].str.strip() != ""]
+        # Map Duplicate Partners (Only 200 OK & Indexable pages count toward duplicates!)
+        valid_titles_df = df_titles[
+            (df_titles["status_code"] == 200) & 
+            (df_titles["is_indexable"] == True) & 
+            (df_titles["title"].str.strip() != "")
+        ]
         title_to_urls = valid_titles_df.groupby("title")["url"].apply(list).to_dict()
         dup_titles_set = {t for t, urls in title_to_urls.items() if len(urls) > 1}
 
         def get_title_dup_info(row):
+            if row.get("status_code", 200) != 200 or not row.get("is_indexable", True):
+                return 0, "— (Non-Indexable / Redirect)"
             t = str(row["title"]).strip()
             if t and t in title_to_urls and len(title_to_urls[t]) > 1:
                 all_urls = title_to_urls[t]
@@ -908,10 +914,15 @@ with tab_titles:
 
         # Title Status Tag
         def get_title_status(row):
+            code = row.get("status_code", 200)
+            if 300 <= code < 400:
+                return f"Redirect ({code})"
+            if code >= 400:
+                return f"Error ({code})"
             t = str(row["title"]).strip()
             if not t:
                 return "Missing"
-            if t in dup_titles_set:
+            if row.get("is_indexable", True) and t in dup_titles_set:
                 return "Duplicate"
             if row["title_length"] > 60 or row["title_pixel_width"] > 600:
                 return "Over 60 Chars (>600px)"
@@ -1071,12 +1082,18 @@ with tab_descriptions:
             "url", "status_code", "meta_description", "meta_description_length", "is_indexable"
         ]].copy()
 
-        # Map Duplicate Partners (Group URLs sharing exact same meta description)
-        valid_desc_df = df_desc[df_desc["meta_description"].str.strip() != ""]
+        # Map Duplicate Partners (Only 200 OK & Indexable pages count toward duplicates!)
+        valid_desc_df = df_desc[
+            (df_desc["status_code"] == 200) & 
+            (df_desc["is_indexable"] == True) & 
+            (df_desc["meta_description"].str.strip() != "")
+        ]
         desc_to_urls = valid_desc_df.groupby("meta_description")["url"].apply(list).to_dict()
         dup_desc_set = {d for d, urls in desc_to_urls.items() if len(urls) > 1}
 
         def get_desc_dup_info(row):
+            if row.get("status_code", 200) != 200 or not row.get("is_indexable", True):
+                return 0, "— (Non-Indexable / Redirect)"
             d = str(row["meta_description"]).strip()
             if d and d in desc_to_urls and len(desc_to_urls[d]) > 1:
                 all_urls = desc_to_urls[d]
@@ -1090,10 +1107,15 @@ with tab_descriptions:
 
         # Meta Description Status Tag
         def get_desc_status(row):
+            code = row.get("status_code", 200)
+            if 300 <= code < 400:
+                return f"Redirect ({code})"
+            if code >= 400:
+                return f"Error ({code})"
             d = str(row["meta_description"]).strip()
             if not d:
                 return "Missing"
-            if d in dup_desc_set:
+            if row.get("is_indexable", True) and d in dup_desc_set:
                 return "Duplicate"
             if row["meta_description_length"] > 160:
                 return "Over 160 Chars"
@@ -1227,12 +1249,18 @@ with tab_headings:
             "url", "h1", "h1_count", "h2_first", "h2_count", "status_code", "is_indexable"
         ]].copy()
 
-        # Calculate H1 and H2 duplicates with partner URL matching
-        valid_h1_df = df_headings[df_headings["h1"].str.strip() != ""]
+        # Calculate H1 and H2 duplicates with partner URL matching (Only 200 OK & Indexable pages!)
+        valid_h1_df = df_headings[
+            (df_headings["status_code"] == 200) & 
+            (df_headings["is_indexable"] == True) & 
+            (df_headings["h1"].str.strip() != "")
+        ]
         h1_to_urls = valid_h1_df.groupby("h1")["url"].apply(list).to_dict()
         dup_h1_set = {h for h, urls in h1_to_urls.items() if len(urls) > 1}
 
         def get_h1_dup_info(row):
+            if row.get("status_code", 200) != 200 or not row.get("is_indexable", True):
+                return 0, "— (Non-Indexable / Redirect)"
             h = str(row["h1"]).strip()
             if h and h in h1_to_urls and len(h1_to_urls[h]) > 1:
                 all_urls = h1_to_urls[h]
@@ -1249,13 +1277,18 @@ with tab_headings:
 
         # H1 Status Tag
         def get_h1_status(row):
+            code = row.get("status_code", 200)
+            if 300 <= code < 400:
+                return f"Redirect ({code})"
+            if code >= 400:
+                return f"Error ({code})"
             h = str(row["h1"]).strip()
             c = row.get("h1_count", 0)
             if not h or c == 0:
                 return "Missing"
             if c > 1:
                 return "Multiple H1s"
-            if h in dup_h1_set:
+            if row.get("is_indexable", True) and h in dup_h1_set:
                 return "Duplicate"
             if len(h) > 70:
                 return "Over 70 Chars"

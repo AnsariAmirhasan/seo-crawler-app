@@ -201,20 +201,27 @@ class SEOSpider:
             }
 
         latency_ms = round((time.time() - start_time) * 1000, 2)
-        redirect_chain = [r.url for r in response.history] + [response.url] if response.history else []
+        has_redirect = bool(response.history)
+        initial_status = response.history[0].status_code if has_redirect else response.status_code
+        redirect_chain = [r.url for r in response.history] + [response.url] if has_redirect else []
         content_type = response.headers.get("Content-Type", "")
         content_length = len(response.content) if response.content else 0
+        
+        # If this URL redirected (301, 302, 307, 308), its status is the redirect code (e.g. 301)
+        # and it has no HTML body. The destination URL will be crawled on its own!
+        is_redirect = has_redirect and (300 <= initial_status < 400)
         
         return {
             "url": url,
             "final_url": response.url,
-            "status_code": response.status_code,
+            "status_code": initial_status,
+            "final_status_code": response.status_code,
             "latency_ms": latency_ms,
-            "content_type": content_type,
-            "size_bytes": content_length,
-            "headers": dict(response.headers),
+            "content_type": "" if is_redirect else content_type,
+            "size_bytes": 0 if is_redirect else content_length,
+            "headers": dict(response.history[0].headers) if has_redirect else dict(response.headers),
             "redirect_chain": redirect_chain,
-            "html": response.text if "text/html" in content_type.lower() else "",
+            "html": "" if is_redirect else (response.text if "text/html" in content_type.lower() else ""),
             "error": None
         }
 
@@ -300,6 +307,14 @@ class SEOSpider:
                             self.allowed_domains.add(final_netloc)
 
                     self.crawled_data.append(fetch_res)
+
+                    # If this URL was a redirect (301, 302, etc.), queue destination URL to crawl
+                    if (fetch_res.get("status_code") in [301, 302, 307, 308] or fetch_res.get("final_url") != url) and fetch_res.get("final_url"):
+                        dest_url = normalize_url(fetch_res["final_url"])
+                        allow_sub = (self.crawl_mode == "All Subdomains")
+                        if is_internal_url(dest_url, self.allowed_domains, allow_subdomains=allow_sub):
+                            if dest_url not in visited_urls and self.should_crawl(dest_url, depth):
+                                to_visit.append((dest_url, depth, url))
 
                     # Extract outgoing links & images
                     if fetch_res.get("html"):

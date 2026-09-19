@@ -110,12 +110,14 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     if 300 <= status_code < 400:
         seo_info["is_indexable"] = False
         seo_info["indexability_reason"] = f"Redirect ({status_code})"
+        seo_info["canonical_status"] = "N/A (Redirect)"
         seo_info["issues"].append({
             "type": "Notice",
             "category": "Redirect",
             "issue": f"Page Redirects ({status_code}) -> {final_url}",
             "recommendation": "Update internal links to point directly to the destination URL."
         })
+        return seo_info
 
     # Response time warning (>1500ms)
     if latency_ms > 1500:
@@ -384,16 +386,18 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
         df_pages["images_count"] = df_pages["url"].map(img_counts).fillna(0).astype(int)
         df_pages["images_missing_alt_count"] = df_pages["url"].map(img_missing_alt).fillna(0).astype(int)
 
-    # Detect duplicate Page Titles across the site
-    title_counts = Counter(df_pages[df_pages["title"] != ""]["title"])
+    # Detect duplicate Page Titles across the site (ONLY 200 OK & Indexable pages!)
+    indexable_pages = df_pages[(df_pages["status_code"] == 200) & (df_pages["is_indexable"] == True)]
+    
+    title_counts = Counter(indexable_pages[indexable_pages["title"] != ""]["title"])
     duplicate_titles = {t for t, count in title_counts.items() if count > 1}
 
-    # Detect duplicate H1 Headings across the site
-    h1_counts = Counter(df_pages[df_pages["h1"] != ""]["h1"])
+    # Detect duplicate H1 Headings across the site (ONLY 200 OK & Indexable pages!)
+    h1_counts = Counter(indexable_pages[indexable_pages["h1"] != ""]["h1"])
     duplicate_h1s = {h for h, count in h1_counts.items() if count > 1}
 
-    # Detect duplicate Meta Descriptions across the site
-    desc_counts = Counter(df_pages[df_pages["meta_description"] != ""]["meta_description"])
+    # Detect duplicate Meta Descriptions across the site (ONLY 200 OK & Indexable pages!)
+    desc_counts = Counter(indexable_pages[indexable_pages["meta_description"] != ""]["meta_description"])
     duplicate_descriptions = {d for d, count in desc_counts.items() if count > 1}
 
     # Add duplicate issues to individual pages & collect aggregated issue list
@@ -403,29 +407,31 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
         issues_list = row["issues"]
         url = row["url"]
 
-        if row["title"] in duplicate_titles:
-            issues_list.append({
-                "type": "Warning",
-                "category": "Page Title",
-                "issue": f"Duplicate Page Title ('{row['title'][:40]}...')",
-                "recommendation": "Ensure every page has a unique title describing its distinct content."
-            })
+        # Only evaluate duplicate content warnings for 200 OK & Indexable pages
+        if row["status_code"] == 200 and row.get("is_indexable", True):
+            if row["title"] in duplicate_titles:
+                issues_list.append({
+                    "type": "Warning",
+                    "category": "Page Title",
+                    "issue": f"Duplicate Page Title ('{row['title'][:40]}...')",
+                    "recommendation": "Ensure every page has a unique title describing its distinct content."
+                })
 
-        if row["h1"] in duplicate_h1s:
-            issues_list.append({
-                "type": "Notice",
-                "category": "H1 Heading",
-                "issue": f"Duplicate H1 Heading ('{row['h1'][:40]}...')",
-                "recommendation": "Provide unique H1 tags for distinct pages."
-            })
+            if row["h1"] in duplicate_h1s:
+                issues_list.append({
+                    "type": "Notice",
+                    "category": "H1 Heading",
+                    "issue": f"Duplicate H1 Heading ('{row['h1'][:40]}...')",
+                    "recommendation": "Provide unique H1 tags for distinct pages."
+                })
 
-        if row["meta_description"] in duplicate_descriptions:
-            issues_list.append({
-                "type": "Notice",
-                "category": "Meta Description",
-                "issue": "Duplicate Meta Description",
-                "recommendation": "Write tailored meta descriptions for key landing pages."
-            })
+            if row["meta_description"] in duplicate_descriptions:
+                issues_list.append({
+                    "type": "Notice",
+                    "category": "Meta Description",
+                    "issue": "Duplicate Meta Description",
+                    "recommendation": "Write tailored meta descriptions for key landing pages."
+                })
 
         if row["images_missing_alt_count"] > 0:
             issues_list.append({
