@@ -3,24 +3,26 @@ import plotly.express as px
 import pandas as pd
 import networkx as nx
 
+FONT_FAMILY = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+
 def create_health_gauge(score: int):
     """Generate an interactive modern Gauge chart for the SEO Health Score."""
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=score,
         domain={'x': [0, 1], 'y': [0, 1]},
-        title={'text': "SEO Health Score", 'font': {'size': 22, 'color': '#E2E8F0'}},
-        number={'suffix': "/100", 'font': {'size': 36, 'color': '#FFFFFF'}},
+        title={'text': "SEO Health Score", 'font': {'size': 20, 'color': '#E2E8F0', 'family': FONT_FAMILY}},
+        number={'suffix': "/100", 'font': {'size': 38, 'color': '#FFFFFF', 'family': FONT_FAMILY, 'weight': 800}},
         gauge={
-            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#94A3B8"},
-            'bar': {'color': "#6366F1", 'thickness': 0.25},
-            'bgcolor': "#1E293B",
-            'borderwidth': 2,
-            'bordercolor': "#334155",
+            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#64748B", 'tickfont': {'color': '#94A3B8'}},
+            'bar': {'color': "#6366F1", 'thickness': 0.26},
+            'bgcolor': "rgba(30, 41, 59, 0.6)",
+            'borderwidth': 1.5,
+            'bordercolor': "rgba(71, 85, 105, 0.4)",
             'steps': [
-                {'range': [0, 49], 'color': 'rgba(239, 68, 68, 0.4)'},
-                {'range': [50, 79], 'color': 'rgba(234, 179, 8, 0.4)'},
-                {'range': [80, 100], 'color': 'rgba(16, 185, 129, 0.4)'}
+                {'range': [0, 49], 'color': 'rgba(239, 68, 68, 0.35)'},
+                {'range': [50, 79], 'color': 'rgba(245, 158, 11, 0.35)'},
+                {'range': [80, 100], 'color': 'rgba(16, 185, 129, 0.35)'}
             ],
             'threshold': {
                 'line': {'color': "#10B981", 'width': 4},
@@ -33,7 +35,8 @@ def create_health_gauge(score: int):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         height=260,
-        margin=dict(l=20, r=20, t=40, b=20)
+        margin=dict(l=20, r=20, t=40, b=20),
+        font=dict(family=FONT_FAMILY)
     )
     return fig
 
@@ -45,34 +48,38 @@ def create_status_code_chart(df_pages: pd.DataFrame):
     status_counts = df_pages["status_code"].value_counts().reset_index()
     status_counts.columns = ["Status Code", "Count"]
     status_counts["Status Label"] = status_counts["Status Code"].apply(
-        lambda s: f"200 OK" if s == 200 else (f"3xx Redirect ({s})" if 300 <= s < 400 else (f"4xx Error ({s})" if 400 <= s < 500 else f"Other ({s})"))
+        lambda s: f"200 OK" if s == 200 else (f"3xx Redirect ({s})" if 300 <= s < 400 else (f"4xx Error ({s})" if 400 <= s < 500 else (f"5xx Server ({s})" if 500 <= s < 600 else f"Other ({s})")))
     )
 
-    color_map = {
-        200: "#10B981",
-        301: "#3B82F6",
-        302: "#60A5FA",
-        404: "#EF4444",
-        500: "#DC2626",
-        0: "#F59E0B"
-    }
+    color_palette = ["#10B981", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"]
 
     fig = px.pie(
         status_counts,
         names="Status Label",
         values="Count",
-        hole=0.55,
-        color_discrete_sequence=["#10B981", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6"]
+        hole=0.6,
+        color_discrete_sequence=color_palette
     )
-    fig.update_traces(textposition='inside', textinfo='percent+label', marker=dict(line=dict(color='#0F172A', width=2)))
+    fig.update_traces(
+        textposition='inside',
+        textinfo='percent+label',
+        marker=dict(line=dict(color='#0F172A', width=2.5))
+    )
     fig.update_layout(
-        title={'text': "HTTP Status Distribution", 'font': {'color': '#E2E8F0', 'size': 16}},
+        title={'text': "HTTP Status Distribution", 'font': {'color': '#F1F5F9', 'size': 17, 'family': FONT_FAMILY}},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#CBD5E1"),
+        font=dict(color="#CBD5E1", family=FONT_FAMILY),
         height=280,
-        margin=dict(l=10, r=10, t=40, b=10),
-        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+        margin=dict(l=10, r=10, t=45, b=10),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.25,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=11, color="#94A3B8")
+        )
     )
     return fig
 
@@ -80,16 +87,20 @@ def create_issues_bar_chart(df_issues: pd.DataFrame):
     """Horizontal bar chart showing issues sorted by category and severity."""
     if df_issues.empty:
         fig = go.Figure()
-        fig.add_annotation(text="No Technical Issues Detected 🎉", showarrow=False, font=dict(size=16, color="#10B981"))
+        fig.add_annotation(
+            text="✨ No Technical Issues Detected! 100% Clean Audit 🎉",
+            showarrow=False,
+            font=dict(size=15, color="#10B981", family=FONT_FAMILY)
+        )
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=280)
         return fig
 
     issue_summary = df_issues.groupby(["category", "type"]).size().reset_index(name="count")
     
     color_discrete_map = {
-        "Error": "#EF4444",
+        "Error": "#F43F5E",
         "Warning": "#F59E0B",
-        "Notice": "#3B82F6"
+        "Notice": "#06B6D4"
     }
 
     fig = px.bar(
@@ -99,17 +110,25 @@ def create_issues_bar_chart(df_issues: pd.DataFrame):
         color="type",
         orientation="h",
         color_discrete_map=color_discrete_map,
-        labels={"count": "Issue Count", "category": "SEO Category", "type": "Severity"}
+        labels={"count": "Issues Count", "category": "SEO Category", "type": "Severity"}
     )
     fig.update_layout(
-        title={'text': "Issues by Category & Severity", 'font': {'color': '#E2E8F0', 'size': 16}},
+        title={'text': "Issues by Category & Severity", 'font': {'color': '#F1F5F9', 'size': 17, 'family': FONT_FAMILY}},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#CBD5E1"),
+        font=dict(color="#CBD5E1", family=FONT_FAMILY),
         height=280,
-        margin=dict(l=10, r=10, t=40, b=10),
-        xaxis=dict(gridcolor="#334155"),
-        yaxis=dict(gridcolor="#334155")
+        margin=dict(l=10, r=10, t=45, b=10),
+        xaxis=dict(gridcolor="rgba(51, 65, 85, 0.4)", tickfont=dict(color="#94A3B8")),
+        yaxis=dict(gridcolor="rgba(51, 65, 85, 0.4)", tickfont=dict(color="#CBD5E1")),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.25,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=11, color="#94A3B8")
+        )
     )
     return fig
 
@@ -129,7 +148,7 @@ def create_site_architecture_graph(df_links: pd.DataFrame, max_nodes: int = 50):
         tgt = row["target_url"].replace("https://", "").replace("http://", "")[:35]
         G.add_edge(src, tgt)
 
-    pos = nx.spring_layout(G, k=0.5, iterations=30, seed=42)
+    pos = nx.spring_layout(G, k=0.55, iterations=35, seed=42)
 
     edge_x = []
     edge_y = []
@@ -142,7 +161,7 @@ def create_site_architecture_graph(df_links: pd.DataFrame, max_nodes: int = 50):
 
     edge_trace = go.Scatter(
         x=edge_x, y=edge_y,
-        line=dict(width=1, color='#64748B'),
+        line=dict(width=1.2, color='rgba(148, 163, 184, 0.4)'),
         hoverinfo='none',
         mode='lines'
     )
@@ -157,40 +176,44 @@ def create_site_architecture_graph(df_links: pd.DataFrame, max_nodes: int = 50):
         node_y.append(y)
         deg = G.degree(node)
         node_adj.append(deg)
-        node_text.append(f"{node}<br>Connections: {deg}")
+        node_text.append(f"<b>{node}</b><br>Linked Connections: {deg}")
 
     node_trace = go.Scatter(
         x=node_x, y=node_y,
         mode='markers+text',
         hoverinfo='text',
-        text=[n[:18] + ".." if len(n) > 18 else n for n in G.nodes()],
+        text=[n[:16] + ".." if len(n) > 16 else n for n in G.nodes()],
         textposition="bottom center",
+        textfont=dict(family=FONT_FAMILY, size=10, color="#CBD5E1"),
         hovertext=node_text,
         marker=dict(
             showscale=True,
-            colorscale='Viridis',
-            size=16,
+            colorscale='Blues',
+            size=18,
             color=node_adj,
             colorbar=dict(
-                thickness=12,
-                title=dict(text='Connections', side='top', font=dict(color='#CBD5E1', size=12)),
-                tickfont=dict(color='#CBD5E1')
+                thickness=10,
+                title=dict(text='Links', side='top', font=dict(color='#CBD5E1', size=11, family=FONT_FAMILY)),
+                tickfont=dict(color='#CBD5E1', family=FONT_FAMILY)
             ),
             line_width=2,
-            line_color='#FFFFFF'
+            line_color='#38BDF8'
         )
     )
 
-    fig = go.Figure(data=[edge_trace, node_trace],
-                    layout=go.Layout(
-                        title=dict(text='Internal Linking Architecture Graph', font=dict(color='#E2E8F0', size=16)),
-                        showlegend=False,
-                        hovermode='closest',
-                        margin=dict(b=20, l=5, r=5, t=40),
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        height=450
-                    ))
+    fig = go.Figure(
+        data=[edge_trace, node_trace],
+        layout=go.Layout(
+            title=dict(text='Internal Linking Architecture Topology', font=dict(color='#F1F5F9', size=17, family=FONT_FAMILY)),
+            showlegend=False,
+            hovermode='closest',
+            margin=dict(b=20, l=10, r=10, t=45),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            height=460,
+            font=dict(family=FONT_FAMILY)
+        )
+    )
     return fig
