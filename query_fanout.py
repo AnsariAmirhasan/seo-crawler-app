@@ -407,10 +407,17 @@ def render_query_fanout_page():
 
             except Exception as e:
                 err_str = str(e)
-                if any(w in err_str.lower() for w in ["api_key", "invalid", "auth", "401"]):
-                    st.error(f"🔑 **Invalid API Key**: Please check your {ai_provider} API key and try again.")
-                elif any(w in err_str.lower() for w in ["quota", "exceeded", "limit", "429"]):
-                    st.error(f"💳 **Rate Limit or Quota Exceeded**: Your {ai_provider} API quota has been reached.")
+                err_lower = err_str.lower()
+                if any(w in err_lower for w in ["high demand", "spikes in demand", "503", "unavailable", "overloaded", "capacity"]):
+                    alt_model = "gemini-3.5-flash" if "Gemini" in ai_provider else ("gpt-4o-mini" if "OpenAI" in ai_provider or "ChatGPT" in ai_provider else "claude-3-5-haiku-20241022")
+                    st.error(
+                        f"⏳ **This model is currently experiencing high demand and is unable to generate queries right now.**\n\n"
+                        f"Please try again in a few moments, or select a different model (such as **{alt_model}**) from the **Model** dropdown above and retry."
+                    )
+                elif any(w in err_lower for w in ["api_key", "invalid", "auth", "401", "permission_denied"]):
+                    st.error(f"🔑 **Invalid API Key**: Please check your **{ai_provider}** API key and try again.")
+                elif any(w in err_lower for w in ["quota", "exceeded", "limit", "429", "resource_exhausted"]):
+                    st.error(f"💳 **Rate Limit or Quota Exceeded**: Your **{ai_provider}** API quota has been reached. Please check your billing or try again later.")
                 else:
                     st.error(f"❌ Error during extraction: {err_str}")
                 st.stop()
