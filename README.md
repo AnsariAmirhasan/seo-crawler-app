@@ -1,6 +1,7 @@
-# 🕷️ Amir's SEO Spider (Web App)
+# 🕷️ CrawlPilot — Technical SEO Crawler & Audit Suite
+> **CRAWL • ANALYZE • OPTIMIZE • RANK**
 
-A modern, high-speed, and feature-rich **Technical SEO Crawler & Audit Web Application** built with **Python** & **Streamlit**.
+A modern, high-speed, and enterprise-grade **Technical SEO Crawler & Audit Web Application** built with **Python** & **Streamlit**.
 
 ---
 

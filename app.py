@@ -23,14 +23,55 @@ from sitemap_generator import (
 )
 from query_fanout import render_query_fanout_page
 from silo_architect import render_silo_architect_page
+from PIL import Image
+import base64
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+APP_ICON_PATH = os.path.join(_SCRIPT_DIR, "assets", "app_icon.png")
+FAVICON_PATH = os.path.join(_SCRIPT_DIR, "assets", "favicon_32.png")
+SPIDER_LOGO_PATH = os.path.join(_SCRIPT_DIR, "assets", "spider_logo.png")
+BANNER_PATH = os.path.join(_SCRIPT_DIR, "assets", "crawl_pilot_banner.png")
+
+@st.cache_data
+def get_asset_base64(filepath: str) -> str:
+    try:
+        with open(filepath, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+    except Exception:
+        return ""
+
+_favicon_obj = Image.open(APP_ICON_PATH) if os.path.exists(APP_ICON_PATH) else "🕷️"
 
 # 1. Streamlit Page Configuration - Must be first
 st.set_page_config(
-    page_title="Amir's SEO Spider | Unlimited Technical SEO Audit",
-    page_icon="🕷️",
+    page_title="CrawlPilot | CRAWL • ANALYZE • OPTIMIZE • RANK",
+    page_icon=_favicon_obj,
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Inject Dynamic Browser Favicon Tag
+_fav_b64 = get_asset_base64(FAVICON_PATH)
+_icon_b64 = get_asset_base64(APP_ICON_PATH)
+if _fav_b64:
+    st.html(f"""
+    <head>
+        <link rel="icon" type="image/png" href="data:image/png;base64,{_fav_b64}">
+        <link rel="shortcut icon" type="image/png" href="data:image/png;base64,{_fav_b64}">
+        <link rel="apple-touch-icon" href="data:image/png;base64,{_icon_b64}">
+    </head>
+    <script>
+        (function() {{
+            let link = document.querySelector("link[rel~='icon']");
+            if (!link) {{
+                link = document.createElement('link');
+                link.rel = 'icon';
+                document.getElementsByTagName('head')[0].appendChild(link);
+            }}
+            link.href = 'data:image/png;base64,{_fav_b64}';
+        }})();
+    </script>
+    """)
 
 # 2. Modern Universal Theme Styling
 st.markdown("""
@@ -315,57 +356,17 @@ div[data-baseweb="select"] > div {
 
 # 3. Sidebar: Brand & Tools Suite Navigation
 with st.sidebar:
-    st.markdown("""
+    app_icon_b64 = get_asset_base64(APP_ICON_PATH)
+    st.markdown(f"""
     <div style="padding: 0.2rem 0 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 1rem;">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="width: 48px; height: 48px; flex-shrink: 0; background: radial-gradient(circle at center, #1E293B 0%, #0F172A 100%); border: 1.5px solid rgba(255, 255, 255, 0.25); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.6), 0 0 12px rgba(255, 255, 255, 0.15);">
-                <svg width="42" height="42" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <filter id="sbWebGlow" x="-20%" y="-20%" width="140%" height="140%">
-                            <feGaussianBlur stdDeviation="0.8" result="blur"/>
-                            <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-                        </filter>
-                    </defs>
-                    <!-- White Spider Web Spokes -->
-                    <g stroke="#FFFFFF" stroke-opacity="0.88" stroke-width="1.2" filter="url(#sbWebGlow)">
-                        <line x1="30" y1="30" x2="6" y2="6"/>
-                        <line x1="30" y1="30" x2="30" y2="3"/>
-                        <line x1="30" y1="30" x2="54" y2="6"/>
-                        <line x1="30" y1="30" x2="57" y2="30"/>
-                        <line x1="30" y1="30" x2="54" y2="54"/>
-                        <line x1="30" y1="30" x2="30" y2="57"/>
-                        <line x1="30" y1="30" x2="6" y2="54"/>
-                        <line x1="30" y1="30" x2="3" y2="30"/>
-                    </g>
-                    <!-- White Spider Web Concentric Spiral Rings -->
-                    <polygon points="30,22 36,24 38,30 36,36 30,38 24,36 22,30 24,24" stroke="#FFFFFF" stroke-opacity="0.75" stroke-width="1.1" fill="none"/>
-                    <polygon points="30,13 42,17 47,30 42,43 30,47 18,43 13,30 18,17" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="1.1" fill="none"/>
-                    <polygon points="30,4 50,9 56,30 50,51 30,56 10,51 4,30 10,9" stroke="#FFFFFF" stroke-opacity="0.85" stroke-width="1.2" fill="none"/>
-                    <!-- Golden Spider Perched in Web Center -->
-                    <!-- Legs -->
-                    <path d="M27,27 Q18,15 11,20" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
-                    <path d="M26,29 Q16,24 8,32" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
-                    <path d="M26,31 Q17,37 10,43" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
-                    <path d="M27,33 Q20,44 14,48" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
-                    <path d="M33,27 Q42,15 49,20" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
-                    <path d="M34,29 Q44,24 52,32" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
-                    <path d="M34,31 Q43,37 50,43" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
-                    <path d="M33,33 Q40,44 46,48" stroke="#FFC107" stroke-width="1.8" stroke-linecap="round" fill="none"/>
-                    <!-- Abdomen -->
-                    <ellipse cx="30" cy="35" rx="5.5" ry="7" fill="#FFC107" stroke="#B45309" stroke-width="1"/>
-                    <ellipse cx="30" cy="35" rx="2.5" ry="4" fill="#FEF08A"/>
-                    <!-- Cephalothorax & Eyes -->
-                    <circle cx="30" cy="27" r="4.2" fill="#D97706" stroke="#FFC107" stroke-width="0.8"/>
-                    <circle cx="28.5" cy="25.5" r="1" fill="#FFFFFF"/>
-                    <circle cx="31.5" cy="25.5" r="1" fill="#FFFFFF"/>
-                </svg>
-            </div>
+            <img src="data:image/png;base64,{app_icon_b64}" width="48" height="48" style="border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.6), 0 0 14px rgba(255, 193, 7, 0.3); flex-shrink: 0;" />
             <div>
-                <div style="font-size: 1.35rem; font-weight: 800; color: #FFFFFF; line-height: 1.2; letter-spacing: -0.02em;">
-                    Amir's <span style="color: #FFC107;">SEO Spider</span>
+                <div style="font-size: 1.48rem; font-weight: 900; line-height: 1.15; letter-spacing: -0.02em;">
+                    <span style="color: #FFFFFF;">Crawl</span><span style="color: #FFC107;">Pilot</span>
                 </div>
-                <div style="font-size: 0.72rem; color: #94A3B8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; margin-top: 2px;">
-                    Technical Audit Suite
+                <div style="font-size: 0.55rem; color: #CBD5E1; font-weight: 800; letter-spacing: 0.12em; margin-top: 5px; text-transform: uppercase; white-space: nowrap;">
+                    CRAWL <span style="color: #FFC107;">•</span> ANALYZE <span style="color: #FFC107;">•</span> OPTIMIZE <span style="color: #FFC107;">•</span> RANK
                 </div>
             </div>
         </div>
@@ -376,7 +377,7 @@ with st.sidebar:
     selected_tool = st.radio(
         "Select Active Tool",
         options=[
-            "🕷️ SEO Spider & Crawler",
+            "🕷️ CrawlPilot Engine",
             "🗺️ XML Sitemap Generator",
             "🎯 Query Fan-Out Extractor",
             "🏛️ AI Silo / Competitor / Blog Topic",
@@ -713,13 +714,13 @@ if selected_tool == "🏛️ AI Silo / Competitor / Blog Topic":
     render_silo_architect_page()
     st.stop()
 
-if selected_tool != "🕷️ SEO Spider & Crawler":
+if selected_tool != "🕷️ CrawlPilot Engine":
     st.markdown(f"""
     <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 16px; padding: 3rem 2rem; text-align: center; margin-top: 1.5rem; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
         <div style="font-size: 3.2rem; margin-bottom: 1rem;">🚧</div>
         <h2 style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.5rem;">{selected_tool}</h2>
         <p style="color: #94A3B8; font-size: 1.05rem; max-width: 620px; margin: 0 auto 1.5rem; line-height: 1.6;">
-            This module is currently being built for <b>Amir's SEO Suite</b>. In the sidebar, select <b>'🕷️ SEO Spider & Crawler'</b> to use the active technical crawler.
+            This module is currently being built for <b>CrawlPilot SEO Suite</b>. In the sidebar, select <b>'🕷️ CrawlPilot Engine'</b> to use the active technical crawler.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -727,97 +728,28 @@ if selected_tool != "🕷️ SEO Spider & Crawler":
 
 
 
-# 5. Main Page Hero Banner with 3D Golden Spider Graphic
-st.html("""
+# 5. Main Page Hero Banner with Official CrawlPilot Branding & Graphic
+spider_logo_b64 = get_asset_base64(SPIDER_LOGO_PATH)
+st.html(f"""
 <div style="background: radial-gradient(130% 120% at 85% 30%, #1e1908 0%, #121622 55%, #0B0E14 100%); padding: 2.2rem 2.6rem; border-radius: 20px; border: 1px solid rgba(255, 193, 7, 0.25); margin-bottom: 1.5rem; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.7); position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
     <div style="flex: 1.3; min-width: 320px; z-index: 2;">
         <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 193, 7, 0.12); color: #FFC107; border: 1px solid rgba(255, 193, 7, 0.35); padding: 5px 14px; border-radius: 9999px; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1rem;">
-            <span>⚡</span> ENTERPRISE-READY SEO AUDITS
+            <span>⚡</span> ENTERPRISE-READY TECHNICAL SEO ENGINE
         </div>
-        <h1 style="font-size: 2.65rem; font-weight: 900; margin: 0 0 0.6rem 0; line-height: 1.15; letter-spacing: -0.03em;">
-            <span style="color: #FFC107; text-shadow: 0 0 30px rgba(255,193,7,0.35);">High-Speed</span> <span style="color: #FFFFFF;">Technical SEO Crawler</span>
+        <h1 style="font-size: 3rem; font-weight: 900; margin: 0 0 0.25rem 0; line-height: 1.1; letter-spacing: -0.03em;">
+            <span style="color: #FFFFFF; text-shadow: 0 0 30px rgba(255,255,255,0.25);">Crawl</span><span style="color: #FFC107; text-shadow: 0 0 30px rgba(255,193,7,0.45);">Pilot</span>
         </h1>
+        <div style="font-size: 0.82rem; color: #E2E8F0; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 0.9rem;">
+            CRAWL <span style="color: #FFC107;">•</span> ANALYZE <span style="color: #FFC107;">•</span> OPTIMIZE <span style="color: #FFC107;">•</span> RANK
+        </div>
         <p style="color: #94A3B8; font-size: 1.05rem; max-width: 680px; margin: 0; line-height: 1.6;">
             Enter any website URL to audit internal links, canonical tags, titles, headings, images and more up to 10,000 URLs. <b style="color: #FFC107;">Fast. Accurate. Actionable.</b>
         </p>
     </div>
-    <div style="position: relative; text-align: center; z-index: 2; padding-right: 10px;">
-        <svg width="220" height="150" viewBox="0 0 220 150" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <radialGradient id="spiderGoldBody" cx="35%" cy="35%" r="65%">
-                    <stop offset="0%" stop-color="#FFFBEB"/>
-                    <stop offset="35%" stop-color="#FCD34D"/>
-                    <stop offset="70%" stop-color="#F59E0B"/>
-                    <stop offset="100%" stop-color="#B45309"/>
-                </radialGradient>
-                <radialGradient id="spiderHeadGold" cx="30%" cy="30%" r="70%">
-                    <stop offset="0%" stop-color="#FEF08A"/>
-                    <stop offset="50%" stop-color="#F59E0B"/>
-                    <stop offset="100%" stop-color="#92400E"/>
-                </radialGradient>
-                <filter id="whiteWebGlow" x="-25%" y="-25%" width="150%" height="150%">
-                    <feGaussianBlur stdDeviation="1.2" result="blur" />
-                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-                <filter id="goldSpiderGlow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur stdDeviation="2.5" result="blur" />
-                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-            </defs>
-
-            <!-- Prominent Glowing White Spider Web -->
-            <g stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="1.3" filter="url(#whiteWebGlow)">
-                <!-- Radial Anchor Spokes from Center (110, 80) -->
-                <line x1="110" y1="80" x2="10" y2="15"/>
-                <line x1="110" y1="80" x2="60" y2="5"/>
-                <line x1="110" y1="80" x2="110" y2="3"/>
-                <line x1="110" y1="80" x2="160" y2="5"/>
-                <line x1="110" y1="80" x2="210" y2="15"/>
-                <line x1="110" y1="80" x2="218" y2="80"/>
-                <line x1="110" y1="80" x2="210" y2="140"/>
-                <line x1="110" y1="80" x2="160" y2="148"/>
-                <line x1="110" y1="80" x2="110" y2="148"/>
-                <line x1="110" y1="80" x2="60" y2="148"/>
-                <line x1="110" y1="80" x2="10" y2="140"/>
-                <line x1="110" y1="80" x2="2" y2="80"/>
-
-                <!-- Concentric Web Rings (Polygon Spirals) in Pure White -->
-                <!-- Ring 1: Inner -->
-                <polygon points="110,63 124,65 136,70 140,80 136,91 124,95 110,97 96,95 84,91 80,80 84,70 96,65" stroke="#FFFFFF" stroke-opacity="0.75" stroke-width="1.1" fill="none"/>
-                <!-- Ring 2: Mid-Inner -->
-                <polygon points="110,48 136,52 158,61 166,80 158,99 136,108 110,112 84,108 62,99 54,80 62,61 84,52" stroke="#FFFFFF" stroke-opacity="0.82" stroke-width="1.2" fill="none"/>
-                <!-- Ring 3: Mid-Outer -->
-                <polygon points="110,30 148,34 180,48 192,80 180,112 148,124 110,128 72,124 40,112 28,80 40,48 72,34" stroke="#FFFFFF" stroke-opacity="0.88" stroke-width="1.3" fill="none"/>
-                <!-- Ring 4: Outer -->
-                <polygon points="110,12 158,16 198,32 214,80 198,126 158,140 110,144 62,140 22,126 6,80 22,32 62,16" stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="1.4" fill="none"/>
-            </g>
-
-            <!-- Spider Perched Directly on Center of White Web -->
-            <!-- Left Legs (Golden with High Contrast) -->
-            <path d="M100,74 Q70,38 40,52 Q25,62 18,92" stroke="url(#spiderGoldBody)" stroke-width="4.2" stroke-linecap="round" fill="none" filter="url(#goldSpiderGlow)"/>
-            <path d="M102,79 Q65,62 35,88 Q22,102 26,132" stroke="url(#spiderGoldBody)" stroke-width="4.2" stroke-linecap="round" fill="none" filter="url(#goldSpiderGlow)"/>
-            <path d="M104,84 Q75,94 50,118 Q40,132 46,143" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
-            <path d="M106,89 Q85,114 74,136 Q68,146 78,144" stroke="url(#spiderGoldBody)" stroke-width="3.6" stroke-linecap="round" fill="none"/>
-
-            <!-- Right Legs (Golden with High Contrast) -->
-            <path d="M120,74 Q150,38 180,52 Q195,62 202,92" stroke="url(#spiderGoldBody)" stroke-width="4.2" stroke-linecap="round" fill="none" filter="url(#goldSpiderGlow)"/>
-            <path d="M118,79 Q155,62 185,88 Q198,102 194,132" stroke="url(#spiderGoldBody)" stroke-width="4.2" stroke-linecap="round" fill="none" filter="url(#goldSpiderGlow)"/>
-            <path d="M116,84 Q145,94 170,118 Q180,132 174,143" stroke="url(#spiderGoldBody)" stroke-width="4" stroke-linecap="round" fill="none"/>
-            <path d="M114,89 Q135,114 146,136 Q152,146 142,144" stroke="url(#spiderGoldBody)" stroke-width="3.6" stroke-linecap="round" fill="none"/>
-
-            <!-- Abdomen (Bright 3D Gold with White Highlights) -->
-            <ellipse cx="110" cy="98" rx="20" ry="26" fill="url(#spiderGoldBody)" stroke="#FFFFFF" stroke-width="2.2" filter="url(#goldSpiderGlow)"/>
-            <path d="M103,92 Q110,84 117,92 Q114,103 117,114 Q110,120 103,114 Q106,103 103,92 Z" fill="#FFFFFF" opacity="0.85"/>
-            <!-- Cephalothorax -->
-            <circle cx="110" cy="73" r="13" fill="url(#spiderHeadGold)" stroke="#FFFFFF" stroke-width="2"/>
-            <!-- Glowing Eyes -->
-            <circle cx="105" cy="67" r="2.8" fill="#FFFFFF" filter="url(#goldSpiderGlow)"/>
-            <circle cx="115" cy="67" r="2.8" fill="#FFFFFF" filter="url(#goldSpiderGlow)"/>
-            <circle cx="101" cy="71" r="1.8" fill="#FFFBEB"/>
-            <circle cx="119" cy="71" r="1.8" fill="#FFFBEB"/>
-        </svg>
-        <div style="font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif; font-size: 1.35rem; color: #FDE047; transform: rotate(-6deg); margin-top: 2px; text-shadow: 0 2px 8px rgba(0,0,0,0.8);">
-            Let's make the web better!
+    <div style="position: relative; text-align: center; z-index: 2; padding-right: 15px;">
+        <img src="data:image/png;base64,{spider_logo_b64}" width="185" style="filter: drop-shadow(0 10px 25px rgba(255, 193, 7, 0.35)); max-width: 100%;" />
+        <div style="font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif; font-size: 1.25rem; color: #FDE047; transform: rotate(-4deg); margin-top: 4px; text-shadow: 0 2px 8px rgba(0,0,0,0.8);">
+            Crawl • Analyze • Optimize • Rank
         </div>
     </div>
 </div>
