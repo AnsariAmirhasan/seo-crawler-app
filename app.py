@@ -359,19 +359,23 @@ with st.sidebar:
         help="Enter full website URL starting with https:// or http://"
     )
 
-    st.markdown("##### ⚡ Quick Scan Presets")
-    col_p1, col_p2, col_p3 = st.columns(3)
-    if col_p1.button("⚡ Fast\n100", help="100 URLs, 10 Threads, Depth 3"):
+    preset_choice = st.selectbox(
+        "⚡ Quick Scan Preset",
+        ["Custom Settings", "⚡ Fast Audit (100 URLs, Depth 3)", "🚀 Standard (1,000 URLs, Depth 5)", "🏢 Deep Spider (5,000 URLs, Depth 8)"],
+        index=0,
+        help="Quickly populate recommended depth and speed settings"
+    )
+    if preset_choice == "⚡ Fast Audit (100 URLs, Depth 3)" and st.session_state["cfg_max_pages"] != 100:
         st.session_state["cfg_max_pages"] = 100
         st.session_state["cfg_max_depth"] = 3
         st.session_state["cfg_threads"] = 10
         st.rerun()
-    if col_p2.button("🚀 Std\n1,000", help="1,000 URLs, 12 Threads, Depth 5"):
+    elif preset_choice == "🚀 Standard (1,000 URLs, Depth 5)" and st.session_state["cfg_max_pages"] != 1000:
         st.session_state["cfg_max_pages"] = 1000
         st.session_state["cfg_max_depth"] = 5
         st.session_state["cfg_threads"] = 12
         st.rerun()
-    if col_p3.button("🏢 Pro\n5,000", help="5,000 URLs, 18 Threads, Depth 8"):
+    elif preset_choice == "🏢 Deep Spider (5,000 URLs, Depth 8)" and st.session_state["cfg_max_pages"] != 5000:
         st.session_state["cfg_max_pages"] = 5000
         st.session_state["cfg_max_depth"] = 8
         st.session_state["cfg_threads"] = 18
@@ -457,9 +461,10 @@ if btn_start:
             exclude_regex=exclude_regex
         )
 
-        def on_progress(crawled_count, max_pages_val, current_url, status_code):
-            pct = min(1.0, crawled_count / max(max_pages_val, 1))
-            progress_bar.progress(pct, text=f"⚡ Crawling ({crawled_count}/{max_pages_val} URLs) — {current_url[:65]}...")
+        def on_progress(crawled_count=0, max_pages=1, current_url="", status_code=200, **kwargs):
+            total_limit = max_pages or 1
+            pct = min(1.0, crawled_count / max(total_limit, 1))
+            progress_bar.progress(pct, text=f"⚡ Crawling ({crawled_count}/{total_limit} URLs) — {current_url[:65]}...")
             status_box.markdown(f"""
             <div style="background:rgba(30,41,59,0.7); border:1px solid #334155; border-radius:10px; padding:10px 14px; font-size:0.88rem; color:#CBD5E1;">
                 <b>Crawling URL:</b> <code>{current_url[:75]}</code> &nbsp;|&nbsp; 
