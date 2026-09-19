@@ -1241,7 +1241,6 @@ with tab_responses:
                 else: cat = "Other"
                 return pd.Series([d, cat], index=["status_description", "response_category"])
             
-            temp_res = df_pages.apply(classify_temp, axis=1)
         # Ensure columns exist even if viewed from a cached session
         for c in ["redirect_hops", "inlinks_count"]:
             if c not in df_pages.columns:
@@ -1257,8 +1256,6 @@ with tab_responses:
             def classify_temp(row):
                 c = row.get("status_code", 0)
                 e = str(row.get("error") or "").lower()
-                has_meta = row.get("has_meta_refresh", False)
-                has_js = row.get("has_js_redirect", False)
                 is_loop = row.get("is_redirect_loop", False)
                 is_chain = row.get("is_redirect_chain", False)
 
@@ -1283,10 +1280,7 @@ with tab_responses:
                 elif is_loop: cat = "Redirection (Loop)"
                 elif is_chain: cat = "Redirection (Chain)"
                 elif c == 0 or "timeout" in e: cat = "No Response"
-                elif 200 <= c < 300:
-                    if has_meta: cat = "Redirection (Meta Refresh)"
-                    elif has_js: cat = "Redirection (JavaScript)"
-                    else: cat = "Success (2xx)"
+                elif 200 <= c < 300: cat = "Success (2xx)"
                 elif 300 <= c < 400: cat = "Redirection (3xx)"
                 elif 400 <= c < 500: cat = "Client Error (4xx)"
                 elif 500 <= c < 600: cat = "Server Error (5xx)"
@@ -1325,26 +1319,22 @@ with tab_responses:
         if c_chain > 0 or c_loop > 0:
             st.warning(f"⚠️ **Redirect Chain & Loop Alert**: Detected **{c_chain} Redirect Chains (>1 Hop)** and **{c_loop} Redirect Loops**. Multiple hops slow down crawlers and dilute link equity. Filter by `Redirection (Chain)` or `Redirection (Loop)` below to audit full paths.")
 
-        # Build Screaming Frog Filter Options matching user's requirements + Orphan pages
+        # Build Filter Options matching user's requirements + Orphan pages
         c_robots = len(df_pages[df_pages["response_category"] == "Blocked by Robots.txt"]) if "response_category" in df_pages.columns else 0
         c_blocked_res = len(df_pages[df_pages["response_category"] == "Blocked Resource"]) if "response_category" in df_pages.columns else 0
         c_no_resp = len(df_pages[(df_pages["status_code"] == 0) | (df_pages["response_category"] == "No Response")]) if "response_category" in df_pages.columns else 0
-        c_js_red = len(df_pages[df_pages.get("has_js_redirect", False) == True]) if "has_js_redirect" in df_pages.columns else 0
-        c_meta_red = len(df_pages[df_pages.get("has_meta_refresh", False) == True]) if "has_meta_refresh" in df_pages.columns else 0
 
         sf_options = [
             f"All ({total_resp_pages})",
+            f"Success (2xx) ({c_2xx})",
+            f"Redirection (3xx) ({c_3xx})",
             f"Redirection (Chain) ({c_chain})",
             f"Redirection (Loop) ({c_loop})",
+            f"Client Error (4xx) ({c_4xx})",
+            f"Server Error (5xx) ({c_5xx})",
             f"Blocked by Robots.txt ({c_robots})",
             f"Blocked Resource ({c_blocked_res})",
             f"No Response ({c_no_resp})",
-            f"Success (2xx) ({c_2xx})",
-            f"Redirection (3xx) ({c_3xx})",
-            f"Redirection (JavaScript) ({c_js_red})",
-            f"Redirection (Meta Refresh) ({c_meta_red})",
-            f"Client Error (4xx) ({c_4xx})",
-            f"Server Error (5xx) ({c_5xx})",
             f"Orphan URLs (0 Inlinks) ({c_orphan})"
         ]
 
@@ -1379,10 +1369,6 @@ with tab_responses:
             df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] == 0) | (df_resp_filtered["response_category"] == "No Response")]
         elif "Success (2xx)" in resp_filter:
             df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 200) & (df_resp_filtered["status_code"] < 300)]
-        elif "Redirection (JavaScript)" in resp_filter:
-            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("has_js_redirect", False) == True]
-        elif "Redirection (Meta Refresh)" in resp_filter:
-            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("has_meta_refresh", False) == True]
         elif "Redirection (3xx)" in resp_filter:
             df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 300) & (df_resp_filtered["status_code"] < 400)]
         elif "Client Error (4xx)" in resp_filter:

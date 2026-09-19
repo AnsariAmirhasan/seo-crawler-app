@@ -532,12 +532,7 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
         elif code == 0 or "timeout" in err or "failed" in err or "connection" in err:
             cat = "No Response"
         elif 200 <= code < 300:
-            if has_meta:
-                cat = "Redirection (Meta Refresh)"
-            elif has_js:
-                cat = "Redirection (JavaScript)"
-            else:
-                cat = "Success (2xx)"
+            cat = "Success (2xx)"
         elif 300 <= code < 400:
             cat = "Redirection (3xx)"
         elif 400 <= code < 500:
