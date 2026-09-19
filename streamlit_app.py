@@ -2586,10 +2586,212 @@ with tab_architecture:
     if not results:
         st.info("Run a crawl to visualize internal linking topology.")
     else:
-        st.subheader("🧭 Internal Link Structure Visualization")
-        st.caption("Interactive network graph mapping page relationship and cluster architecture:")
-        df_links = results["df_links"]
-        st.plotly_chart(create_site_architecture_graph(df_links), use_container_width=True)
+        df_pages = results.get("df_pages", pd.DataFrame()).copy()
+        df_links = results.get("df_links", pd.DataFrame()).copy()
+
+        if df_pages.empty or df_links.empty:
+            st.info("No internal link relationships found.")
+        else:
+            st.subheader("🧭 Internal Link Structure Visualization")
+            st.caption("Interactive visualization of your website's internal linking architecture, crawl depth and page relationships.")
+
+            # --- 1. Compact SEO Summary Cards ---
+            total_pages = len(df_pages)
+            total_internal_links = len(df_links[df_links["is_internal"] == True]) if not df_links.empty else 0
+            orphan_count = int(df_pages["is_orphan"].sum()) if "is_orphan" in df_pages.columns else 0
+            broken_count = len(df_pages[df_pages["status_code"] >= 400]) if "status_code" in df_pages.columns else 0
+            redirects_count = len(df_pages[(df_pages["status_code"] >= 300) & (df_pages["status_code"] < 400)]) if "status_code" in df_pages.columns else 0
+            redirect_chains_count = int(df_pages["is_redirect_chain"].sum()) if "is_redirect_chain" in df_pages.columns else 0
+            max_depth = int(df_pages["depth"].max()) if "depth" in df_pages.columns and not df_pages.empty else 0
+            deep_count = len(df_pages[df_pages["depth"] >= 4]) if "depth" in df_pages.columns else 0
+
+            sc1, sc2, sc3, sc4, sc5, sc6, sc7 = st.columns(7)
+            sc1.metric("Total Pages", f"{total_pages:,}")
+            sc2.metric("Internal Links", f"{total_internal_links:,}")
+            sc3.metric("Orphan Pages", f"{orphan_count}", delta="Needs links" if orphan_count else "None", delta_color="inverse" if orphan_count else "normal")
+            sc4.metric("Broken Links", f"{broken_count}", delta="4xx/5xx errors" if broken_count else "None", delta_color="inverse" if broken_count else "normal")
+            sc5.metric("Redirects", f"{redirects_count}", delta="3xx redirects" if redirects_count else "None", delta_color="inverse" if redirects_count else "normal")
+            sc6.metric("Redirect Chains", f"{redirect_chains_count}", delta="Multi-hop" if redirect_chains_count else "None", delta_color="inverse" if redirect_chains_count else "normal")
+            sc7.metric("Max Crawl Depth", f"Depth {max_depth}")
+
+            # --- 2. SEO Issues Quick Highlight Pills ---
+            st.markdown(f"""
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; margin-bottom: 16px; align-items: center;">
+                <span style="font-size: 12px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em;">SEO Issues Detected:</span>
+                <span style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); color: #C084FC; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {orphan_count} Orphan Pages</span>
+                <span style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #FBBF24; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {redirects_count} Redirects</span>
+                <span style="background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.4); color: #FB923C; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {redirect_chains_count} Redirect Chains</span>
+                <span style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #F87171; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">🔴 {broken_count} Broken Pages</span>
+                <span style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38BDF8; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">ℹ️ {deep_count} Deep Pages (Depth 4+)</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # --- 3. Graph Controls Bar ---
+            fc1, fc2, fc3, fc4, fc5 = st.columns([1.6, 1.3, 1.1, 1.2, 1.0])
+            with fc1:
+                arch_search = st.text_input("🔍 Search URL / Title / Slug:", value="", key="arch_search_input")
+            with fc2:
+                arch_view_mode = st.selectbox(
+                    "View Mode:",
+                    [
+                        "Hierarchy by Depth",
+                        "Radial / Depth Rings",
+                        "Force-Directed (Organic Clusters)",
+                        "Hubs & Authorities"
+                    ],
+                    key="arch_view_mode_select"
+                )
+            with fc3:
+                arch_depth = st.selectbox(
+                    "Crawl Depth:",
+                    ["All", "Depth 0", "Depth 1", "Depth 2", "Depth 3", "Depth 4", "5+"],
+                    key="arch_depth_select"
+                )
+            with fc4:
+                arch_seo_state = st.selectbox(
+                    "SEO State Filter:",
+                    ["All", "Healthy", "Hubs / Categories", "Orphans", "Broken Pages", "Redirect Chains", "Redirects"],
+                    key="arch_seo_state_select"
+                )
+            with fc5:
+                arch_max_nodes = st.slider(
+                    "Node Capacity:",
+                    min_value=30,
+                    max_value=min(250, max(50, total_pages)),
+                    value=min(80, max(30, total_pages)),
+                    step=10,
+                    key="arch_max_nodes_slider",
+                    help="Limit displayed nodes for maximum responsiveness on large sites."
+                )
+
+            # --- 4. Compact Legend ---
+            st.markdown("""
+            <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; color: #CBD5E1; background: rgba(15, 23, 42, 0.5); padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(51, 65, 85, 0.4); align-items: center;">
+                <span><span style="color: #10B981; font-size: 14px;">●</span> Healthy (200 OK)</span>
+                <span><span style="color: #38BDF8; font-size: 14px;">●</span> Hub / Category</span>
+                <span><span style="color: #F59E0B; font-size: 14px;">●</span> Redirect (3xx)</span>
+                <span><span style="color: #F97316; font-size: 14px;">●</span> Redirect Chain</span>
+                <span><span style="color: #EF4444; font-size: 14px;">●</span> Broken (4xx/5xx)</span>
+                <span><span style="color: #A855F7; font-size: 14px;">●</span> Orphan Page</span>
+                <span style="margin-left: auto; color: #64748B;">Zoom: Scroll • Pan: Drag • Highlight: Click Inspector</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # --- 5. Responsive Split View: Graph (72%) vs Details Panel (28%) ---
+            col_graph, col_details = st.columns([2.6, 1.0])
+
+            # Prepare list of URLs for interactive node selection
+            all_urls_list = list(df_pages["url"].dropna().unique())
+            current_selected_url = st.session_state.get("arch_selected_url")
+            if not current_selected_url or current_selected_url not in all_urls_list:
+                current_selected_url = all_urls_list[0] if all_urls_list else None
+
+            with col_details:
+                st.markdown("#### 📄 Page Details Panel")
+                selected_url_box = st.selectbox(
+                    "Select Node to Inspect:",
+                    all_urls_list,
+                    index=all_urls_list.index(current_selected_url) if current_selected_url in all_urls_list else 0,
+                    key="arch_node_inspect_select"
+                )
+                if selected_url_box != current_selected_url:
+                    st.session_state["arch_selected_url"] = selected_url_box
+                    current_selected_url = selected_url_box
+
+                # Render Page Details Card
+                if current_selected_url:
+                    page_row_df = df_pages[df_pages["url"] == current_selected_url]
+                    if not page_row_df.empty:
+                        p_row = page_row_df.iloc[0]
+                        p_title = str(p_row.get("title") or "No Page Title Found").strip()
+                        p_status = int(p_row.get("status_code", 200))
+                        p_status_desc = str(p_row.get("status_description") or f"{p_status}")
+                        p_depth = int(p_row.get("depth", 0))
+                        p_inlinks = int(p_row.get("inlinks_count", 0))
+                        p_outlinks = int(p_row.get("internal_outlinks_count", 0))
+                        p_canonical = str(p_row.get("canonical_url") or "None")
+                        p_indexable = bool(p_row.get("is_indexable", True))
+                        p_is_rc = bool(p_row.get("is_redirect_chain", False))
+                        p_is_orphan = bool(p_row.get("is_orphan", False))
+
+                        # Card Container
+                        status_badge_color = "#10B981" if p_status == 200 else ("#EF4444" if p_status >= 400 else "#F59E0B")
+                        st.markdown(f"""
+                        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(71, 85, 105, 0.4); border-radius: 10px; padding: 14px; margin-bottom: 12px;">
+                            <div style="font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Page Title</div>
+                            <div style="font-size: 14px; font-weight: 600; color: #F8FAFC; margin-bottom: 8px;">{p_title}</div>
+                            <div style="font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase;">URL</div>
+                            <div style="font-size: 12px; color: #38BDF8; word-break: break-all; margin-bottom: 10px;">
+                                <a href="{current_selected_url}" target="_blank" style="color: #38BDF8; text-decoration: none;">{current_selected_url} ↗</a>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
+                                <span style="background: {status_badge_color}22; border: 1px solid {status_badge_color}55; color: {status_badge_color}; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">{p_status_desc}</span>
+                                <span style="background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.3); color: #CBD5E1; padding: 2px 8px; border-radius: 6px; font-size: 11px;">Depth: {p_depth}</span>
+                                <span style="background: {'rgba(16, 185, 129, 0.15)' if p_indexable else 'rgba(239, 68, 68, 0.15)'}; border: 1px solid {'rgba(16, 185, 129, 0.3)' if p_indexable else 'rgba(239, 68, 68, 0.3)'}; color: {'#34D399' if p_indexable else '#F87171'}; padding: 2px 8px; border-radius: 6px; font-size: 11px;">{'Indexable' if p_indexable else 'Noindex'}</span>
+                                {f'<span style="background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.5); color: #C084FC; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Orphan Page</span>' if p_is_orphan else ''}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        dcol1, dcol2 = st.columns(2)
+                        dcol1.metric("Incoming Links", f"{p_inlinks}")
+                        dcol2.metric("Outgoing Links", f"{p_outlinks}")
+
+                        st.caption(f"**Canonical:** `{p_canonical}`")
+
+                        # Redirect Chain Visualizer in Panel
+                        if p_is_rc or p_status >= 300 and p_status < 400:
+                            rc_path = str(p_row.get("redirect_chain_str") or current_selected_url)
+                            rc_hops = int(p_row.get("redirect_hops", 1))
+                            st.warning(f"**Redirect Path ({rc_hops} hops):**\n`{rc_path}`")
+
+                        # Incoming Links Table
+                        incoming_links_df = df_links[(df_links["target_url"] == current_selected_url) & (df_links["is_internal"] == True)]
+                        with st.expander(f"📥 Incoming Links ({len(incoming_links_df)})", expanded=False):
+                            if incoming_links_df.empty:
+                                st.info("No incoming internal links found pointing to this page.")
+                            else:
+                                st.dataframe(
+                                    incoming_links_df[["source_url", "anchor_text"]].rename(columns={"source_url": "Source Page", "anchor_text": "Anchor Text"}),
+                                    use_container_width=True,
+                                    hide_index=True
+                                )
+
+                        # Outgoing Links Table
+                        outgoing_links_df = df_links[(df_links["source_url"] == current_selected_url) & (df_links["is_internal"] == True)]
+                        with st.expander(f"📤 Outgoing Links ({len(outgoing_links_df)})", expanded=False):
+                            if outgoing_links_df.empty:
+                                st.info("No outgoing internal links found on this page.")
+                            else:
+                                st.dataframe(
+                                    outgoing_links_df[["target_url", "anchor_text"]].rename(columns={"target_url": "Target URL", "anchor_text": "Anchor Text"}),
+                                    use_container_width=True,
+                                    hide_index=True
+                                )
+
+            with col_graph:
+                # Generate and Render Architecture Graph
+                arch_fig = create_site_architecture_graph(
+                    df_links=df_links,
+                    df_pages=df_pages,
+                    view_mode=arch_view_mode,
+                    depth_filter=arch_depth,
+                    status_filter="All",
+                    seo_state_filter=arch_seo_state,
+                    search_query=arch_search,
+                    selected_url=current_selected_url,
+                    max_nodes=arch_max_nodes
+                )
+                st.plotly_chart(
+                    arch_fig,
+                    use_container_width=True,
+                    config={
+                        "displayModeBar": True,
+                        "scrollZoom": True,
+                        "displaylogo": False,
+                        "modeBarButtonsToRemove": ["lasso2d", "select2d"]
+                    }
+                )
 
 # ==============================================================================
 # TAB 10: SINGLE URL QUICK INSPECTOR
