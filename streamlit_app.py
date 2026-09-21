@@ -3293,56 +3293,80 @@ with tab_extractor:
 
         st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
 
+        # Download Toolbar (Standard audit Excel is ALWAYS available, plus Suggested version if generated!)
+        excel_standard_bytes = build_error_audit_excel_workbook(index_rows, error_dfs)
+
         if is_ai_enriched:
-            st.markdown("""
-            <div style="background: rgba(79, 70, 229, 0.15); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 12px; padding: 10px 16px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
-                <div style="color: #C7D2FE; font-size: 0.92rem; font-weight: 600;">
-                    ✨ <b>Suggested Fixes & Developer Guides Active:</b> 150-160 character meta descriptions with CTAs, title tags, and developer implementation steps have been added to the workbook tabs!
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # Download Toolbar (Anyone can download standard audit without API key!)
-        col_btn1, col_btn2, col_info = st.columns([1.6, 1.3, 3])
-        with col_btn1:
-            excel_bytes = build_error_audit_excel_workbook(active_index_rows, active_error_dfs)
-            dl_file_name = "seo_audit_report_with_suggested_fixes.xlsx" if is_ai_enriched else "seo_error_audit_report.xlsx"
-            dl_btn_label = "📥 Download Suggested Audit Excel (.xlsx)" if is_ai_enriched else "📥 Download Audit Excel (.xlsx)"
-            st.download_button(
-                label=dl_btn_label,
-                data=excel_bytes,
-                file_name=dl_file_name,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary",
-                use_container_width=True,
-                key="btn_dl_audit_excel"
-            )
-
-        with col_btn2:
-            df_index_csv = pd.DataFrame([
-                {
-                    "Errors": r["error_name"],
-                    "Status": r["status"],
-                    "Comments": r["comments"],
-                    **({"Suggested Developer Action Plan": r.get("suggested_action_plan", r.get("ai_action_plan", ""))} if is_ai_enriched else {})
-                }
-                for r in active_index_rows
-            ])
-            csv_index_bytes = df_index_csv.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📄 Download Index CSV",
-                data=csv_index_bytes,
-                file_name="seo_error_index.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="btn_dl_audit_csv"
-            )
-
-        with col_info:
-            if is_ai_enriched:
-                st.caption("✨ Multi-tab Excel includes **Index sheet** + **Suggested Fixes** & **Developer Guides** across all error tabs.")
-            else:
-                st.caption("✨ Multi-tab Excel includes **Index sheet** + separate tabs for each error. No API key needed for standard download!")
+            col_btn1, col_btn2, col_btn3, col_info = st.columns([1.4, 1.5, 1.1, 2.4])
+            with col_btn1:
+                st.download_button(
+                    label="📥 Download Audit Excel (.xlsx)",
+                    data=excel_standard_bytes,
+                    file_name="seo_error_audit_report.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="btn_dl_audit_excel_std"
+                )
+            with col_btn2:
+                excel_suggested_bytes = build_error_audit_excel_workbook(active_index_rows, active_error_dfs)
+                st.download_button(
+                    label="✨ Download Suggested Audit Excel",
+                    data=excel_suggested_bytes,
+                    file_name="seo_audit_report_with_suggested_fixes.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary",
+                    use_container_width=True,
+                    key="btn_dl_audit_excel_sugg"
+                )
+            with col_btn3:
+                df_index_csv = pd.DataFrame([
+                    {
+                        "Errors": r["error_name"],
+                        "Status": r["status"],
+                        "Comments": r["comments"],
+                        "Suggested Developer Action Plan": r.get("suggested_action_plan", r.get("ai_action_plan", ""))
+                    }
+                    for r in active_index_rows
+                ])
+                csv_index_bytes = df_index_csv.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📄 Download Index CSV",
+                    data=csv_index_bytes,
+                    file_name="seo_error_index.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="btn_dl_audit_csv"
+                )
+            with col_info:
+                st.caption("✨ Both standard audit and suggested fixes workbooks are available.")
+        else:
+            col_btn1, col_btn2, col_info = st.columns([1.5, 1.2, 3])
+            with col_btn1:
+                st.download_button(
+                    label="📥 Download Audit Excel (.xlsx)",
+                    data=excel_standard_bytes,
+                    file_name="seo_error_audit_report.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary",
+                    use_container_width=True,
+                    key="btn_dl_audit_excel"
+                )
+            with col_btn2:
+                df_index_csv = pd.DataFrame([
+                    {"Errors": r["error_name"], "Status": r["status"], "Comments": r["comments"]}
+                    for r in index_rows
+                ])
+                csv_index_bytes = df_index_csv.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📄 Download Index CSV",
+                    data=csv_index_bytes,
+                    file_name="seo_error_index.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="btn_dl_audit_csv"
+                )
+            with col_info:
+                st.caption("✨ Multi-tab Excel includes **Index sheet** with green header + separate tabs for each error. No API key needed for standard download!")
 
         st.markdown("<div style='margin: 1rem 0 0.5rem;'></div>", unsafe_allow_html=True)
 
