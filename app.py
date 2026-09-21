@@ -2532,46 +2532,30 @@ with tab_links:
         if df_links.empty:
             st.info("No outgoing links recorded.")
         else:
-            if "link_location" not in df_links.columns:
-                df_links["link_location"] = "Content"
-
             total_links_count = len(df_links)
             c_internal = len(df_links[df_links["is_internal"] == True])
             c_external = len(df_links[df_links["is_internal"] == False])
-            c_header = len(df_links[df_links["link_location"] == "Header"])
-            c_footer = len(df_links[df_links["link_location"] == "Footer"])
             c_nofollow = len(df_links[df_links.get("nofollow", False) == True])
 
             st.subheader("🔗 Link Explorer & Outlink Audit")
-            st.caption("Inspect all outgoing and internal links discovered during crawl — search by Source Page to audit where links from a specific page go, filter Destination URLs, and check Header vs Footer placement.")
+            st.caption("Inspect all outgoing and internal links discovered during crawl — search by Source Page to audit where links from a specific page go, filter Destination URLs, and check anchor texts.")
 
-            # Metric Cards Row (6 metrics)
-            lm1, lm2, lm3, lm4, lm5, lm6 = st.columns(6)
+            # Metric Cards Row (4 metrics)
+            lm1, lm2, lm3, lm4 = st.columns(4)
             lm1.metric("Total Links", f"{total_links_count}")
             lm2.metric("Internal Links", f"{c_internal}", delta=f"{round(c_internal/max(total_links_count,1)*100)}% of links")
             lm3.metric("External Links", f"{c_external}", delta=f"{round(c_external/max(total_links_count,1)*100)}% of links")
-            lm4.metric("Header Links", f"{c_header}", delta="Navigation" if c_header else None)
-            lm5.metric("Footer Links", f"{c_footer}", delta="Bottom bar" if c_footer else None)
-            lm6.metric("Nofollow Links", f"{c_nofollow}", delta="No equity transfer" if c_nofollow else "All Dofollow")
+            lm4.metric("Nofollow Links", f"{c_nofollow}", delta="No equity transfer" if c_nofollow else "All Dofollow")
 
             st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
 
-            if c_header == 0 and c_footer == 0 and total_links_count > 0:
-                st.info("💡 **Notice:** Ye crawl results purane session ke cache se loaded hain. Header aur Footer placement data ko popualte karne ke liye please upar **'▶ Start Crawl'** button par click karke ek baar fresh crawl run karein.")
-
-            # Row 1: Dropdown Filters
-            col_l1, col_l2 = st.columns(2)
+            # Row 1: Link Type Filter
+            col_l1, col_l2 = st.columns([1, 2])
             with col_l1:
                 link_filter = st.selectbox(
                     "Filter Link Type:",
                     ["All Links", "Internal Only", "External Only", "Nofollow Links"],
                     key="sb_link_type_filter"
-                )
-            with col_l2:
-                loc_filter = st.selectbox(
-                    "Filter by Link Position (Header / Footer):",
-                    ["All Positions", "Header Only", "Footer Only", "Content / Body Only", "Sidebar Only"],
-                    key="sb_link_loc_filter"
                 )
 
             # Row 2: Search by Source Page & Destination URL
@@ -2603,15 +2587,6 @@ with tab_links:
             elif link_filter == "Nofollow Links":
                 filtered_links = filtered_links[filtered_links.get("nofollow", False) == True]
 
-            if loc_filter == "Header Only":
-                filtered_links = filtered_links[filtered_links["link_location"] == "Header"]
-            elif loc_filter == "Footer Only":
-                filtered_links = filtered_links[filtered_links["link_location"] == "Footer"]
-            elif loc_filter == "Content / Body Only":
-                filtered_links = filtered_links[filtered_links["link_location"] == "Content"]
-            elif loc_filter == "Sidebar Only":
-                filtered_links = filtered_links[filtered_links["link_location"] == "Sidebar"]
-
             if source_search.strip():
                 filtered_links = filtered_links[filtered_links["source_url"].astype(str).str.contains(source_search.strip(), case=False, na=False)]
 
@@ -2636,7 +2611,7 @@ with tab_links:
             with col_ld2:
                 st.caption(f"Showing **{len(filtered_links)}** of **{total_links_count}** discovered links matching active filters.")
 
-            desired_cols = ["source_url", "target_url", "anchor_text", "link_location", "is_internal", "nofollow", "rel"]
+            desired_cols = ["source_url", "target_url", "anchor_text", "is_internal", "nofollow", "rel"]
             avail_cols = [c for c in desired_cols if c in filtered_links.columns]
 
             st.dataframe(
@@ -2646,7 +2621,6 @@ with tab_links:
                     "source_url": st.column_config.LinkColumn("Source Page (Found On)", width="large"),
                     "target_url": st.column_config.LinkColumn("Destination URL", width="large"),
                     "anchor_text": st.column_config.TextColumn("Anchor Text", width="medium"),
-                    "link_location": st.column_config.TextColumn("Position (Header / Footer)", width="small", help="Detected HTML placement: Header, Footer, Sidebar, or Content"),
                     "is_internal": st.column_config.CheckboxColumn("Internal", width="small"),
                     "nofollow": st.column_config.CheckboxColumn("Nofollow", width="small"),
                     "rel": st.column_config.TextColumn("rel Attribute", width="small"),
