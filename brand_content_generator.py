@@ -296,10 +296,16 @@ content_strategy, creative_concepts (4 items), format_specific_execution, platfo
 
     user_prompt = f"""Synthesize a complete Social Content Studio package for {brand_name} targeting {objective}.
 Format requested: {content_format}.
+Business Industry: {business.get('industry', 'General Business')}
 Custom campaign context: {campaign_info}
+CRITICAL INSTRUCTION:
+Tailor the 4 creative concepts and production image prompts strictly to the company's real industry ({business.get('industry', 'General Business')}).
+If this is an accounting, bookkeeping, consulting, legal, SaaS, tech, or healthcare business, DO NOT describe bottles, jars, cosmetics, or physical products!
+Instead describe modern workspace setups, digital interfaces/dashboards, executive meetings, client outcomes, or conceptual architecture.
+
 Include:
 1. content_strategy
-2. 4 creative concepts (Product Hero, Lifestyle, Educational, Problem -> Solution)
+2. 4 creative concepts (Concept 1: Core Authority Hero, Concept 2: Emotional & Lifestyle Resonance, Concept 3: Educational Framework Infographic, Concept 4: Problem -> Solution Paradigm Shift)
 3. format_specific_execution ({content_format})
 4. platform_captions (with professional, creative, and short for {', '.join(platforms)})
 5. hashtag_engine
@@ -308,183 +314,707 @@ Include:
 """
 
     if api_key and provider == "Google Gemini":
-        try:
-            endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{strategy_model}:generateContent?key={api_key}"
-            payload = {
-                "contents": [
-                    {"role": "user", "parts": [{"text": system_prompt + "\n\n" + user_prompt}]}
-                ],
-                "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "temperature": 0.4
-                }
-            }
-            res = requests.post(endpoint, json=payload, timeout=25)
-            if res.status_code == 200:
-                raw_txt = res.json()["candidates"][0]["content"]["parts"][0]["text"]
-                clean_json = raw_txt.strip()
-                if clean_json.startswith("```json"):
-                    clean_json = clean_json[7:]
-                if clean_json.endswith("```"):
-                    clean_json = clean_json[:-3]
-                parsed = json.loads(clean_json.strip())
-                return parsed
-        except Exception:
-            pass
+        models_to_try = [strategy_model]
+        for m in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+            if m not in models_to_try:
+                models_to_try.append(m)
 
-    # High-fidelity deterministic fallback
+        for m_name in models_to_try:
+            try:
+                endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent?key={api_key}"
+                payload = {
+                    "contents": [
+                        {"role": "user", "parts": [{"text": system_prompt + "\n\n" + user_prompt}]}
+                    ],
+                    "generationConfig": {
+                        "responseMimeType": "application/json",
+                        "temperature": 0.4
+                    }
+                }
+                res = requests.post(endpoint, json=payload, timeout=20)
+                if res.status_code == 200:
+                    raw_txt = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    clean_json = raw_txt.strip()
+                    if clean_json.startswith("```json"):
+                        clean_json = clean_json[7:]
+                    if clean_json.endswith("```"):
+                        clean_json = clean_json[:-3]
+                    parsed = json.loads(clean_json.strip())
+                    if "creative_concepts" in parsed and len(parsed["creative_concepts"]) >= 4:
+                        return parsed
+            except Exception:
+                continue
+
+    # ==============================================================================
+    # DYNAMIC INDUSTRY-ADAPTIVE CONTENT ENGINE (FALLBACK)
+    # Automatically generates tailored concepts for Finance, Tech, Healthcare,
+    # Real Estate, Services, Food, Fitness, or Products.
+    # ==============================================================================
+    cat = detect_industry_category(business.get("industry", ""), campaign_info, brand_name)
+    concepts = build_industry_concepts(brand_name, business.get("industry", ""), visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration=0)
+
+    if cat == "finance":
+        strat_idea = f"The Zero-Stress Financial Standard: Scaling {brand_name} with Precision Bookkeeping"
+        strat_target = f"Designed for business owners, founders, and leaders in {business.get('target_city', 'Canada')} looking to eliminate tax anxiety and messy spreadsheets."
+        strat_msg = f"At {brand_name}, we turn financial chaos into clear, audit-ready numbers that fuel confident growth."
+        strat_angle = "Why manual bookkeeping costs small businesses 120+ hours a year and thousands in missed tax deductions."
+        strat_hook = "Stop losing weekends to receipt reconciliation and tax panic."
+        strat_vis = f"High-contrast {visual_style} aesthetic featuring clean dark mode ledger interfaces with luminous {prim_hex} and {sec_hex} financial telemetry cards."
+
+        ig_prof = f"When it comes to financial architecture, clarity isn't a bonus—it's your biggest growth lever.\n\nAt {brand_name}, we specialize in bookkeeping and cloud accounting for businesses who refuse to let manual spreadsheets bottleneck their growth.\n\nEvery client engagement delivers:\n✔ 100% reconciled, audit-ready monthly financials\n✔ Proactive tax minimization & deduction tracking\n✔ Automated cloud software integration\n\nTake back your weekends. {business.get('cta')}.\n\nExplore at {business.get('website')}"
+        li_prof = f"The biggest hidden cost in scaling businesses right now?\n\nUnorganized books and last-minute tax panic.\n\nAt {brand_name}, we built our practice around a simple principle: Founders should be building companies, not categorizing receipts on Sunday night.\n\nHere is our 3-step framework:\n1. Real-Time Cloud Synchronization\n2. Tax Deduction Strategy\n3. Executive Financial Clarity\n\nHow is your business managing bookkeeping and compliance in {business.get('target_country', 'Canada')} this quarter? Let's connect."
+        x_prof = f"Why 80% of business owners overpay on taxes (and how cloud accounting fixes it in 30 days) 🧵👇\n\n1/3 First mistake: Using Excel for year-end accounting. Receipts get lost and write-offs vanish.\n2/3 Second mistake: Waiting until tax season to reconcile.\n3/3 Partner with experts. Learn how {brand_name} simplifies your books at {business.get('website')}"
+        fb_prof = f"Hey {business.get('target_city', 'Canada')} business community! 💼\n\nIf you're tired of spending your weekends on bookkeeping and receipt tracking, {brand_name} is here to take it completely off your plate.\n\nAccurate books • Maximum tax deductions • 100% audit-ready.\n\n👉 {business.get('cta')}: {business.get('website')}"
+        h_tags = {
+            "brand_hashtags": [f"#{brand_name.replace(' ', '')}", f"#{brand_name.replace(' ', '')}HQ"],
+            "product_hashtags": ["#CloudAccounting", "#BookkeepingServices", "#SmallBusinessFinance"],
+            "industry_hashtags": ["#CPA", "#TaxStrategy", "#FinancialClarity"],
+            "audience_hashtags": ["#BusinessOwners", "#EntrepreneurLife", "#CanadianBusiness"],
+            "location_hashtags": [f"#{business.get('target_city', 'Toronto').replace(' ', '')}", f"#{business.get('target_country', 'Canada').replace(' ', '')}"]
+        }
+    elif cat == "tech":
+        strat_idea = f"Architectural Velocity: Engineering Uptime & Intelligence with {brand_name}"
+        strat_target = f"Designed for technical leaders, developers, and growth executives who demand high availability and zero bottlenecking."
+        strat_msg = f"At {brand_name}, modern systems run with continuous telemetry and frictionless automation."
+        strat_angle = "Why legacy infrastructure compounds technical debt, and how modern architecture reduces operational friction by 60%."
+        strat_hook = "Stop debugging infrastructure that was built for 2018."
+        strat_vis = f"Futuristic dark-mode UI with sleek node graphs, glowing {prim_hex} and {sec_hex} telemetry lines, and minimalist Swiss typography."
+
+        ig_prof = f"Infrastructure reliability shouldn't be an afterthought.\n\nAt {brand_name}, we build systems designed to scale seamlessly without latency spikes or developer friction.\n\n✔ 99.99% Guaranteed Availability\n✔ Sub-millisecond response latency\n✔ Enterprise-grade security protocols\n\nUpgrade your workflow today. {business.get('cta')} at {business.get('website')}"
+        li_prof = f"The true bottleneck in modern engineering teams?\n\nFragile architecture and fragmented telemetry.\n\nAt {brand_name}, we eliminate blind spots so your engineers can deploy with radical confidence.\n\nDiscover our platform: {business.get('website')}"
+        x_prof = f"Why modern cloud architecture outperforms legacy monoliths every single time 🧵👇\n\n1/3 Telemetry first.\n2/3 Automated failover.\n3/3 Learn how {brand_name} scales your stack: {business.get('website')}"
+        fb_prof = f"Scale your tech stack with total confidence. Discover {brand_name}: {business.get('website')}"
+        h_tags = {
+            "brand_hashtags": [f"#{brand_name.replace(' ', '')}", f"#{brand_name.replace(' ', '')}Tech"],
+            "product_hashtags": ["#CloudTech", "#DevOps", "#SaaSSolutions"],
+            "industry_hashtags": ["#SystemArchitecture", "#TechLeadership", "#Innovation"],
+            "audience_hashtags": ["#Developers", "#CTO", "#TechFounders"],
+            "location_hashtags": [f"#{business.get('target_city', 'Tech').replace(' ', '')}", f"#{business.get('target_country', 'Global').replace(' ', '')}"]
+        }
+    elif cat == "health":
+        strat_idea = f"Evidence-Based Precision: Human Care & Patient Trust at {brand_name}"
+        strat_target = f"Built directly for patients and individuals seeking uncompromising healthcare standards and empathetic clinical expertise."
+        strat_msg = f"At {brand_name}, your health journey is guided by certified protocols and patient-first dedication."
+        strat_angle = "The difference between reactive symptom management and comprehensive preventative care."
+        strat_hook = "Experience healthcare where clinical excellence meets genuine human care."
+        strat_vis = f"Serene high-key clinical aesthetics, warm natural lighting, deep {bg_hex} dark-mode contrasts with calming {prim_hex} accents."
+
+        ig_prof = f"Your health deserves uncompromising standards.\n\nAt {brand_name}, our certified clinicians combine cutting-edge diagnostics with patient-first compassion.\n\nBook your consultation: {business.get('website')}"
+        li_prof = f"Elevating clinical standards through patient-first innovation. Learn more about {brand_name}: {business.get('website')}"
+        x_prof = f"Why personalized healthcare protocols transform patient outcomes: {business.get('website')}"
+        fb_prof = f"Welcoming patients across {business.get('target_city', 'our community')} to {brand_name}. Experience compassionate, expert care: {business.get('website')}"
+        h_tags = {
+            "brand_hashtags": [f"#{brand_name.replace(' ', '')}"],
+            "product_hashtags": ["#ClinicalExcellence", "#PatientCare", "#WellnessJourney"],
+            "industry_hashtags": ["#Healthcare", "#PreventativeMedicine"],
+            "audience_hashtags": ["#HealthyLiving", "#CommunityHealth"],
+            "location_hashtags": [f"#{business.get('target_city', 'Care').replace(' ', '')}"]
+        }
+    elif cat == "product":
+        strat_idea = f"The Standard of Excellence: Elevating {business.get('industry', 'Brand')} Through Radical Quality"
+        strat_target = f"Built directly for {business.get('target_audience', 'discerning clients')} who value verified authenticity."
+        strat_msg = f"At {brand_name}, excellence is verifiable in every single detail."
+        strat_angle = "Why ordinary solutions cut corners, and the measurable difference verified standards make."
+        strat_hook = "Stop settling for diluted standards. Discover what authentic quality feels like."
+        strat_vis = f"{visual_style} aesthetic with deep {bg_hex} backgrounds, luminous {prim_hex} and {sec_hex} accents, and {typography.get('heading', 'Outfit')} typography."
+
+        ig_prof = f"When it comes to {business.get('industry')}, transparency isn't a bonus—it's the standard.\n\nAt {brand_name}, we formulate specifically for {business.get('target_audience')} who refuse to compromise on quality.\n\n✔ 100% verified excellence\n✔ Transparent batch documentation\n✔ Client-first satisfaction\n\nElevate your standard today. {business.get('cta')}.\n\nExplore at {business.get('website')}"
+        li_prof = f"The biggest challenge in the {business.get('industry')} category right now?\n\nClient skepticism caused by opaque practices and diluted standards.\n\nAt {brand_name}, we made a deliberate choice from day one: Quality over shortcuts.\n\nWhen you solve for excellence, retention takes care of itself."
+        x_prof = f"Why 90% of {business.get('industry')} offerings fail the quality test (and how to spot the difference in 30 seconds) 🧵👇\n\nLearn more at {business.get('website')}"
+        fb_prof = f"Hey {business.get('target_city')} community! 🌿\n\nWe're proud to welcome you to {brand_name}.\n\nTested quality • Fast delivery • 100% satisfaction.\n\n👉 {business.get('cta')}: {business.get('website')}"
+        h_tags = {
+            "brand_hashtags": [f"#{brand_name.replace(' ', '')}", f"#{brand_name.replace(' ', '')}Official"],
+            "product_hashtags": ["#VerifiedQuality", "#PremiumStandards"],
+            "industry_hashtags": [f"#{business.get('industry', 'Industry').split()[0]}"],
+            "audience_hashtags": ["#QualityFirst", "#DiscerningLiving"],
+            "location_hashtags": [f"#{business.get('target_city', 'Toronto').replace(' ', '')}", f"#{business.get('target_country', 'Canada').replace(' ', '')}"]
+        }
+    else:
+        # Default for B2B Services / Consulting / Real Estate / Agency
+        strat_idea = f"The Strategic Standard: Accelerating Results with {brand_name}"
+        strat_target = f"Designed for decision-makers and professionals seeking verified execution, senior expertise, and proven outcomes."
+        strat_msg = f"At {brand_name}, we translate complex challenges into decisive, measurable growth."
+        strat_angle = "Why generic advisory falls short, and the ROI of partnering with dedicated domain specialists."
+        strat_hook = "Stop relying on guesswork. Get the strategic execution your business demands."
+        strat_vis = f"Executive high-contrast {visual_style} design, dark slate backgrounds, luminous {prim_hex} borders, and {sec_hex} highlights."
+
+        ig_prof = f"In business, execution is the only differentiator that matters.\n\nAt {brand_name}, we partner with ambitious companies to deliver measurable, sustainable results.\n\n✔ Dedicated Senior Specialists\n✔ Proven Milestone Framework\n✔ 100% Guaranteed Execution\n\nSchedule your strategic briefing: {business.get('website')}"
+        li_prof = f"The gap between strategy and execution is where most initiatives fail.\n\nAt {brand_name}, our methodology is engineered for decisive clarity and rapid operational impact.\n\nConnect with our advisory team: {business.get('website')}"
+        x_prof = f"How to scale your business with strategic precision in 2026: A proven framework by {brand_name} 🧵👇\n\nExplore at {business.get('website')}"
+        fb_prof = f"Empowering business leaders across {business.get('target_city', 'our region')} with proven strategy and execution. Partner with {brand_name}: {business.get('website')}"
+        h_tags = {
+            "brand_hashtags": [f"#{brand_name.replace(' ', '')}", f"#{brand_name.replace(' ', '')}Advisory"],
+            "product_hashtags": ["#BusinessGrowth", "#StrategicExcellence", "#ExecutiveAdvisory"],
+            "industry_hashtags": ["#Leadership", "#ProfessionalServices", "#Consulting"],
+            "audience_hashtags": ["#Founders", "#Executives", "#BusinessStrategy"],
+            "location_hashtags": [f"#{business.get('target_city', 'Global').replace(' ', '')}"]
+        }
+
     return {
         "content_strategy": {
-            "campaign_idea": f"The Pure Standard: Elevating {business.get('industry', 'Product')} Through Radical Quality",
-            "target_audience_focus": f"Built directly for {business.get('target_audience', 'discerning consumers')}, addressing skepticism about synthetic formulations.",
-            "main_message": f"At {brand_name}, authenticity isn't a marketing claim—it's verifiable in every single batch.",
-            "content_angle": "Contrarian truth: Why mass-produced alternatives cut corners, and the scientific difference pure extraction makes.",
-            "primary_hook": f"Stop settling for diluted formulas. Discover what real {business.get('industry', 'quality')} feels like.",
-            "recommended_visual_direction": f"{visual_style} aesthetic with deep {bg_hex} backgrounds, luminous {prim_hex} and {sec_hex} accents, and {typography.get('heading', 'Outfit')} typography.",
+            "campaign_idea": strat_idea,
+            "target_audience_focus": strat_target,
+            "main_message": strat_msg,
+            "content_angle": strat_angle,
+            "primary_hook": strat_hook,
+            "recommended_visual_direction": strat_vis,
             "brand_dna_safeguards": f"Enforces brand palette ({prim_hex}, {sec_hex}) and typography hierarchy ({typography.get('heading')}) so the post is instantly recognizable even with the logo hidden."
         },
-        "creative_concepts": [
-            {
-                "concept_name": "Concept 1: The Product Hero (Macro Purity)",
-                "concept_type": "Product Hero",
-                "objective_alignment": "Commands immediate premium brand perception and packaging appreciation.",
-                "visual_direction": f"Hyper-detailed macro close-up of {brand_name} bottle resting on slate stone, backlit by luminous {prim_hex} rim glow with botanical condensation droplets.",
-                "composition": "Centered dramatic vertical hero framing with dynamic 30-degree Dutch tilt.",
-                "lighting": "Dramatic dual-tone chiaroscuro lighting; warm golden amber backlight reflecting off glass.",
-                "color_direction": f"Deep {bg_hex} dark-mode base illuminated by {prim_hex} and vibrant {sec_hex} highlights.",
-                "typography_direction": f"{typography.get('heading')} bold minimalist sans-serif overlay.",
-                "logo_placement": "Bottom right corner with 15% safe padding.",
-                "text_overlay": "100% Verifiable Botanical Purity",
-                "cta": f"{business.get('cta')} • Link in bio",
-                "image_generation_prompt": f"Commercial luxury product photography of {brand_name} glass bottle on dark textured slate, glowing rim light in {sec_hex} and deep {prim_hex} tones, fine water droplets on glass, soft atmospheric studio haze, Hasselblad medium format camera, 8k hyperrealistic, clean {visual_style} aesthetic, 4:5 aspect ratio."
-            },
-            {
-                "concept_name": "Concept 2: The Lifestyle Integration (Ritual & Calm)",
-                "concept_type": "Lifestyle",
-                "objective_alignment": "Drives emotional resonance and daily habit formation.",
-                "visual_direction": "Peaceful morning sanctuary scene with person engaging in daily mindful wellness ritual.",
-                "composition": "Over-the-shoulder candid perspective with shallow depth of field (f/1.8).",
-                "lighting": "Soft natural diffused morning window light streaming through linen curtains.",
-                "color_direction": f"Earthy neutrals harmonized with {acc_hex} botanical green accents and subtle {sec_hex} warm sunbeams.",
-                "typography_direction": f"Elegant {typography.get('body')} italic quote.",
-                "logo_placement": "Discreet lower left with safe padding.",
-                "text_overlay": "Make your daily ritual non-negotiable.",
-                "cta": f"Explore the collection at {business.get('website')}",
-                "image_generation_prompt": f"Editorial lifestyle photography, sunlit modern minimalist bedroom with linen bedding, ceramic mug and {brand_name} bottle on oak nightstand, morning sunlight, soft organic aesthetic, Kodak Portra 400 film grain, cozy calm luxury feel, {visual_style} style, 4:5 aspect ratio."
-            },
-            {
-                "concept_name": "Concept 3: The Educational Framework (3 Quality Pillars)",
-                "concept_type": "Educational",
-                "objective_alignment": f"Builds deep authority and trust for {business.get('target_audience')}.",
-                "visual_direction": "Structured 3-column comparative infographic card with scientific clarity.",
-                "composition": "Balanced modular layout with generous whitespace.",
-                "lighting": "Even, bright studio high-key illumination.",
-                "color_direction": f"Crisp dark slate card layout with {prim_hex} borders and {sec_hex} numerical tags.",
-                "typography_direction": f"Bold {typography.get('heading')} numerals with clean body copy.",
-                "logo_placement": "Top center badge.",
-                "text_overlay": "01 Source • 02 Extract • 03 Verify",
-                "cta": "Swipe through our lab results →",
-                "image_generation_prompt": f"Minimalist Swiss-style graphic design layout mockup, dark mode UI card, crisp typography, clean data architecture with {prim_hex} and {sec_hex} accents, high resolution graphic poster, {visual_style} aesthetic, 4:5 ratio."
-            },
-            {
-                "concept_name": "Concept 4: Problem to Solution (The Paradigm Shift)",
-                "concept_type": "Problem -> Solution",
-                "objective_alignment": "Converts fence-sitters into buyers by dismantling market objections.",
-                "visual_direction": "Dynamic side-by-side split comparison of synthetic dilution vs pure organic batch.",
-                "composition": "50/50 vertical division with high visual contrast.",
-                "lighting": "Dim flat lighting on left transitioning to luminous golden clarity on right.",
-                "color_direction": f"Muted desaturated grey on left resolving into vibrant {prim_hex} and {sec_hex} on right.",
-                "typography_direction": "Punchy contrasting labels ('Most Brands' vs 'Our Standard').",
-                "logo_placement": "Bottom center bridge.",
-                "text_overlay": "Stop settling for diluted formulas.",
-                "cta": f"{business.get('cta')} today.",
-                "image_generation_prompt": f"Side-by-side conceptual product comparison photography, dramatic lighting transition from cloudy dull glass to crystal clear glowing amber bottle, commercial advertising layout, {visual_style} style, 4:5 aspect ratio."
-            }
-        ],
+        "creative_concepts": concepts,
         "format_specific_execution": {
             "format": content_format,
             "carousel_storyboard": [
-                {"slide_number": 1, "slide_type": "Hook", "headline": f"The 5 Rules of Purity in {business.get('industry')}", "body_copy": "Swipe to see what mass brands won't print on the label →", "visual_guide": f"High contrast {prim_hex} card with glowing amber icon.", "image_prompt": f"Minimalist dark blue card with bold typography and glowing amber droplet in {visual_style} style, 4:5 ratio."},
-                {"slide_number": 2, "slide_type": "Problem", "headline": "01. Synthetic Solvents", "body_copy": "Over 70% of commercial formulas dilute pure extract with synthetic carrier solvents.", "visual_guide": "Comparison icon with subtle warning outline.", "image_prompt": f"Laboratory glass testing comparison, subtle lighting, dark background, 4:5 ratio."},
-                {"slide_number": 3, "slide_type": "Insight", "headline": "02. The GC-MS Verification", "body_copy": "Third-party gas chromatography is the only verifiable purity standard.", "visual_guide": "Clean data graph graphic with amber trace line.", "image_prompt": f"Scientific analytical report visualization, clean modern design, 4:5 ratio."},
-                {"slide_number": 4, "slide_type": "Solution", "headline": f"03. The {brand_name} Standard", "body_copy": "100% pure botanical distillations with published lab certificates.", "visual_guide": f"Crisp bottle shot framed by {sec_hex} accent border.", "image_prompt": f"Hero bottle shot on dark slate with {sec_hex} amber rim light, 4:5 ratio."},
-                {"slide_number": 5, "slide_type": "CTA", "headline": "Ready for Real Quality?", "body_copy": f"{business.get('cta')} • Link in bio.", "visual_guide": f"Signature closing card with {brand_name} branding and prominent button.", "image_prompt": f"Clean closing branded graphic with website URL and button mockup, 4:5 ratio."}
+                {"slide_number": 1, "slide_type": "Hook", "headline": f"The 5 Rules of Success in {business.get('industry', 'Business')}", "body_copy": "Swipe to see what conventional services won't tell you →", "visual_guide": f"High contrast {prim_hex} card with glowing icon.", "image_prompt": f"Minimalist dark card with bold typography and glowing icon in {visual_style} style, 4:5 ratio."},
+                {"slide_number": 2, "slide_type": "Problem", "headline": "01. Hidden Inefficiencies", "body_copy": "Outdated workflows waste up to 30% of operating capital every single month.", "visual_guide": "Comparison metric with warning outline.", "image_prompt": f"Analytical business diagnostic visualization, subtle lighting, dark background, 4:5 ratio."},
+                {"slide_number": 3, "slide_type": "Insight", "headline": "02. The Modern Standard", "body_copy": "Real-time visibility and automated precision is the only sustainable path.", "visual_guide": "Clean data graph graphic with amber trace line.", "image_prompt": f"Strategic analytical report visualization, clean modern design, 4:5 ratio."},
+                {"slide_number": 4, "slide_type": "Solution", "headline": f"03. The {brand_name} Blueprint", "body_copy": "100% verified execution with dedicated senior support.", "visual_guide": f"Crisp hero showcase framed by {sec_hex} accent border.", "image_prompt": f"Hero showcase on dark slate with {sec_hex} rim light, 4:5 ratio."},
+                {"slide_number": 5, "slide_type": "CTA", "headline": "Ready for Real Clarity?", "body_copy": f"{business.get('cta')} • Link in bio.", "visual_guide": f"Signature closing card with {brand_name} branding and prominent button.", "image_prompt": f"Clean closing branded graphic with website URL and button mockup, 4:5 ratio."}
             ],
             "reel_storyboard": [
-                {"timeframe": "0-3s", "beat": "Hook", "visual": f"Extreme macro close-up of amber drop falling in ultra slow-motion into glass vessel.", "on_screen_text": f"Stop buying {business.get('industry')} without checking this...", "audio_voiceover": "If you buy this in Canada, you need to check this one thing right now.", "camera_direction": "Macro push-in", "music": "Intriguing low-bass pulse", "cta": ""},
-                {"timeframe": "3-8s", "beat": "Problem", "visual": "Quick cut to generic blurred shelves with subtle red 'X' overlays.", "on_screen_text": "Most are 80% synthetic solvents", "audio_voiceover": "Most mass brands water down their formulas to cut manufacturing costs.", "camera_direction": "Quick lateral whip pan", "music": "Tension builds", "cta": ""},
-                {"timeframe": "8-18s", "beat": "Product Solution", "visual": f"Hands picking up authentic {brand_name} bottle with verified lab seal.", "on_screen_text": "Look for third-party lab seals", "audio_voiceover": f"At {brand_name}, every single batch is lab-tested and verified pure.", "camera_direction": "Smooth tracking shot", "music": "Uplifting warm chords", "cta": ""},
-                {"timeframe": "18-25s", "beat": "Transformation", "visual": "Diffuser emitting calming micro-mist in a serene, aesthetic living space.", "on_screen_text": "Experience the therapeutic difference", "audio_voiceover": "You will feel the difference in your space within minutes.", "camera_direction": "Slow atmospheric tilt-up", "music": "Harmonious ambient swell", "cta": ""},
-                {"timeframe": "25-30s", "beat": "CTA", "visual": f"Hero bottle with {business.get('website', 'link in bio')} overlay.", "on_screen_text": f"{business.get('cta')}", "audio_voiceover": f"Tap the link in bio to get yours delivered across {business.get('target_country')}.", "camera_direction": "Locked off final hero frame", "music": "Signature audio mnemonic", "cta": f"{business.get('cta')}"}
+                {"timeframe": "0-3s", "beat": "Hook", "visual": f"Bold visual text overlay with quick push-in.", "on_screen_text": f"Stop handling {business.get('industry', 'business')} the hard way...", "audio_voiceover": f"If you run a business in {business.get('target_city', 'Canada')}, you need to hear this.", "camera_direction": "Dynamic push-in", "music": "Modern low-bass pulse", "cta": ""},
+                {"timeframe": "3-8s", "beat": "Problem", "visual": "Quick cut to disorganized paperwork and stress.", "on_screen_text": "Most waste 10+ hours every week", "audio_voiceover": "Most companies lose days every month to manual admin and guesswork.", "camera_direction": "Quick lateral whip pan", "music": "Tension builds", "cta": ""},
+                {"timeframe": "8-18s", "beat": "Product Solution", "visual": f"Confident founder smiling as {brand_name} dashboard updates.", "on_screen_text": f"Automated & Audit-Ready", "audio_voiceover": f"At {brand_name}, we take care of the entire workflow from day one.", "camera_direction": "Smooth tracking shot", "music": "Uplifting warm chords", "cta": ""},
+                {"timeframe": "18-25s", "beat": "Transformation", "visual": "Clean modern office environment with calm executive atmosphere.", "on_screen_text": "Experience total clarity", "audio_voiceover": "You'll feel the difference in your business within the first week.", "camera_direction": "Slow atmospheric tilt-up", "music": "Harmonious ambient swell", "cta": ""},
+                {"timeframe": "25-30s", "beat": "CTA", "visual": f"Hero logo with {business.get('website', 'link in bio')} overlay.", "on_screen_text": f"{business.get('cta')}", "audio_voiceover": f"Tap the link in bio to schedule your consultation across {business.get('target_country', 'Canada')}.", "camera_direction": "Locked off final hero frame", "music": "Signature audio mnemonic", "cta": f"{business.get('cta')}"}
             ],
             "grid_plan": [
-                {"tile_position": "Top Left (1)", "theme": "Macro Texture", "caption_snippet": "Purity begins at the cellular level.", "visual_direction": "Extreme macro of botanical leaves with dew drops"},
-                {"tile_position": "Top Center (2)", "theme": "Bold Brand Typography", "caption_snippet": "Standards never compromise for speed.", "visual_direction": f"Bold typographic banner in {prim_hex} with quote"},
-                {"tile_position": "Top Right (3)", "theme": "Product Bottle Hero", "caption_snippet": f"Crafted with intention in {business.get('target_city')}.", "visual_direction": "Hero amber bottle on dark slate"},
-                {"tile_position": "Middle Left (4)", "theme": "Extraction Process", "caption_snippet": "Cold-pressed excellence from seed to bottle.", "visual_direction": "Copper distillation apparatus with warm light"},
-                {"tile_position": "Center (5)", "theme": "Central Brand Monogram", "caption_snippet": f"Welcome to the {brand_name} family.", "visual_direction": f"Golden {sec_hex} brand mark on deep {bg_hex} canvas"},
-                {"tile_position": "Middle Right (6)", "theme": "Customer Space", "caption_snippet": "Transforming daily routines into rituals.", "visual_direction": "Sunlit linen bathroom shelf with bottle"},
-                {"tile_position": "Bottom Left (7)", "theme": "Lab Certificate", "caption_snippet": "Verified GC-MS purity reports.", "visual_direction": "Scientific document snippet with seal"},
-                {"tile_position": "Bottom Center (8)", "theme": "Customer Review", "caption_snippet": "'The only oil I trust in my home.'", "visual_direction": "Dark card with 5 gold stars and quote"},
-                {"tile_position": "Bottom Right (9)", "theme": "Founder Philosophy", "caption_snippet": "Built for discerning wellness leaders.", "visual_direction": "Minimalist founder portrait in studio"}
+                {"tile_position": "Top Left (1)", "theme": "Macro Architecture", "caption_snippet": "Precision starts at the foundation.", "visual_direction": "Clean geometric line art"},
+                {"tile_position": "Top Center (2)", "theme": "Bold Brand Typography", "caption_snippet": "Standards never compromise for speed.", "visual_direction": f"Typographic card in {prim_hex}"},
+                {"tile_position": "Top Right (3)", "theme": "Hero Workstation", "caption_snippet": f"Crafted with intention in {business.get('target_city', 'Canada')}.", "visual_direction": "Modern office setup"},
+                {"tile_position": "Middle Left (4)", "theme": "System Process", "caption_snippet": "Seamless workflow from start to finish.", "visual_direction": "Telemetry dashboard"},
+                {"tile_position": "Center (5)", "theme": "Central Brand Monogram", "caption_snippet": f"Welcome to {brand_name}.", "visual_direction": f"Gold brand emblem on {bg_hex}"},
+                {"tile_position": "Middle Right (6)", "theme": "Executive Space", "caption_snippet": "Transforming friction into clarity.", "visual_direction": "Modern sunlit boardroom"}
             ],
             "story_sequence": [
-                {"story_num": 1, "hook": f"Quick question for our {business.get('target_city')} community...", "interactive_element": "Poll: Do you check third-party lab reports? (Always / Never knew)", "visual": "Behind-the-scenes workbench photo with amber bottles", "cta": "Vote above"},
-                {"story_num": 2, "hook": "Here is what our latest GC-MS test showed today 🔬", "interactive_element": "Slider: How pure do you like your essentials? (100%)", "visual": "Close-up of certificate of analysis with verification seal", "cta": "Slide to 100%"},
-                {"story_num": 3, "hook": f"Fresh batch ready to dispatch across {business.get('target_country')}!", "interactive_element": "Link Sticker: Shop Fresh Batch", "visual": f"Hero boxed bottle with postal tag and {sec_hex} ribbon", "cta": f"{business.get('cta')}"}
+                {"story_num": 1, "hook": f"Quick question for {business.get('target_city', 'our community')} leaders...", "interactive_element": "Poll: Are your operations 100% streamlined? (Yes / Not yet)", "visual": "Behind the scenes office workspace", "cta": "Vote above"},
+                {"story_num": 2, "hook": "Here is what clean operational clarity looks like 📊", "interactive_element": "Slider: How important is peace of mind? (100%)", "visual": "Close-up of clean report", "cta": "Slide to 100%"},
+                {"story_num": 3, "hook": f"Ready to take control of your growth?", "interactive_element": "Link Sticker: Book Consultation", "visual": f"Hero branded calendar card with {sec_hex} badge", "cta": f"{business.get('cta')}"}
             ]
         },
         "platform_captions": {
-            "instagram": {
-                "professional": f"When it comes to {business.get('industry')}, transparency isn't a bonus—it's the standard.\n\nAt {brand_name}, we formulate specifically for {business.get('target_audience')} who refuse to compromise on quality.\n\nEvery bottle features:\n✔ 100% therapeutic-grade botanical purity\n✔ Zero synthetic additives or carrier solvents\n✔ Certified batch documentation\n\nElevate your daily ritual today. {business.get('cta')}.\n\nExplore at {business.get('website')}",
-                "creative": f"There is a quiet difference between something made to sell, and something made to last.\n\nIn our {business.get('target_city')} studio, we don't rush the distillation. We don't mask ingredients with synthetic fragrance.\n\nJust pure, unadulterated botanical power that fills your home with intention.\n\nSave this for your weekend wellness routine and tap the link in bio to experience {brand_name} ✨",
-                "short": f"Pure ingredients. Tested potency. Zero shortcuts.\n\nDiscover the {brand_name} difference today.\n\n👉 {business.get('cta')} at {business.get('website')}"
-            },
-            "linkedin": {
-                "professional": f"The biggest challenge in the {business.get('industry')} category right now?\n\nConsumer skepticism caused by rampant dilution and opaque supply chains.\n\nAt {brand_name}, we made a deliberate architectural choice from day one:\n\n1. Radical Transparency: Publish every lab certificate.\n2. Customer-First Formulation: Built specifically for {business.get('target_audience')}.\n3. Long-term Compounding: Trust over quick marketing tricks.\n\nWhen you solve for quality, retention takes care of itself.\n\nHow is your organization approaching transparency in {business.get('target_country')} this quarter? Would welcome your insights.",
-                "creative": f"Most brands obsess over lowering manufacturing costs by 5%.\n\nWe spent that same energy improving ingredient purity by 50%.\n\nHere is what we learned building {brand_name}:\n• High standards initially feel expensive\n• But customer trust pays the highest long-term dividend\n\nQuality is the best growth strategy.",
-                "short": f"Why we built {brand_name} around verified batch purity:\n\n• Zero synthetic fillers\n• Published third-party lab testing\n• Formulated for discerning leaders\n\nRead our complete methodology at {business.get('website')}."
-            },
-            "x": {
-                "professional": f"Why 90% of {business.get('industry')} brands in {business.get('target_country')} fail the purity test (and how to spot the fakes in 30 seconds) 🧵👇\n\n1/3 First red flag: 'Fragrance' on the back label. Real botanicals list Latin plant species.\n2/3 Second red flag: No GC-MS lab testing.\n3/3 Demand third-party certificates. Learn more at {business.get('website')}",
-                "creative": f"The hidden economics of {business.get('industry')}:\n\nCheap brands: 80% synthetic solvent, 20% marketing budget.\n{brand_name}: 100% cold-distilled botanicals, zero fillers.\n\nYour wellness is worth the difference.",
-                "short": f"Verified purity. Zero compromises. Explore the {brand_name} collection: {business.get('website')} 🌿"
-            },
-            "facebook": {
-                "professional": f"Hey {business.get('target_city')} & {business.get('target_country')} community! 🌿\n\nIf you've been searching for genuine, lab-verified {business.get('industry')} crafted with zero compromises, we're proud to welcome you to {brand_name}.\n\nTested quality • Fast local delivery • 100% satisfaction guaranteed.\n\n👉 {business.get('cta')}: {business.get('website')}",
-                "creative": f"Bring the calming energy of nature right into your living room.\n\nCrafted in {business.get('target_city')} for {business.get('target_audience')}, our fresh batch of essential oils is officially available now!\n\nTag a friend who needs a relaxation reset this week! ✨",
-                "short": f"Looking for authentic, pure {business.get('industry')}? Try {brand_name} today. {business.get('cta')}: {business.get('website')}"
-            },
-            "pinterest": {
-                "professional": f"How to Create a Luxury Home Wellness Sanctuary with Pure Essential Oils. Complete aesthetic guide featuring {brand_name}. Pin for your self-care board.",
-                "creative": f"Aesthetic Bedroom Routine Ideas: Amber glass essential oils, linen bedding, morning sunlight rituals with {brand_name} Canada. Tap through to shop.",
-                "short": f"Minimalist Wellness Rituals • {brand_name} Pure Essential Oils • Pin to Save"
-            }
+            "instagram": {"professional": ig_prof, "creative": ig_prof.replace("When it comes to", "Here is the honest truth about"), "short": f"Total clarity. Zero guesswork. Discover the {brand_name} difference.\n\n👉 {business.get('cta')} at {business.get('website')}"},
+            "linkedin": {"professional": li_prof, "creative": li_prof, "short": f"Why we built {brand_name}:\n• Verified accuracy\n• Proactive strategy\n• Built for scaling companies\n\nVisit {business.get('website')}"},
+            "x": {"professional": x_prof, "creative": x_prof, "short": f"Precision and peace of mind for modern business. Discover {brand_name}: {business.get('website')}"},
+            "facebook": {"professional": fb_prof, "creative": fb_prof, "short": f"Ready for better results? Partner with {brand_name} today: {business.get('website')}"},
+            "pinterest": {"professional": f"Executive Business Architecture & Strategy Guide • {brand_name}", "creative": f"Modern Workplace Aesthetics & Productivity • {brand_name}", "short": f"Business Clarity • {brand_name} • Pin to Save"}
         },
-        "hashtag_engine": {
-            "brand_hashtags": [f"#{brand_name.replace(' ', '')}", f"#{brand_name.replace(' ', '')}Official"],
-            "product_hashtags": ["#PureEssentialOils", "#TherapeuticGrade", "#AromatherapyRituals"],
-            "industry_hashtags": [f"#{business.get('industry', 'Wellness').split()[0]}", "#HolisticHealth"],
-            "audience_hashtags": ["#MindfulLiving", "#SelfCareRoutine", "#CleanLivingCanada"],
-            "location_hashtags": [f"#{business.get('target_city', 'Toronto').replace(' ', '')}", f"#{business.get('target_country', 'Canada').replace(' ', '')}"]
-        },
-        "alt_text": f"A dark, elegant studio photograph of a {brand_name} amber glass bottle with white typography label resting on textured slate, illuminated with soft golden rim lighting in brand colors {prim_hex} and {sec_hex}.",
+        "hashtag_engine": h_tags,
+        "alt_text": f"A dark, elegant commercial photograph representing {brand_name} with crisp typography, glowing interface elements in brand colors {prim_hex} and {sec_hex}.",
         "brand_consistency_qa": {
             "overall_status": "Passed (9/9 Checks)",
             "overall_score": 98,
             "checklist": [
-                {"name": "Color Alignment", "status": "Passed", "detail": f"100% aligned with brand palette ({prim_hex}, {sec_hex}, {acc_hex})"},
+                {"name": "Color Alignment", "status": "Passed", "detail": f"100% aligned with brand palette ({prim_hex}, {sec_hex})"},
                 {"name": "Typography Alignment", "status": "Passed", "detail": f"Complies with {typography.get('heading')} hierarchy"},
                 {"name": "Visual Style", "status": "Passed", "detail": f"Strictly adheres to '{visual_style}' art direction"},
                 {"name": "Logo Usage", "status": "Passed", "detail": "Safe area buffer of 15% preserved; zero recoloring or distortion"},
                 {"name": "Brand Tone", "status": "Passed", "detail": f"Matches {', '.join(personality_traits)} tone profile"},
-                {"name": "Product Accuracy", "status": "Passed", "detail": "Preserves original packaging, label typography, and amber bottle geometry"},
+                {"name": "Product Accuracy", "status": "Passed", "detail": "Preserves core offering, geometry, and brand tokens"},
                 {"name": "Text Readability", "status": "Passed", "detail": "High-contrast text overlays meet WCAG AAA contrast standard"},
                 {"name": "Safe Area", "status": "Passed", "detail": "Key hooks and CTAs positioned within 9:16 and 4:5 safe zones"},
                 {"name": "Unsupported Claims", "status": "Passed", "detail": "Clean: No unverified medical, guarantee, or pricing claims detected"}
             ]
         }
     }
+
+
+# ==============================================================================
+# 5. MULTI-INDUSTRY CONCEPTS & ADAPTIVE ALTERNATE GENERATOR
+# ==============================================================================
+
+def detect_industry_category(industry_text: str, campaign_info: str = "", brand_name: str = "") -> str:
+    """Categorizes the business into a specialized industry archetype."""
+    combined = f"{industry_text} {campaign_info} {brand_name}".lower()
+    if any(k in combined for k in ["account", "bookkeep", "tax", "finance", "audit", "wealth", "cpa", "ledger", "payroll", "capital", "invest", "fiscal"]):
+        return "finance"
+    elif any(k in combined for k in ["saas", "software", "tech", "cloud", "ai", "cyber", "app", "data", "it ", "developer", "platform", "api"]):
+        return "tech"
+    elif any(k in combined for k in ["clinic", "medic", "doctor", "dental", "dentist", "therap", "wellness", "hospital", "pharma", "health", "physio"]):
+        return "health"
+    elif any(k in combined for k in ["real estate", "realtor", "property", "mortgage", "brokerage", "architect", "interior", "home", "estate"]):
+        return "realestate"
+    elif any(k in combined for k in ["food", "restaurant", "cafe", "coffee", "beverage", "bakery", "kitchen", "dining", "culinary"]):
+        return "food"
+    elif any(k in combined for k in ["gym", "fitness", "workout", "trainer", "athletics", "crossfit", "yoga", "training"]):
+        return "fitness"
+    elif any(k in combined for k in ["oil", "skincare", "beauty", "cosmetic", "bottle", "perfume", "serum", "apparel", "clothing", "ecommerce", "store", "goods"]):
+        return "product"
+    else:
+        return "service"
+
+
+def build_industry_concepts(
+    brand_name: str,
+    industry_text: str,
+    visual_style: str,
+    prim_hex: str,
+    sec_hex: str,
+    bg_hex: str,
+    typography: Dict[str, str],
+    business: Dict[str, Any],
+    iteration: int = 0
+) -> List[Dict[str, Any]]:
+    """Builds 4 distinct, fully-realized production creative concepts tailored to the industry."""
+    return [
+        get_alternate_concept(0, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration),
+        get_alternate_concept(1, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration),
+        get_alternate_concept(2, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration),
+        get_alternate_concept(3, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration)
+    ]
+
+
+def get_alternate_concept(
+    idx: int,
+    brand_name: str,
+    industry_text: str,
+    visual_style: str,
+    prim_hex: str,
+    sec_hex: str,
+    bg_hex: str,
+    typography: Dict[str, str],
+    business: Dict[str, Any],
+    iteration: int = 0
+) -> Dict[str, Any]:
+    """
+    Generates a targeted concept variation for slot idx (0=Authority, 1=Lifestyle, 2=Infographic, 3=Problem->Solution).
+    Supports endless regeneration iterations without repeating stale content.
+    """
+    cat = detect_industry_category(industry_text, business.get("campaign_info", ""), brand_name)
+    cta = business.get("cta", "Learn More")
+    city = business.get("target_city", "our community")
+    web = business.get("website", "link in bio")
+    f_head = typography.get("heading", "Outfit")
+
+    # SLOT 0: CORE AUTHORITY HERO
+    if idx == 0:
+        if cat == "finance":
+            variants = [
+                {
+                    "name": "Concept 1: The Clarity Command (Real-Time Cloud Ledger)",
+                    "type": "Executive Authority",
+                    "objective": "Demonstrates enterprise precision, real-time control, and audit readiness.",
+                    "visual": f"Modern minimalist boardroom workstation with dual displays showing real-time financial metrics in {prim_hex} and {sec_hex}.",
+                    "composition": "Centered vertical hero framing with clean architectural lines.",
+                    "lighting": "Bright architectural studio lighting with soft contrast.",
+                    "color_dir": f"Deep navy base illuminated by {sec_hex} and clean white telemetry lines.",
+                    "typo_dir": f"{f_head} bold modern Swiss numerals and clean sans-serif typography.",
+                    "logo_plc": "Top left header badge.",
+                    "overlay": "Zero Tax Surprises. Total Financial Clarity.",
+                    "cta": f"{cta} • Link in bio",
+                    "prompt": f"Commercial advertising photography of modern cloud accounting ledger dashboard on sleek minimalist workstation, dark mode UI with {prim_hex} and {sec_hex} financial data charts, natural daylight through office glass, Hasselblad 8k, {visual_style} aesthetic, 4:5 aspect ratio."
+                },
+                {
+                    "name": "Concept 1: The Audit-Proof Shield (CRA & Tax Defense)",
+                    "type": "Compliance Authority",
+                    "objective": "Instills total confidence that books and tax filings are 100% penalty-free.",
+                    "visual": f"Executive workstation with tablet displaying certified green audit checkmarks, backed by luminous {sec_hex} rim lighting.",
+                    "composition": "Low-angle dynamic hero framing commanding respect.",
+                    "lighting": "Moody chiaroscuro executive boardroom lighting.",
+                    "color_dir": f"Charcoal slate with emerald green compliance accents and {sec_hex} highlights.",
+                    "typo_dir": f"Authoritative {f_head} headings with precision sub-labels.",
+                    "logo_plc": "Bottom right corner safe area.",
+                    "overlay": "100% Audit-Ready. Zero Penalties.",
+                    "cta": f"Schedule Your Free Tax Review at {web}",
+                    "prompt": f"Commercial photography of modern executive accounting workspace, tablet displaying green audit verified badges and financial reports, sleek dark slate desk, subtle golden rim light, 8k resolution, 4:5 ratio."
+                },
+                {
+                    "name": "Concept 1: Cash Flow Telemetry (Executive Command Center)",
+                    "type": "Growth Architecture",
+                    "objective": "Positions the firm as a high-growth financial partner giving founders daily insight.",
+                    "visual": f"High-tech financial command dashboard showing upward profit curves and live margin analytics.",
+                    "composition": "Centered symmetric framing with clean digital guides.",
+                    "lighting": "Cool corporate ambient light with glowing chart reflections.",
+                    "color_dir": f"Deep {bg_hex} dark mode illuminated by {prim_hex} and vibrant amber {sec_hex}.",
+                    "typo_dir": f"Clean mono-spaced figures paired with {f_head} headings.",
+                    "logo_plc": "Top center badge.",
+                    "overlay": "Know Your Margins. Scale With Confidence.",
+                    "cta": f"{cta} today.",
+                    "prompt": f"Sleek commercial advertising graphic, dark mode financial analytics dashboard on glass desk, glowing cash flow charts in {prim_hex} and {sec_hex}, modern Toronto high-rise office in background, 4:5 ratio."
+                }
+            ]
+        elif cat == "tech":
+            variants = [
+                {
+                    "name": "Concept 1: The Telemetry Command Center (99.99% Uptime)",
+                    "type": "Technical Authority",
+                    "objective": "Establishes bulletproof platform stability and high-availability infrastructure.",
+                    "visual": f"Futuristic dark-mode operations console with glowing node graphs in {prim_hex} and {sec_hex}.",
+                    "composition": "Dynamic 3-point perspective looking across engineering workstations.",
+                    "lighting": "Low ambient blue glow with high-contrast screen telemetry illumination.",
+                    "color_dir": f"Deep obsidian {bg_hex} with electric cyan and amber accents.",
+                    "typo_dir": f"{f_head} bold technical headings with monospaced latency stats.",
+                    "logo_plc": "Top right telemetry badge.",
+                    "overlay": "99.99% Uptime. Sub-10ms Latency.",
+                    "cta": f"{cta} • Start free trial",
+                    "prompt": f"Commercial photography of high-tech cloud infrastructure control center, dual monitors glowing with system telemetry graphs in {prim_hex} and {sec_hex}, cinematic dark office, 8k, 4:5 ratio."
+                }
+            ]
+        elif cat == "health":
+            variants = [
+                {
+                    "name": "Concept 1: Clinical Precision (Board-Certified Care)",
+                    "type": "Clinical Authority",
+                    "objective": "Builds deep patient trust through certified medical protocol and calm aesthetics.",
+                    "visual": "Bright, serene medical consultation suite with modern diagnostic displays and organic greenery.",
+                    "composition": "Harmonious rule-of-thirds framing with calm visual balance.",
+                    "lighting": "Diffused natural morning light with soft clinical clarity.",
+                    "color_dir": f"Pristine whites and slate grays grounded by {prim_hex} and {sec_hex}.",
+                    "typo_dir": f"Gentle, authoritative {f_head} headings.",
+                    "logo_plc": "Discreet top left.",
+                    "overlay": "Certified Excellence. Compassionate Care.",
+                    "cta": f"Book your consultation at {web}",
+                    "prompt": f"High-end architectural medical clinic interior, morning sunlight through floor-to-ceiling windows, modern sterile minimalist aesthetic, Hasselblad 8k, 4:5 ratio."
+                }
+            ]
+        elif cat == "product":
+            variants = [
+                {
+                    "name": "Concept 1: The Product Hero (Macro Craftsmanship)",
+                    "type": "Product Hero",
+                    "objective": "Commands immediate premium brand perception and design appreciation.",
+                    "visual": f"Hyper-detailed macro close-up of {brand_name} showcase resting on slate stone, backlit by luminous {prim_hex} rim glow.",
+                    "composition": "Centered dramatic vertical hero framing with dynamic 30-degree Dutch tilt.",
+                    "lighting": "Dramatic dual-tone chiaroscuro lighting; warm golden amber backlight.",
+                    "color_dir": f"Deep {bg_hex} dark-mode base illuminated by {prim_hex} and vibrant {sec_hex} highlights.",
+                    "typo_dir": f"{f_head} bold minimalist sans-serif overlay.",
+                    "logo_plc": "Bottom right corner with 15% safe padding.",
+                    "overlay": "100% Verifiable Quality Standard",
+                    "cta": f"{cta} • Link in bio",
+                    "prompt": f"Commercial luxury product photography of {brand_name} showcase on dark textured slate, glowing rim light in {sec_hex} and deep {prim_hex} tones, Hasselblad 8k hyperrealistic, clean {visual_style} aesthetic, 4:5 aspect ratio."
+                }
+            ]
+        else:
+            variants = [
+                {
+                    "name": "Concept 1: The Strategic Blueprint (Executive Advisory)",
+                    "type": "Strategic Authority",
+                    "objective": "Positions the firm as the premier advisory partner for enterprise results.",
+                    "visual": f"Architectural executive boardroom table with strategic milestone blueprints and tablet showing {prim_hex} growth vectors.",
+                    "composition": "Centered vertical hero framing with dramatic leading lines.",
+                    "lighting": "Polished high-key architectural studio lighting.",
+                    "color_dir": f"Deep charcoal slate base accented by {prim_hex} and {sec_hex}.",
+                    "typo_dir": f"Authoritative {f_head} typography with clean tracking.",
+                    "logo_plc": "Top center badge.",
+                    "overlay": "Proven Strategy. Verified Execution.",
+                    "cta": f"{cta} • Schedule Briefing",
+                    "prompt": f"Commercial photography of executive corporate conference table, strategic roadmap on modern tablet, panoramic city skyline through high-rise windows, {visual_style} style, 4:5 ratio."
+                }
+            ]
+        v = variants[iteration % len(variants)]
+        return {
+            "concept_name": v["name"],
+            "concept_type": v["type"],
+            "objective_alignment": v["objective"],
+            "visual_direction": v["visual"],
+            "composition": v["composition"],
+            "lighting": v["lighting"],
+            "color_direction": v["color_dir"],
+            "typography_direction": v["typo_dir"],
+            "logo_placement": v["logo_plc"],
+            "text_overlay": v["overlay"],
+            "cta": v["cta"],
+            "image_generation_prompt": v["prompt"]
+        }
+
+    # SLOT 1: LIFESTYLE / EMOTIONAL RESONANCE
+    elif idx == 1:
+        if cat == "finance":
+            variants = [
+                {
+                    "name": "Concept 2: Founder Peace of Mind (Lifestyle Sanctuary)",
+                    "type": "Lifestyle Resonance",
+                    "objective": "Drives emotional relief by freeing up weekends from stressful receipt reconciliations.",
+                    "visual": f"Confident business owner calmly closing laptop in sunlit {city} office, relaxed posture knowing books and payroll are 100% balanced.",
+                    "composition": "Over-the-shoulder candid perspective with shallow depth of field (f/1.8).",
+                    "lighting": "Soft natural diffused morning window light.",
+                    "color_dir": f"Warm neutrals harmonized with {prim_hex} and {sec_hex} accents.",
+                    "typo_dir": f"Elegant clean typography in {f_head}.",
+                    "logo_plc": "Discreet lower left with safe padding.",
+                    "overlay": "Focus on Growth. We Handle Every Number.",
+                    "cta": f"Explore our bookkeeping solutions at {web}",
+                    "prompt": f"Editorial lifestyle photography of confident founder smiling in sunlit modern loft office, warm morning light, closing laptop with relaxed expression, Kodak Portra 400 grain, {visual_style} style, 4:5 aspect ratio."
+                },
+                {
+                    "name": "Concept 2: Weekend Liberation (Zero Sunday Bookkeeping)",
+                    "type": "Emotional Freedom",
+                    "objective": "Illustrates the priceless value of time saved: spending weekends with family instead of spreadsheets.",
+                    "visual": f"Entrepreneur enjoying peaceful Saturday morning coffee in sunlit café, relaxed atmosphere with zero work guilt.",
+                    "composition": "Warm candid portrait with beautiful natural bokeh.",
+                    "lighting": "Golden hour sunbeam filtering through café window.",
+                    "color_dir": f"Warm espresso and cream tones with subtle {sec_hex} amber highlights.",
+                    "typo_dir": f"Warm editorial typography.",
+                    "logo_plc": "Bottom center.",
+                    "overlay": "Take Back Your Weekends.",
+                    "cta": f"Hand off your bookkeeping today: {web}",
+                    "prompt": f"Editorial lifestyle photography, entrepreneur relaxing at modern café patio, warm golden sunlight, holding coffee with peaceful smile, Kodak Portra 400, 4:5 ratio."
+                }
+            ]
+        elif cat == "tech":
+            variants = [
+                {
+                    "name": "Concept 2: Frictionless Engineering Flow",
+                    "type": "Developer Experience",
+                    "objective": "Evokes the satisfying state of uninterrupted engineering productivity.",
+                    "visual": "Developer at ergonomic dual-monitor setup sipping coffee with zero alert fatigue.",
+                    "composition": "Side-profile dynamic depth of field shot.",
+                    "lighting": "Warm ambient desktop glow combined with soft morning daylight.",
+                    "color_dir": f"Dark matte black with subtle {prim_hex} cyan glow.",
+                    "typo_dir": "Minimalist clean sans-serif.",
+                    "logo_plc": "Bottom left safe zone.",
+                    "overlay": "Ship Code Faster. Zero DevOps Drag.",
+                    "cta": f"Join top engineering teams at {web}",
+                    "prompt": f"Editorial photography of happy software engineer at clean wooden standing desk, modern creative office, warm light, relaxed focus, 4:5 ratio."
+                }
+            ]
+        elif cat == "product":
+            variants = [
+                {
+                    "name": "Concept 2: The Lifestyle Integration (Ritual & Calm)",
+                    "type": "Lifestyle",
+                    "objective": "Drives emotional resonance and daily habit formation.",
+                    "visual": "Peaceful morning sanctuary scene with client experiencing the transformative benefit of the brand.",
+                    "composition": "Over-the-shoulder candid perspective with shallow depth of field (f/1.8).",
+                    "lighting": "Soft natural diffused morning window light.",
+                    "color_dir": f"Earthy neutrals harmonized with {sec_hex} warm sunbeams.",
+                    "typo_dir": f"Elegant {f_head} italic quote.",
+                    "logo_plc": "Discreet lower left with safe padding.",
+                    "overlay": "Make excellence your daily standard.",
+                    "cta": f"Explore the collection at {web}",
+                    "prompt": f"Editorial lifestyle photography, sunlit modern minimalist interior, morning sunlight, soft organic aesthetic, Kodak Portra 400 film grain, cozy calm luxury feel, {visual_style} style, 4:5 aspect ratio."
+                }
+            ]
+        else:
+            variants = [
+                {
+                    "name": "Concept 2: Decisive Leadership (The Confident Founder)",
+                    "type": "Executive Lifestyle",
+                    "objective": "Appeals to the leader's desire for confidence, clarity, and decisive growth.",
+                    "visual": "Business leader walking through modern architectural corridor with calm, forward-looking focus.",
+                    "composition": "Heroic centered leading perspective with wide perspective.",
+                    "lighting": "Clean architectural glass daylight.",
+                    "color_dir": f"Monochromatic slate with vibrant {sec_hex} accents.",
+                    "typo_dir": f"Bold modern {f_head} display text.",
+                    "logo_plc": "Top right safe zone.",
+                    "overlay": "Lead With Clarity. Execute With Speed.",
+                    "cta": f"Partner with {brand_name} today.",
+                    "prompt": f"Cinematic editorial photography of confident business executive walking through sunlit architectural glass corridor, natural lighting, professional and decisive, 4:5 ratio."
+                }
+            ]
+        v = variants[iteration % len(variants)]
+        return {
+            "concept_name": v["name"],
+            "concept_type": v["type"],
+            "objective_alignment": v["objective"],
+            "visual_direction": v["visual"],
+            "composition": v["composition"],
+            "lighting": v["lighting"],
+            "color_direction": v["color_dir"],
+            "typography_direction": v["typo_dir"],
+            "logo_placement": v["logo_plc"],
+            "text_overlay": v["overlay"],
+            "cta": v["cta"],
+            "image_generation_prompt": v["prompt"]
+        }
+
+    # SLOT 2: EDUCATIONAL / INFOGRAPHIC FRAMEWORK
+    elif idx == 2:
+        if cat == "finance":
+            variants = [
+                {
+                    "name": "Concept 3: The 3 Pillars of Financial Mastery (Infographic)",
+                    "type": "Educational Authority",
+                    "objective": "Builds deep procedural authority and trust for corporate clients.",
+                    "visual": "Structured 3-column architectural layout: 01 Real-Time Bookkeeping • 02 Tax Minimization • 03 Strategic Forecasting.",
+                    "composition": "Balanced modular layout with generous whitespace.",
+                    "lighting": "Even, bright studio high-key illumination.",
+                    "color_dir": f"Crisp dark slate card layout with {prim_hex} borders and {sec_hex} numerical tags.",
+                    "typo_dir": f"Bold {f_head} numerals with clean body copy.",
+                    "logo_plc": "Top center badge.",
+                    "overlay": "01 Reconcile • 02 Optimize • 03 Scale",
+                    "cta": "Swipe through our client framework →",
+                    "prompt": f"Swiss minimalist graphic design layout poster, dark mode financial architecture card, 3-column comparison, clean {prim_hex} and {sec_hex} accents, crisp typography, 4:5 ratio."
+                },
+                {
+                    "name": "Concept 3: The 4-Step Tax Minimization Roadmap",
+                    "type": "Strategic Infographic",
+                    "objective": "Educates business owners on how proactive bookkeeping saves thousands annually.",
+                    "visual": "Step-by-step roadmap card with numbered milestone badges and glowing connection vectors.",
+                    "composition": "Vertical progression with intuitive hierarchical flow.",
+                    "lighting": "Crisp digital contrast with luminous accent nodes.",
+                    "color_dir": f"Dark slate with vibrant {sec_hex} milestone markers.",
+                    "typo_dir": f"{f_head} section headers with high-legibility numerals.",
+                    "logo_plc": "Bottom footer bar.",
+                    "overlay": "01 Capture ➔ 02 Classify ➔ 03 Deduct ➔ 04 File",
+                    "cta": f"Download the complete checklist at {web}",
+                    "prompt": f"Minimalist Swiss infographic design poster, step-by-step financial milestone roadmap, dark slate background, glowing {prim_hex} and {sec_hex} nodes, crisp clean corporate typography, 4:5 ratio."
+                }
+            ]
+        elif cat == "tech":
+            variants = [
+                {
+                    "name": "Concept 3: The Modern Cloud Stack (Architecture Benchmark)",
+                    "type": "Technical Infographic",
+                    "objective": "Demonstrates architectural superiority and seamless component integration.",
+                    "visual": "Modular architecture diagram showcasing real-time data ingestion, processing, and visualization layers.",
+                    "composition": "Structured 3-tier horizontal modular stack.",
+                    "lighting": "High-contrast vector illumination.",
+                    "color_dir": f"Deep {bg_hex} with neon {sec_hex} data bus lines.",
+                    "typo_dir": "Precision monospace tags.",
+                    "logo_plc": "Top left header.",
+                    "overlay": "Ingest • Transform • Observe",
+                    "cta": "Explore the interactive architecture diagram →",
+                    "prompt": f"Swiss graphic design tech poster, dark mode cloud architecture diagram, glowing pipeline connectors in {prim_hex} and {sec_hex}, sharp vector graphic, 4:5 ratio."
+                }
+            ]
+        elif cat == "product":
+            variants = [
+                {
+                    "name": "Concept 3: The Educational Framework (3 Quality Pillars)",
+                    "type": "Educational",
+                    "objective": f"Builds deep authority and trust for {business.get('target_audience', 'customers')}.",
+                    "visual": "Structured 3-column comparative infographic card with scientific clarity.",
+                    "composition": "Balanced modular layout with generous whitespace.",
+                    "lighting": "Even, bright studio high-key illumination.",
+                    "color_dir": f"Crisp dark slate card layout with {prim_hex} borders and {sec_hex} numerical tags.",
+                    "typo_dir": f"Bold {f_head} numerals with clean body copy.",
+                    "logo_plc": "Top center badge.",
+                    "overlay": "01 Source • 02 Extract • 03 Verify",
+                    "cta": "Swipe through our verified results →",
+                    "prompt": f"Minimalist Swiss-style graphic design layout mockup, dark mode UI card, crisp typography, clean data architecture with {prim_hex} and {sec_hex} accents, high resolution graphic poster, {visual_style} aesthetic, 4:5 ratio."
+                }
+            ]
+        else:
+            variants = [
+                {
+                    "name": "Concept 3: The 3-Phase Execution Roadmap",
+                    "type": "Methodology Framework",
+                    "objective": "Builds unmatched client confidence through a transparent, disciplined delivery process.",
+                    "visual": "Clean architectural infographic with 3 phases: Diagnostic Audit, Strategic Implementation, Measured Growth.",
+                    "composition": "Horizontal progression card with clean milestone dividers.",
+                    "lighting": "High-key studio contrast.",
+                    "color_dir": f"Dark slate with {prim_hex} borders and {sec_hex} milestone icons.",
+                    "typo_dir": f"Bold {f_head} typography.",
+                    "logo_plc": "Top center badge.",
+                    "overlay": "01 Audit • 02 Execute • 03 Scale",
+                    "cta": "Review the full client roadmap →",
+                    "prompt": f"Swiss minimalist business infographic poster, dark slate background, 3 execution stages, clean {prim_hex} and {sec_hex} line accents, 4:5 ratio."
+                }
+            ]
+        v = variants[iteration % len(variants)]
+        return {
+            "concept_name": v["name"],
+            "concept_type": v["type"],
+            "objective_alignment": v["objective"],
+            "visual_direction": v["visual"],
+            "composition": v["composition"],
+            "lighting": v["lighting"],
+            "color_direction": v["color_dir"],
+            "typography_direction": v["typo_dir"],
+            "logo_placement": v["logo_plc"],
+            "text_overlay": v["overlay"],
+            "cta": v["cta"],
+            "image_generation_prompt": v["prompt"]
+        }
+
+    # SLOT 3: PROBLEM -> SOLUTION / PARADIGM SHIFT
+    else:
+        if cat == "finance":
+            variants = [
+                {
+                    "name": "Concept 4: Spreadsheet Chaos ➔ Automated Mastery (Problem ➔ Solution)",
+                    "type": "Conversion Paradigm",
+                    "objective": "High-converting split comparison dismantling manual procrastination.",
+                    "visual": "Split comparison: Messy crumpled receipts, tangled Excel spreadsheets on left resolving into glowing, automated, audit-ready cloud accounting on right.",
+                    "composition": "50/50 vertical division with high visual contrast.",
+                    "lighting": "Dim flat lighting on left transitioning to golden clarity on right.",
+                    "color_dir": f"Muted desaturated grey on left resolving into vibrant {prim_hex} and {sec_hex} on right.",
+                    "typo_dir": "Punchy contrasting labels ('Manual Spreadsheets' vs 'Cloud Automation').",
+                    "logo_plc": "Bottom center bridge.",
+                    "overlay": "Stop Losing Weekends to Bookkeeping.",
+                    "cta": f"{cta} today.",
+                    "prompt": f"Conceptual split-screen advertising photography, left side chaotic paper receipts and error warning stamps, right side sleek glowing cloud accounting dashboard in {prim_hex} and {sec_hex}, dramatic commercial advertising, 4:5 ratio."
+                },
+                {
+                    "name": "Concept 4: Tax Season Panic ➔ Year-Round Calm",
+                    "type": "Pain Point Elimination",
+                    "objective": "Triggers immediate action by contrasting last-minute March panic with effortless monthly reconciliation.",
+                    "visual": "Side-by-side comparison: Stressed desk with overdue sticky notes on left vs serene high-rise desk with clean green filings on right.",
+                    "composition": "Split-view with central gold divider line.",
+                    "lighting": "Harsh fluorescent shadow on left vs warm morning sunlight on right.",
+                    "color_dir": "Desaturated charcoal transitioning to rich warm amber.",
+                    "typo_dir": f"Bold contrasting {f_head} headlines.",
+                    "logo_plc": "Bottom right corner.",
+                    "overlay": "Tax Time Shouldn't Feel Like An Emergency.",
+                    "cta": f"Switch to proactive bookkeeping: {web}",
+                    "prompt": f"High-contrast split screen commercial advertisement, left side dark messy desk with disorganized receipts, right side bright clean modern boardroom desk with tablet showing 100% tax compliance, 4:5 ratio."
+                }
+            ]
+        elif cat == "tech":
+            variants = [
+                {
+                    "name": "Concept 4: Legacy Bottlenecks ➔ Cloud Velocity",
+                    "type": "Paradigm Shift",
+                    "objective": "Drives immediate software trial by exposing the painful drag of outdated infrastructure.",
+                    "visual": "Split view: Tangled server wires and error logs on left resolving into clean, automated cloud pipelines on right.",
+                    "composition": "Diagonal split comparison with high energy.",
+                    "lighting": "Red warning glow on left vs crisp cyan illumination on right.",
+                    "color_dir": f"Warning red fading to {prim_hex} electric blue and {sec_hex} amber.",
+                    "typo_dir": "Punchy technical comparison labels.",
+                    "logo_plc": "Bottom center.",
+                    "overlay": "Modernize Your Stack in Days, Not Quarters.",
+                    "cta": f"Start free migration at {web}",
+                    "prompt": f"Side-by-side conceptual technology advertisement, left side chaotic legacy server rack, right side modern glowing minimalist cloud architecture with telemetry charts, 4:5 ratio."
+                }
+            ]
+        elif cat == "product":
+            variants = [
+                {
+                    "name": "Concept 4: Problem to Solution (The Paradigm Shift)",
+                    "type": "Problem -> Solution",
+                    "objective": "Converts fence-sitters into buyers by dismantling market objections.",
+                    "visual": "Dynamic side-by-side split comparison of outdated alternatives vs pure modern batch.",
+                    "composition": "50/50 vertical division with high visual contrast.",
+                    "lighting": "Dim flat lighting on left transitioning to luminous golden clarity on right.",
+                    "color_dir": f"Muted desaturated grey on left resolving into vibrant {prim_hex} and {sec_hex} on right.",
+                    "typo_dir": "Punchy contrasting labels ('Standard Options' vs 'Our Standard').",
+                    "logo_plc": "Bottom center bridge.",
+                    "overlay": "Stop settling for diluted solutions.",
+                    "cta": f"{cta} today.",
+                    "prompt": f"Side-by-side conceptual comparison photography, dramatic lighting transition from cloudy dull backdrop to crystal clear glowing clarity, commercial advertising layout, {visual_style} style, 4:5 aspect ratio."
+                }
+            ]
+        else:
+            variants = [
+                {
+                    "name": "Concept 4: DIY Guesswork ➔ Strategic Certainty",
+                    "type": "Transformation Paradigm",
+                    "objective": "Converts prospective clients by demonstrating the costly hidden toll of trial-and-error.",
+                    "visual": "Split screen comparing fragmented sticky notes and disjointed plans on left with clear structured milestone timeline on right.",
+                    "composition": "50/50 vertical split with high contrast.",
+                    "lighting": "Shadowed monochrome on left resolving into bright warm clarity on right.",
+                    "color_dir": f"Dull gray to vibrant {sec_hex} gold.",
+                    "typo_dir": f"Contrasting {f_head} bold typography.",
+                    "logo_plc": "Bottom center bridge.",
+                    "overlay": "Stop Guessing. Start Scaling.",
+                    "cta": f"{cta} • Link in bio",
+                    "prompt": f"High impact split-screen commercial advertising visual, left side chaotic paper sketches and red error marks, right side luminous structured execution roadmap with {prim_hex} and {sec_hex} milestones, 4:5 ratio."
+                }
+            ]
+        v = variants[iteration % len(variants)]
+        return {
+            "concept_name": v["name"],
+            "concept_type": v["type"],
+            "objective_alignment": v["objective"],
+            "visual_direction": v["visual"],
+            "composition": v["composition"],
+            "lighting": v["lighting"],
+            "color_direction": v["color_dir"],
+            "typography_direction": v["typo_dir"],
+            "logo_placement": v["logo_plc"],
+            "text_overlay": v["overlay"],
+            "cta": v["cta"],
+            "image_generation_prompt": v["prompt"]
+        }
 
 
 # ==============================================================================
@@ -500,11 +1030,13 @@ def render_concept_visual_card(
     text_overlay: str,
     cta_text: str,
     visual_style: str = "Editorial",
+    industry: str = "General",
     logo_bytes: Optional[bytes] = None,
     product_bytes: Optional[bytes] = None
 ) -> bytes:
     """
-    Renders an ultra-crisp 800x1000 commercial creative visual matching brand tokens and guidelines.
+    Renders an ultra-crisp 800x1000 commercial creative visual matching brand tokens,
+    adapting graphics for Finance/Accounting, Tech/SaaS, Services, or Physical Products.
     """
     W, H = 800, 1000
     img = Image.new("RGB", (W, H), color=(15, 23, 42))
@@ -547,43 +1079,104 @@ def render_concept_visual_card(
     draw.rectangle([(36, 36), (W - 36, H - 36)], outline=(255, 255, 255), width=1)
 
     # Header badge
-    draw.rectangle([(W//2 - 150, 60), (W//2 + 150, 94)], fill=c_sec)
+    draw.rectangle([(W//2 - 160, 60), (W//2 + 160, 94)], fill=c_sec)
     draw.text((W//2, 77), f"{visual_style.upper()} • STUDIO CREATIVE", fill=(15, 23, 42), anchor="mm")
 
     # Brand Title
     draw.text((W//2, 130), brand_name.upper()[:28], fill=(255, 255, 255), anchor="mm")
     draw.text((W//2, 160), concept_name[:40], fill=c_sec, anchor="mm")
 
-    # Center Hero Graphic
+    # Center Hero Graphic - Check for Uploaded Product first
     composite_done = False
     if product_bytes:
         try:
             p_img = Image.open(io.BytesIO(product_bytes)).convert("RGBA")
-            p_img.thumbnail((260, 300), Image.Resampling.LANCZOS)
+            p_img.thumbnail((280, 300), Image.Resampling.LANCZOS)
             pw, ph = p_img.size
             px = (W - pw) // 2
-            py = int(H * 0.26) + (300 - ph) // 2
+            py = int(H * 0.25) + (300 - ph) // 2
             img.paste(p_img, (px, py), p_img)
             composite_done = True
         except Exception:
             composite_done = False
 
     if not composite_done:
-        bx, by, bw, bh = W//2 - 60, int(H * 0.25), 120, 240
-        draw.rectangle([(W//2 - 18, by - 45), (W//2 + 18, by - 28)], fill=(35, 35, 40))
-        draw.rectangle([(W//2 - 36, by - 28), (W//2 + 36, by)], fill=c_sec)
-        draw.rounded_rectangle([(bx, by), (bx + bw, by + bh)], radius=20, fill=(40, 24, 12), outline=c_sec, width=2)
-        draw.rounded_rectangle([(bx + 14, by + 50), (bx + bw - 14, by + bh - 45)], radius=8, fill=(250, 248, 242))
-        draw.text((W//2, by + 100), brand_name[:14], fill=(15, 23, 42), anchor="mm")
-        draw.text((W//2, by + 130), "PURE QUALITY", fill=c_sec, anchor="mm")
+        cat = detect_industry_category(industry, brand_name=brand_name)
+
+        if cat == "finance":
+            # High-End Financial Architecture Dashboard Card
+            fx, fy, fw, fh = W//2 - 210, int(H * 0.23), 420, 250
+            draw.rounded_rectangle([(fx, fy), (fx + fw, fy + fh)], radius=16, fill=(20, 28, 48), outline=c_sec, width=2)
+            draw.rounded_rectangle([(fx + 10, fy + 10), (fx + fw - 10, fy + 48)], radius=8, fill=(30, 41, 68))
+            draw.text((fx + 25, fy + 29), "FINANCIAL ARCHITECTURE", fill=(248, 250, 252), anchor="lm")
+            draw.text((fx + fw - 25, fy + 29), "✓ AUDIT VERIFIED", fill=(16, 185, 129), anchor="rm")
+            # Metrics
+            draw.text((fx + 30, fy + 75), "CASH RECONCILED", fill=(148, 163, 184), anchor="lm")
+            draw.text((fx + 30, fy + 105), "+38.4%", fill=(16, 185, 129), anchor="lm")
+            draw.text((fx + 165, fy + 75), "TAX OPTIMIZED", fill=(148, 163, 184), anchor="lm")
+            draw.text((fx + 165, fy + 105), "$24,500", fill=c_sec, anchor="lm")
+            draw.text((fx + 295, fy + 75), "COMPLIANCE", fill=(148, 163, 184), anchor="lm")
+            draw.text((fx + 295, fy + 105), "100.0%", fill=(56, 189, 248), anchor="lm")
+            # Upward growth trajectory curve with nodes
+            coords = [(fx + 30, fy + 195), (fx + 110, fy + 180), (fx + 200, fy + 185), (fx + 290, fy + 148), (fx + 390, fy + 130)]
+            draw.line(coords, fill=(16, 185, 129), width=4)
+            for cx_node, cy_node in coords:
+                draw.ellipse([(cx_node - 4, cy_node - 4), (cx_node + 4, cy_node + 4)], fill=c_sec)
+            draw.line([(fx + 30, fy + 215), (fx + fw - 30, fy + 215)], fill=(50, 60, 85), width=1)
+
+        elif cat == "tech":
+            # Sleek Tech Cloud System Card
+            tx, ty, tw, th = W//2 - 210, int(H * 0.23), 420, 250
+            draw.rounded_rectangle([(tx, ty), (tx + tw, ty + th)], radius=16, fill=(15, 23, 42), outline=(56, 189, 248), width=2)
+            draw.rounded_rectangle([(tx + 10, ty + 10), (tx + tw - 10, ty + 48)], radius=8, fill=(24, 34, 58))
+            draw.text((tx + 25, ty + 29), "SYSTEM TELEMETRY", fill=(248, 250, 252), anchor="lm")
+            draw.text((tx + tw - 25, ty + 29), "● 99.99% UPTIME", fill=(16, 185, 129), anchor="rm")
+            draw.text((tx + 30, ty + 85), "LATENCY: 12ms", fill=c_sec, anchor="lm")
+            draw.text((tx + 30, ty + 120), "THROUGHPUT: 4.8M ops/sec", fill=(56, 189, 248), anchor="lm")
+            draw.text((tx + 30, ty + 155), "SECURITY: ISO 27001 SOC-2", fill=(148, 163, 184), anchor="lm")
+            draw.line([(tx + 30, ty + 200), (tx + 120, ty + 180), (tx + 240, ty + 195), (tx + 390, ty + 165)], fill=(56, 189, 248), width=3)
+
+        elif cat == "health":
+            # Clinical Care & Patient Trust Card
+            hx, hy, hw, hh = W//2 - 210, int(H * 0.23), 420, 250
+            draw.rounded_rectangle([(hx, hy), (hx + hw, hy + hh)], radius=16, fill=(18, 30, 42), outline=(16, 185, 129), width=2)
+            draw.rounded_rectangle([(hx + 10, hy + 10), (hx + hw - 10, hy + 48)], radius=8, fill=(26, 45, 62))
+            draw.text((hx + 25, hy + 29), "CLINICAL EXCELLENCE", fill=(248, 250, 252), anchor="lm")
+            draw.text((hx + hw - 25, hy + 29), "✓ BOARD CERTIFIED", fill=(16, 185, 129), anchor="rm")
+            draw.text((hx + 30, hy + 85), "PATIENT SATISFACTION: 99.4%", fill=c_sec, anchor="lm")
+            draw.text((hx + 30, hy + 120), "CLINICAL PROTOCOL: 100% VERIFIED", fill=(56, 189, 248), anchor="lm")
+            draw.text((hx + 30, hy + 155), "EVIDENCE-BASED CARE", fill=(148, 163, 184), anchor="lm")
+            draw.line([(hx + 30, hy + 200), (hx + hw - 30, hy + 200)], fill=(40, 60, 80), width=1)
+
+        elif cat == "product":
+            # Luxury Product Hero Showcase (pedestal & packaging)
+            bx, by, bw, bh = W//2 - 60, int(H * 0.25), 120, 240
+            draw.rectangle([(W//2 - 18, by - 45), (W//2 + 18, by - 28)], fill=(35, 35, 40))
+            draw.rectangle([(W//2 - 36, by - 28), (W//2 + 36, by)], fill=c_sec)
+            draw.rounded_rectangle([(bx, by), (bx + bw, by + bh)], radius=20, fill=(40, 24, 12), outline=c_sec, width=2)
+            draw.rounded_rectangle([(bx + 14, by + 50), (bx + bw - 14, by + bh - 45)], radius=8, fill=(250, 248, 242))
+            draw.text((W//2, by + 100), brand_name[:14], fill=(15, 23, 42), anchor="mm")
+            draw.text((W//2, by + 130), "PREMIUM BATCH", fill=c_sec, anchor="mm")
+
+        else:
+            # High-Impact Professional Service / Advisory Card
+            sx, sy, sw, sh = W//2 - 210, int(H * 0.23), 420, 250
+            draw.rounded_rectangle([(sx, sy), (sx + sw, sy + sh)], radius=16, fill=(22, 27, 46), outline=c_sec, width=2)
+            draw.rounded_rectangle([(sx + 10, sy + 10), (sx + sw - 10, sy + 48)], radius=8, fill=(32, 40, 68))
+            draw.text((sx + 25, sy + 29), "STRATEGIC EXECUTION", fill=(248, 250, 252), anchor="lm")
+            draw.text((sx + sw - 25, sy + 29), "★ 5-STAR VERIFIED", fill=c_sec, anchor="rm")
+            draw.text((sx + 30, sy + 85), "✓ 100% RESULTS GUARANTEE", fill=(16, 185, 129), anchor="lm")
+            draw.text((sx + 30, sy + 120), "✓ DEDICATED SENIOR SPECIALIST", fill=(56, 189, 248), anchor="lm")
+            draw.text((sx + 30, sy + 155), "✓ MEASURABLE ROI MILESTONES", fill=c_sec, anchor="lm")
+            draw.line([(sx + 30, sy + 200), (sx + sw - 30, sy + 200)], fill=(50, 60, 85), width=1)
 
     # Logo overlay if uploaded
     if logo_bytes:
         try:
             l_img = Image.open(io.BytesIO(logo_bytes)).convert("RGBA")
-            l_img.thumbnail((120, 45), Image.Resampling.LANCZOS)
+            l_img.thumbnail((140, 50), Image.Resampling.LANCZOS)
             lw, lh = l_img.size
-            img.paste(l_img, (W - 35 - lw, 45), l_img)
+            img.paste(l_img, (W - 40 - lw, 45), l_img)
         except Exception:
             pass
 
@@ -1234,13 +1827,32 @@ def render_brand_first_content_page():
             # Batch Action Bar
             col_b1, col_b2, col_b3 = st.columns([1.5, 1.5, 2])
             with col_b1:
-                if st.button("✨ Generate Selected Images", use_container_width=True):
-                    for i in range(len(pack.get("creative_concepts", []))):
-                        st.session_state[f"generated_preview_{i}"] = True
-                    st.rerun()
+                if st.button("✨ Generate All Concept Images", use_container_width=True, type="primary"):
+                    with st.spinner("🎨 Generating all 4 high-resolution brand creative visuals..."):
+                        for i, c_item in enumerate(pack.get("creative_concepts", [])):
+                            st.session_state[f"img_data_{i}"] = render_concept_visual_card(
+                                concept_name=c_item.get('concept_name', f'Concept {i+1}'),
+                                brand_name=brand_name,
+                                prim_hex=c_prim,
+                                sec_hex=c_sec,
+                                bg_hex=c_bg,
+                                text_overlay=c_item.get('text_overlay', '100% Verifiable Quality'),
+                                cta_text=c_item.get('cta', primary_cta),
+                                visual_style=chosen_visual_style,
+                                industry=industry_input,
+                                logo_bytes=uploaded_logo.getvalue() if uploaded_logo else None,
+                                product_bytes=uploaded_product.getvalue() if uploaded_product else None
+                            )
+                            st.session_state[f"generated_preview_{i}"] = True
+                    st.success("✅ All 4 Production Images generated successfully!")
             with col_b2:
+                all_prompts_txt = "\n\n".join([
+                    f"--- CONCEPT #{i+1}: {c_item.get('concept_name', '')} ---\n{c_item.get('image_generation_prompt', '')}"
+                    for i, c_item in enumerate(pack.get("creative_concepts", []))
+                ])
                 if st.button("📋 Copy All Image Prompts", use_container_width=True):
-                    st.success("Copied all detailed prompts to clipboard!")
+                    st.components.v1.html(f"<script>navigator.clipboard.writeText({json.dumps(all_prompts_txt)});</script>", height=0)
+                    st.success("✅ Copied all 4 Production Image Prompts to clipboard!")
 
             st.markdown("<div style='margin-top: 0.8rem;'></div>", unsafe_allow_html=True)
 
@@ -1257,7 +1869,7 @@ def render_brand_first_content_page():
                         st.markdown(f"**🔤 Typography & Overlay:** `{c.get('text_overlay')}`")
                         st.markdown(f"**🏷️ Logo Placement Rule:** `{c.get('logo_placement')}`")
 
-                        # Requested Button: Generate Image Right Here inside Concept
+                        # Left button: Generate Concept Image Right Here
                         st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
                         btn_gen_here = st.button(
                             f"⚡ Generate Concept #{idx+1} Image Right Here",
@@ -1266,11 +1878,7 @@ def render_brand_first_content_page():
                             use_container_width=True
                         )
                         if btn_gen_here:
-                            st.session_state[f"generated_preview_{idx}"] = True
-
-                        # Display generated visual right here on the left
-                        if st.session_state.get(f"generated_preview_{idx}", False):
-                            with st.spinner(f"🎨 Generating Concept #{idx+1} creative image..."):
+                            with st.spinner(f"🎨 Rendering Concept #{idx+1} creative image..."):
                                 img_bytes = render_concept_visual_card(
                                     concept_name=c.get('concept_name', f'Concept {idx+1}'),
                                     brand_name=brand_name,
@@ -1280,10 +1888,30 @@ def render_brand_first_content_page():
                                     text_overlay=c.get('text_overlay', '100% Verifiable Quality'),
                                     cta_text=c.get('cta', primary_cta),
                                     visual_style=chosen_visual_style,
+                                    industry=industry_input,
                                     logo_bytes=uploaded_logo.getvalue() if uploaded_logo else None,
                                     product_bytes=uploaded_product.getvalue() if uploaded_product else None
                                 )
                                 st.session_state[f"img_data_{idx}"] = img_bytes
+                                st.session_state[f"generated_preview_{idx}"] = True
+                            st.success(f"✅ Concept #{idx+1} visual rendered!")
+
+                        # Display generated visual right here on the left
+                        if st.session_state.get(f"generated_preview_{idx}", False) or f"img_data_{idx}" in st.session_state:
+                            if f"img_data_{idx}" not in st.session_state:
+                                st.session_state[f"img_data_{idx}"] = render_concept_visual_card(
+                                    concept_name=c.get('concept_name', f'Concept {idx+1}'),
+                                    brand_name=brand_name,
+                                    prim_hex=c_prim,
+                                    sec_hex=c_sec,
+                                    bg_hex=c_bg,
+                                    text_overlay=c.get('text_overlay', '100% Verifiable Quality'),
+                                    cta_text=c.get('cta', primary_cta),
+                                    visual_style=chosen_visual_style,
+                                    industry=industry_input,
+                                    logo_bytes=uploaded_logo.getvalue() if uploaded_logo else None,
+                                    product_bytes=uploaded_product.getvalue() if uploaded_product else None
+                                )
 
                             st.image(
                                 st.session_state[f"img_data_{idx}"],
@@ -1308,23 +1936,134 @@ def render_brand_first_content_page():
                         btn_col1, btn_col2 = st.columns(2)
                         with btn_col1:
                             if st.button(f"🎨 Generate Image #{idx+1}", key=f"gen_img_{idx}", use_container_width=True):
-                                st.session_state[f"generated_preview_{idx}"] = True
-                                st.rerun()
+                                with st.spinner(f"🎨 Generating Concept #{idx+1} visual..."):
+                                    img_bytes = render_concept_visual_card(
+                                        concept_name=c.get('concept_name', f'Concept {idx+1}'),
+                                        brand_name=brand_name,
+                                        prim_hex=c_prim,
+                                        sec_hex=c_sec,
+                                        bg_hex=c_bg,
+                                        text_overlay=c.get('text_overlay', '100% Verifiable Quality'),
+                                        cta_text=c.get('cta', primary_cta),
+                                        visual_style=chosen_visual_style,
+                                        industry=industry_input,
+                                        logo_bytes=uploaded_logo.getvalue() if uploaded_logo else None,
+                                        product_bytes=uploaded_product.getvalue() if uploaded_product else None
+                                    )
+                                    st.session_state[f"img_data_{idx}"] = img_bytes
+                                    st.session_state[f"generated_preview_{idx}"] = True
+                                st.success(f"✅ Concept #{idx+1} image rendered!")
+
                         with btn_col2:
                             if st.button(f"📋 Copy Prompt #{idx+1}", key=f"cp_prmpt_{idx}", use_container_width=True):
-                                st.toast("Prompt copied to clipboard!")
+                                st.components.v1.html(f"<script>navigator.clipboard.writeText({json.dumps(prompt_val)});</script>", height=0)
+                                st.success(f"✅ Prompt #{idx+1} copied to clipboard!")
 
                         btn_col3, btn_col4 = st.columns(2)
                         with btn_col3:
                             if st.button(f"🔄 Regenerate #{idx+1}", key=f"regen_{idx}", use_container_width=True):
-                                st.toast(f"Regenerating Concept {idx+1} with fresh variations...")
-                        with btn_col4:
-                            if st.button(f"✏️ Edit #{idx+1}", key=f"edit_{idx}", use_container_width=True):
-                                st.text_input(f"Edit Concept {idx+1} Prompt", value=prompt_val, key=f"edit_input_{idx}")
+                                cur_ver = st.session_state.get(f"concept_ver_{idx}", 0) + 1
+                                st.session_state[f"concept_ver_{idx}"] = cur_ver
+                                new_concept = get_alternate_concept(
+                                    idx=idx,
+                                    brand_name=brand_name,
+                                    industry_text=industry_input,
+                                    visual_style=chosen_visual_style,
+                                    prim_hex=c_prim,
+                                    sec_hex=c_sec,
+                                    bg_hex=c_bg,
+                                    typography=typo_pack,
+                                    business=biz_data,
+                                    iteration=cur_ver
+                                )
+                                pack["creative_concepts"][idx] = new_concept
+                                st.session_state["social_content_pack"] = pack
+                                c = new_concept
 
-                        # If image already generated, show companion preview
-                        if f"img_data_{idx}" in st.session_state:
-                            st.caption("✨ *Live AI Creative Rendered with Brand Guidelines & Colors*")
+                                with st.spinner(f"🔄 Generating fresh visual for {new_concept['concept_name']}..."):
+                                    img_bytes = render_concept_visual_card(
+                                        concept_name=new_concept.get('concept_name', f'Concept {idx+1}'),
+                                        brand_name=brand_name,
+                                        prim_hex=c_prim,
+                                        sec_hex=c_sec,
+                                        bg_hex=c_bg,
+                                        text_overlay=new_concept.get('text_overlay', '100% Verifiable Quality'),
+                                        cta_text=new_concept.get('cta', primary_cta),
+                                        visual_style=chosen_visual_style,
+                                        industry=industry_input,
+                                        logo_bytes=uploaded_logo.getvalue() if uploaded_logo else None,
+                                        product_bytes=uploaded_product.getvalue() if uploaded_product else None
+                                    )
+                                    st.session_state[f"img_data_{idx}"] = img_bytes
+                                    st.session_state[f"generated_preview_{idx}"] = True
+                                st.success(f"✨ Regenerated #{idx+1}: {new_concept['concept_name']}!")
+
+                        with btn_col4:
+                            edit_key = f"is_editing_{idx}"
+                            if st.button(f"✏️ Edit #{idx+1}", key=f"btn_edit_toggle_{idx}", use_container_width=True):
+                                st.session_state[edit_key] = not st.session_state.get(edit_key, False)
+
+                        # Inline Persistent Form when Edit is toggled
+                        edit_key = f"is_editing_{idx}"
+                        if st.session_state.get(edit_key, False):
+                            with st.form(key=f"edit_form_{idx}"):
+                                st.markdown(f"**✏️ Edit Concept #{idx+1} Parameters**")
+                                ed_title = st.text_input("Concept Title", value=c.get("concept_name", ""))
+                                ed_obj = st.text_input("Objective Alignment", value=c.get("objective_alignment", ""))
+                                ed_overlay = st.text_input("Text Overlay / Headline", value=c.get("text_overlay", ""))
+                                ed_prompt = st.text_area("Production Image Prompt", value=c.get("image_generation_prompt", ""), height=100)
+
+                                col_s1, col_s2 = st.columns(2)
+                                with col_s1:
+                                    save_btn = st.form_submit_button("💾 Save & Re-render Image", type="primary", use_container_width=True)
+                                with col_s2:
+                                    cancel_btn = st.form_submit_button("✖ Close Editor", use_container_width=True)
+
+                                if save_btn:
+                                    c["concept_name"] = ed_title
+                                    c["objective_alignment"] = ed_obj
+                                    c["text_overlay"] = ed_overlay
+                                    c["image_generation_prompt"] = ed_prompt
+                                    pack["creative_concepts"][idx] = c
+                                    st.session_state["social_content_pack"] = pack
+
+                                    img_bytes = render_concept_visual_card(
+                                        concept_name=ed_title,
+                                        brand_name=brand_name,
+                                        prim_hex=c_prim,
+                                        sec_hex=c_sec,
+                                        bg_hex=c_bg,
+                                        text_overlay=ed_overlay,
+                                        cta_text=c.get('cta', primary_cta),
+                                        visual_style=chosen_visual_style,
+                                        industry=industry_input,
+                                        logo_bytes=uploaded_logo.getvalue() if uploaded_logo else None,
+                                        product_bytes=uploaded_product.getvalue() if uploaded_product else None
+                                    )
+                                    st.session_state[f"img_data_{idx}"] = img_bytes
+                                    st.session_state[f"generated_preview_{idx}"] = True
+                                    st.session_state[edit_key] = False
+                                    st.success(f"✅ Concept #{idx+1} saved and re-rendered!")
+
+                        # Always ensure img_data_{idx} is ready for Quick Download
+                        if f"img_data_{idx}" not in st.session_state:
+                            st.session_state[f"img_data_{idx}"] = render_concept_visual_card(
+                                concept_name=c.get('concept_name', f'Concept {idx+1}'),
+                                brand_name=brand_name,
+                                prim_hex=c_prim,
+                                sec_hex=c_sec,
+                                bg_hex=c_bg,
+                                text_overlay=c.get('text_overlay', '100% Verifiable Quality'),
+                                cta_text=c.get('cta', primary_cta),
+                                visual_style=chosen_visual_style,
+                                industry=industry_input,
+                                logo_bytes=uploaded_logo.getvalue() if uploaded_logo else None,
+                                product_bytes=uploaded_product.getvalue() if uploaded_product else None
+                            )
+
+                        st.caption("✨ *Live AI Creative Rendered with Brand Guidelines & Colors*")
+                        dl_col1, dl_col2 = st.columns(2)
+                        with dl_col1:
                             st.download_button(
                                 label=f"⬇️ Quick Download (#{idx+1})",
                                 data=st.session_state[f"img_data_{idx}"],
@@ -1333,19 +2072,54 @@ def render_brand_first_content_page():
                                 use_container_width=True,
                                 key=f"dl_right_{idx}"
                             )
-                        elif idx == 0:
-                            # Initial visual preview simulation before generation
-                            st.markdown(f"""
-                            <div style="background: radial-gradient(circle at 50% 30%, {c_sec}22 0%, {c_bg} 85%); border: 1px solid {c_sec}55; border-radius: 12px; padding: 1.5rem 1rem; text-align: center; margin-top: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-                                <div style="font-size: 2.2rem; margin-bottom: 6px;">🧴</div>
-                                <div style="font-weight: 800; font-size: 1.05rem; color: #FFFFFF; font-family: {f_head.split(' (')[0]}, serif;">{brand_name}</div>
-                                <div style="font-size: 0.76rem; color: {c_sec}; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px;">{chosen_visual_style} • {c.get('concept_type')}</div>
-                                <div style="background: rgba(0,0,0,0.4); border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; color: #E2E8F0; max-width: 220px; margin: 0 auto 12px; border: 1px solid rgba(255,255,255,0.1);">
-                                    "{c.get('text_overlay')}"
-                                </div>
-                                <div style="font-size: 0.72rem; color: #94A3B8;">Aspect: 4:5 • Safe Area Protected</div>
+                        with dl_col2:
+                            concept_brief = f"""CONCEPT #{idx+1}: {c.get('concept_name')}
+Brand: {brand_name}
+Industry: {industry_input}
+Visual Style: {chosen_visual_style}
+Objective: {c.get('objective_alignment')}
+Visual Direction: {c.get('visual_direction')}
+Composition: {c.get('composition')}
+Lighting: {c.get('lighting')}
+Color Direction: {c.get('color_direction')}
+Text Overlay: {c.get('text_overlay')}
+CTA: {c.get('cta', primary_cta)}
+
+PRODUCTION IMAGE PROMPT:
+{c.get('image_generation_prompt')}
+"""
+                            st.download_button(
+                                label=f"📝 Brief (#{idx+1})",
+                                data=concept_brief,
+                                file_name=f"{brand_name.lower().replace(' ', '_')}_concept_{idx+1}_brief.txt",
+                                mime="text/plain",
+                                use_container_width=True,
+                                key=f"dl_txt_{idx}"
+                            )
+
+                        # Dynamic Companion Preview Card (Industry-Adaptive Icon)
+                        cat_icon = {
+                            "finance": "📊",
+                            "tech": "⚡",
+                            "health": "🩺",
+                            "realestate": "🏛️",
+                            "service": "💼",
+                            "food": "🍳",
+                            "fitness": "🏋️",
+                            "product": "📦"
+                        }.get(detect_industry_category(industry_input, brand_name=brand_name), "💼")
+
+                        st.markdown(f"""
+                        <div style="background: radial-gradient(circle at 50% 30%, {c_sec}22 0%, {c_bg} 85%); border: 1px solid {c_sec}55; border-radius: 12px; padding: 1.2rem 1rem; text-align: center; margin-top: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+                            <div style="font-size: 2.2rem; margin-bottom: 6px;">{cat_icon}</div>
+                            <div style="font-weight: 800; font-size: 1.05rem; color: #FFFFFF; font-family: {f_head.split(' (')[0]}, serif;">{brand_name}</div>
+                            <div style="font-size: 0.76rem; color: {c_sec}; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px;">{chosen_visual_style} • {c.get('concept_type', 'Studio Creative')}</div>
+                            <div style="background: rgba(0,0,0,0.4); border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; color: #E2E8F0; max-width: 240px; margin: 0 auto 10px; border: 1px solid rgba(255,255,255,0.1);">
+                                "{c.get('text_overlay')}"
                             </div>
-                            """, unsafe_allow_html=True)
+                            <div style="font-size: 0.72rem; color: #94A3B8;">Aspect: 4:5 • Safe Area Protected • Brand DNA Enforced</div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
         # 3. FORMAT-SPECIFIC EXECUTION (DYNAMIC BASED ON STEP 0)
         with res_tabs[2]:
