@@ -1,5 +1,22 @@
 import os
+import functools
+import base64
 import streamlit as st
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+APP_ICON_PATH = os.path.join(_SCRIPT_DIR, "assets", "app_icon.png")
+FAVICON_PATH = os.path.join(_SCRIPT_DIR, "assets", "favicon_32.png")
+SPIDER_LOGO_PATH = os.path.join(_SCRIPT_DIR, "assets", "spider_logo.png")
+BANNER_PATH = os.path.join(_SCRIPT_DIR, "assets", "crawl_pilot_banner.png")
+
+# 1. Streamlit Page Configuration - Must be the very first Streamlit command!
+st.set_page_config(
+    page_title="CrawlPilot | CRAWL • ANALYZE • OPTIMIZE • RANK",
+    page_icon=FAVICON_PATH if os.path.exists(FAVICON_PATH) else ("assets/favicon_32.png" if os.path.exists("assets/favicon_32.png") else "🕷️"),
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 import pandas as pd
 import time
 import requests
@@ -24,55 +41,16 @@ from sitemap_generator import (
 )
 from query_fanout import render_query_fanout_page
 from silo_architect import render_silo_architect_page
-from PIL import Image
-import base64
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-APP_ICON_PATH = os.path.join(_SCRIPT_DIR, "assets", "app_icon.png")
-FAVICON_PATH = os.path.join(_SCRIPT_DIR, "assets", "favicon_32.png")
-SPIDER_LOGO_PATH = os.path.join(_SCRIPT_DIR, "assets", "spider_logo.png")
-BANNER_PATH = os.path.join(_SCRIPT_DIR, "assets", "crawl_pilot_banner.png")
-
-@st.cache_data
+@functools.lru_cache(maxsize=16)
 def get_asset_base64(filepath: str) -> str:
     try:
-        with open(filepath, "rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8")
+        if os.path.exists(filepath):
+            with open(filepath, "rb") as f:
+                return base64.b64encode(f.read()).decode("utf-8")
     except Exception:
-        return ""
-
-_favicon_obj = Image.open(APP_ICON_PATH) if os.path.exists(APP_ICON_PATH) else "🕷️"
-
-# 1. Streamlit Page Configuration - Must be first
-st.set_page_config(
-    page_title="CrawlPilot | CRAWL • ANALYZE • OPTIMIZE • RANK",
-    page_icon=_favicon_obj,
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Inject Dynamic Browser Favicon Tag
-_fav_b64 = get_asset_base64(FAVICON_PATH)
-_icon_b64 = get_asset_base64(APP_ICON_PATH)
-if _fav_b64:
-    st.html(f"""
-    <head>
-        <link rel="icon" type="image/png" href="data:image/png;base64,{_fav_b64}">
-        <link rel="shortcut icon" type="image/png" href="data:image/png;base64,{_fav_b64}">
-        <link rel="apple-touch-icon" href="data:image/png;base64,{_icon_b64}">
-    </head>
-    <script>
-        (function() {{
-            let link = document.querySelector("link[rel~='icon']");
-            if (!link) {{
-                link = document.createElement('link');
-                link.rel = 'icon';
-                document.getElementsByTagName('head')[0].appendChild(link);
-            }}
-            link.href = 'data:image/png;base64,{_fav_b64}';
-        }})();
-    </script>
-    """)
+        pass
+    return ""
 
 # 2. Modern Universal Theme Styling
 st.markdown("""
