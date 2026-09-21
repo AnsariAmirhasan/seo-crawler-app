@@ -824,6 +824,9 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
     fill_col_green = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")  # Lighter pale green
     fill_fail = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
     fill_pass = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
+    fill_ai_header = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid") # Indigo AI Header
+    font_ai_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    fill_ai_cell = PatternFill(start_color="EEF2FF", end_color="EEF2FF", fill_type="solid") # Soft Indigo Tint
 
     border_thin = Border(
         left=Side(style='thin', color='D3D3D3'),
@@ -840,8 +843,12 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
     ws_index = wb.create_sheet(title="Index")
     ws_index.views.sheetView[0].showGridLines = True
 
+    has_ai_plan = any("ai_action_plan" in item for item in index_rows)
+    merge_range = "A1:D1" if has_ai_plan else "A1:C1"
+    banner_cols = ["A", "B", "C", "D"] if has_ai_plan else ["A", "B", "C"]
+
     # Row 1: Merged 'Index'
-    ws_index.merge_cells("A1:C1")
+    ws_index.merge_cells(merge_range)
     cell_idx = ws_index["A1"]
     cell_idx.value = "Index"
     cell_idx.font = font_main_header
@@ -850,19 +857,23 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
     ws_index.row_dimensions[1].height = 28
 
     # Apply borders & fill across merged cells
-    for col_l in ["A", "B", "C"]:
+    for col_l in banner_cols:
         c = ws_index[f"{col_l}1"]
         c.border = border_thin
         c.fill = fill_main_green
 
     # Row 2: Header Columns
-    headers = ["Errors", "Status", "Comments"]
+    headers = ["Errors", "Status", "Comments", "AI Recommended Action Plan"] if has_ai_plan else ["Errors", "Status", "Comments"]
     ws_index.row_dimensions[2].height = 22
     for col_num, h_text in enumerate(headers, 1):
         c = ws_index.cell(row=2, column=col_num)
         c.value = h_text
-        c.font = font_col_header
-        c.fill = fill_col_green
+        if "AI " in h_text:
+            c.font = font_ai_header
+            c.fill = fill_ai_header
+        else:
+            c.font = font_col_header
+            c.fill = fill_col_green
         c.alignment = align_center if col_num == 2 else align_left
         c.border = border_thin
 
@@ -878,7 +889,6 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
         sheet_target = item.get("sheet_name")
         # If there's an associated error tab, add hyperlink!
         if sheet_target and sheet_target in error_dfs:
-            # Excel internal sheet hyperlink formula
             c_err.hyperlink = f"#'{sheet_target}'!A1"
             c_err.font = font_link
         else:
@@ -902,12 +912,22 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
         c_comm.alignment = align_left
         c_comm.border = border_thin
 
+        if has_ai_plan:
+            c_ai = ws_index.cell(row=current_row, column=4)
+            c_ai.value = item.get("ai_action_plan", "")
+            c_ai.font = font_data
+            c_ai.fill = fill_ai_cell
+            c_ai.alignment = align_left
+            c_ai.border = border_thin
+
         current_row += 1
 
     # Column widths for Index sheet
     ws_index.column_dimensions["A"].width = 38
     ws_index.column_dimensions["B"].width = 24
     ws_index.column_dimensions["C"].width = 65
+    if has_ai_plan:
+        ws_index.column_dimensions["D"].width = 65
     ws_index.freeze_panes = "A3"
 
     # -------------------------------------------------------------
@@ -923,11 +943,17 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
         # Header Row
         ws_err.row_dimensions[1].height = 24
         col_names = list(df_err.columns)
+        ai_col_indices = set()
         for col_idx, col_name in enumerate(col_names, 1):
             c = ws_err.cell(row=1, column=col_idx)
             c.value = str(col_name)
-            c.font = font_col_header
-            c.fill = fill_col_green
+            if "AI " in str(col_name):
+                c.font = font_ai_header
+                c.fill = fill_ai_header
+                ai_col_indices.add(col_idx)
+            else:
+                c.font = font_col_header
+                c.fill = fill_col_green
             c.alignment = align_center if "Status" in col_name or "Count" in col_name else align_left
             c.border = border_thin
 
@@ -940,6 +966,8 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
                 c.font = font_data
                 c.border = border_thin
                 c.alignment = align_left
+                if c_idx in ai_col_indices:
+                    c.fill = fill_ai_cell
                 # Link formatting for URLs
                 if isinstance(val, str) and val.startswith("http"):
                     c.font = font_link

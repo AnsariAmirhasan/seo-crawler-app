@@ -856,6 +856,7 @@ if btn_start:
             analysis["elapsed_seconds"] = elapsed
             analysis["start_url"] = target_url
             st.session_state["crawl_results"] = analysis
+            st.session_state.pop("ai_audit_enriched_result", None)
             st.session_state["is_crawling"] = False
 
         status_box.success(f"✅ Audit Completed! Successfully crawled and analyzed **{len(analysis['df_pages'])}** pages in **{elapsed} seconds**.")
@@ -3107,16 +3108,144 @@ with tab_extractor:
         st.info("Run a crawl to extract structured SEO errors into an interactive audit spreadsheet.")
     else:
         from data_extractor import extract_all_seo_errors, build_error_audit_excel_workbook
+        from ai_audit_enricher import enrich_audit_report_with_ai
 
         index_rows, error_dfs = extract_all_seo_errors(results)
 
         st.subheader("📑 SEO Audit Report & Multi-Tab Export")
-        st.caption("Structured multi-tab client audit spreadsheet. The Index sheet summarizes all technical checks, and separate tabs list all affected URLs for each error.")
+        st.caption("Structured multi-tab client audit spreadsheet. The Index sheet summarizes all technical checks, and separate tabs list all affected URLs with automated AI fix suggestions.")
 
-        total_checks = len(index_rows)
-        failed_checks = sum(1 for r in index_rows if r.get("is_error", False))
+        # =====================================================================
+        # AI ENGINE & API CONFIGURATION CARD (Matching Query Fan-Out Design)
+        # =====================================================================
+        if "audit_reset_id" not in st.session_state:
+            st.session_state["audit_reset_id"] = 0
+        audit_reset_id = st.session_state["audit_reset_id"]
+
+        st.markdown("""
+        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(99, 102, 241, 0.28); border-radius: 16px; padding: 1.4rem 1.6rem 1rem; margin-bottom: 1.4rem;">
+            <div style="font-size: 1.1rem; font-weight: 700; color: #F8FAFC; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+                <span>🔐</span> <span>AI Engine & API Configuration</span>
+            </div>
+            <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 0.4rem;">
+                Connect your AI API key to generate intelligent SEO fixes and suggestions (tailored meta descriptions, optimized titles, H1s, and URL remediations) directly in your audit report.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        cfg_col1, cfg_col2, cfg_col3 = st.columns([1.4, 2.2, 1.6])
+
+        with cfg_col1:
+            ai_provider = st.selectbox(
+                "AI Provider",
+                options=["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"],
+                index=0,
+                key="audit_ai_provider"
+            )
+            if ai_provider == "Google Gemini":
+                model_options = [
+                    "gemini-2.5-flash",
+                    "gemini-1.5-flash",
+                    "gemini-2.0-flash",
+                    "gemini-3.8-flash",
+                    "gemini-3.7-flash",
+                    "Custom Model"
+                ]
+            elif ai_provider == "ChatGPT (OpenAI)":
+                model_options = [
+                    "gpt-4o-mini",
+                    "gpt-4o",
+                    "o3-mini",
+                    "Custom Model"
+                ]
+            else:
+                model_options = [
+                    "claude-3-5-haiku-20241022",
+                    "claude-3-5-sonnet-20241022",
+                    "Custom Model"
+                ]
+
+            selected_model_choice = st.selectbox(
+                "Model",
+                options=model_options,
+                index=0,
+                key="audit_model_choice"
+            )
+            if selected_model_choice == "Custom Model":
+                selected_model = st.text_input(
+                    "Custom Model Name",
+                    placeholder="e.g. gemini-2.5-pro",
+                    key=f"audit_custom_model_{audit_reset_id}"
+                ).strip()
+            else:
+                selected_model = selected_model_choice
+
+        with cfg_col2:
+            if ai_provider == "Google Gemini":
+                key_label = "Google Gemini API Key (Free)"
+                key_placeholder = "Paste your Gemini API key (AIzaSy...)"
+                help_url = "https://aistudio.google.com/apikey"
+                help_text = "Get your free key from Google AI Studio →"
+            elif ai_provider == "ChatGPT (OpenAI)":
+                key_label = "OpenAI API Key"
+                key_placeholder = "sk-..."
+                help_url = "https://platform.openai.com/api-keys"
+                help_text = "Get your OpenAI API key →"
+            else:
+                key_label = "Anthropic API Key"
+                key_placeholder = "sk-ant-..."
+                help_url = "https://console.anthropic.com/settings/keys"
+                help_text = "Get your Anthropic key →"
+
+            existing_key = st.session_state.get(f"api_key_{ai_provider}", "")
+            api_key = st.text_input(
+                key_label,
+                value=existing_key,
+                type="password",
+                placeholder=key_placeholder,
+                key=f"input_audit_key_{ai_provider}_{audit_reset_id}"
+            )
+            st.caption(f"🔑 <a href='{help_url}' target='_blank' style='color:#818CF8; text-decoration:none;'>{help_text}</a>", unsafe_allow_html=True)
+            if api_key:
+                st.session_state[f"api_key_{ai_provider}"] = api_key
+
+            if st.button("🔄 Clear All (Keys & Results)", use_container_width=True, key="btn_clear_audit_cfg"):
+                st.session_state[f"api_key_{ai_provider}"] = ""
+                st.session_state.pop("ai_audit_enriched_result", None)
+                st.session_state["audit_reset_id"] = audit_reset_id + 1
+                st.rerun()
+
+        with cfg_col3:
+            business_niche = st.text_input(
+                "🏢 Brand / Business Niche (Optional)",
+                placeholder="e.g. Organic Essential Oils, Shopify Store",
+                help="Helps the AI understand your brand tone to craft accurate, high-CTR meta descriptions and title hooks.",
+                key=f"audit_biz_context_{audit_reset_id}"
+            )
+            max_enrich_urls = st.slider(
+                "Max URLs to Enrich per Tab",
+                min_value=5,
+                max_value=100,
+                value=25,
+                step=5,
+                help="Controls how many affected URLs are enriched with AI suggestions per category.",
+                key="audit_max_enrich_urls"
+            )
+
+        # Check if enriched audit exists in session state
+        ai_enriched_data = st.session_state.get("ai_audit_enriched_result")
+        active_index_rows = index_rows
+        active_error_dfs = error_dfs
+        is_ai_enriched = False
+
+        if ai_enriched_data:
+            active_index_rows, active_error_dfs = ai_enriched_data
+            is_ai_enriched = True
+
+        total_checks = len(active_index_rows)
+        failed_checks = sum(1 for r in active_index_rows if r.get("is_error", False))
         passed_checks = total_checks - failed_checks
-        total_affected_urls = sum(r.get("count", 0) for r in index_rows if r.get("is_error", False))
+        total_affected_urls = sum(r.get("count", 0) for r in active_index_rows if r.get("is_error", False))
 
         # Metric Cards
         em1, em2, em3, em4 = st.columns(4)
@@ -3127,22 +3256,70 @@ with tab_extractor:
 
         st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
 
-        # Download Toolbar
-        col_btn1, col_btn2, col_info = st.columns([1.5, 1.2, 3])
+        if is_ai_enriched:
+            st.markdown("""
+            <div style="background: rgba(79, 70, 229, 0.15); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 12px; padding: 10px 16px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+                <div style="color: #C7D2FE; font-size: 0.92rem; font-weight: 600;">
+                    ✨ <b>AI Fixes Active:</b> Tailored SEO metadata, titles, H1 headings, and URL remediation suggestions have been added to the workbook tabs!
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Action Toolbar: Generate AI Fixes & Downloads
+        col_ai_btn, col_btn1, col_btn2 = st.columns([1.8, 1.4, 1.2])
+        with col_ai_btn:
+            active_key = st.session_state.get(f"api_key_{ai_provider}", "").strip()
+            btn_label = "🔄 Re-Generate AI SEO Fixes" if is_ai_enriched else "✨ Generate AI SEO Fixes & Suggestions"
+            if st.button(btn_label, type="primary", use_container_width=True, key="btn_gen_ai_audit"):
+                if not active_key:
+                    st.error("⚠️ Please paste your API key in the AI Engine Configuration card above first!")
+                else:
+                    progress_bar = st.progress(0.0)
+                    status_text = st.empty()
+
+                    def on_ai_progress(pct, msg):
+                        progress_bar.progress(pct)
+                        status_text.info(msg)
+
+                    with st.spinner("🤖 Connecting to AI engine and generating SEO fixes for all error tabs..."):
+                        enr_idx, enr_dfs = enrich_audit_report_with_ai(
+                            index_rows=index_rows,
+                            error_dfs=error_dfs,
+                            api_key=active_key,
+                            provider=ai_provider,
+                            model=selected_model,
+                            business_context=business_niche,
+                            max_urls_per_tab=max_enrich_urls,
+                            progress_callback=on_ai_progress
+                        )
+                        st.session_state["ai_audit_enriched_result"] = (enr_idx, enr_dfs)
+                        progress_bar.empty()
+                        status_text.empty()
+                        st.toast("✅ AI SEO Fixes successfully applied!", icon="✨")
+                        st.rerun()
+
         with col_btn1:
-            excel_bytes = build_error_audit_excel_workbook(index_rows, error_dfs)
+            excel_bytes = build_error_audit_excel_workbook(active_index_rows, active_error_dfs)
+            dl_file_name = "seo_audit_report_with_ai_fixes.xlsx" if is_ai_enriched else "seo_error_audit_report.xlsx"
+            dl_btn_label = "📥 Download AI-Enriched Excel (.xlsx)" if is_ai_enriched else "📥 Download Audit Excel (.xlsx)"
             st.download_button(
-                label="📥 Download Audit Excel (.xlsx)",
+                label=dl_btn_label,
                 data=excel_bytes,
-                file_name="seo_error_audit_report.xlsx",
+                file_name=dl_file_name,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary",
-                use_container_width=True
+                use_container_width=True,
+                key="btn_dl_audit_excel"
             )
+
         with col_btn2:
             df_index_csv = pd.DataFrame([
-                {"Errors": r["error_name"], "Status": r["status"], "Comments": r["comments"]}
-                for r in index_rows
+                {
+                    "Errors": r["error_name"],
+                    "Status": r["status"],
+                    "Comments": r["comments"],
+                    **({"AI Action Plan": r.get("ai_action_plan", "")} if is_ai_enriched else {})
+                }
+                for r in active_index_rows
             ])
             csv_index_bytes = df_index_csv.to_csv(index=False).encode('utf-8')
             st.download_button(
@@ -3150,10 +3327,9 @@ with tab_extractor:
                 data=csv_index_bytes,
                 file_name="seo_error_index.csv",
                 mime="text/csv",
-                use_container_width=True
+                use_container_width=True,
+                key="btn_dl_audit_csv"
             )
-        with col_info:
-            st.caption("✨ Multi-tab Excel includes **Index sheet** with green header + separate tabs for each error containing affected URLs.")
 
         st.markdown("<div style='margin: 1rem 0 0.5rem;'></div>", unsafe_allow_html=True)
 
@@ -3172,36 +3348,45 @@ with tab_extractor:
                     "Errors": r["error_name"],
                     "Status": r["status"],
                     "Comments": r["comments"],
-                    "Excel Sheet Tab": "✅ " + r["sheet_name"] if r.get("sheet_name") in error_dfs else "— (0 issues)"
+                    **({"AI Action Plan": r.get("ai_action_plan", "")} if is_ai_enriched else {}),
+                    "Excel Sheet Tab": "✅ " + r["sheet_name"] if r.get("sheet_name") in active_error_dfs else "— (0 issues)"
                 }
-                for r in index_rows
+                for r in active_index_rows
             ])
+
+            col_configs = {
+                "Errors": st.column_config.TextColumn("Errors", width="medium"),
+                "Status": st.column_config.TextColumn("Status", width="small"),
+                "Comments": st.column_config.TextColumn("Comments", width="large"),
+                "Excel Sheet Tab": st.column_config.TextColumn("Excel Worksheet Tab", width="medium"),
+            }
+            if is_ai_enriched:
+                col_configs["AI Action Plan"] = st.column_config.TextColumn("✨ AI Action Plan", width="large")
 
             st.dataframe(
                 df_display_index,
                 use_container_width=True,
-                column_config={
-                    "Errors": st.column_config.TextColumn("Errors", width="medium"),
-                    "Status": st.column_config.TextColumn("Status", width="small"),
-                    "Comments": st.column_config.TextColumn("Comments", width="large"),
-                    "Excel Sheet Tab": st.column_config.TextColumn("Excel Worksheet Tab", width="medium"),
-                },
+                column_config=col_configs,
                 hide_index=True
             )
 
         with tab_view_sheets:
-            if not error_dfs:
+            if not active_error_dfs:
                 st.success("🎉 Great news! No errors or warnings found on this website.")
             else:
-                active_sheet_names = list(error_dfs.keys())
+                active_sheet_names = list(active_error_dfs.keys())
                 selected_sheet = st.selectbox(
                     "Select Error Tab to Inspect Affected URLs:",
                     active_sheet_names,
                     key="sb_extractor_sheet"
                 )
 
-                selected_df = error_dfs[selected_sheet]
+                selected_df = active_error_dfs[selected_sheet]
                 st.markdown(f"##### 📄 Tab: **{selected_sheet}** ({len(selected_df)} URLs / entries)")
+
+                has_ai_cols = any("AI " in col for col in selected_df.columns)
+                if has_ai_cols:
+                    st.info("✨ **AI Suggestions Included:** Look at the highlighted AI suggestion column(s) on the right for automated page fixes!")
 
                 col_sd1, col_sd2 = st.columns([1.5, 4])
                 with col_sd1:
@@ -3211,7 +3396,8 @@ with tab_extractor:
                         data=csv_sheet_bytes,
                         file_name=f"{selected_sheet.replace(' ', '_').lower()}.csv",
                         mime="text/csv",
-                        use_container_width=True
+                        use_container_width=True,
+                        key="btn_dl_sheet_csv"
                     )
                 with col_sd2:
                     st.caption(f"Showing all rows for **{selected_sheet}** included in the downloaded workbook.")
