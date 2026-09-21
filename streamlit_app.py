@@ -1398,9 +1398,6 @@ with tab_responses:
 
         st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
 
-        if c_chain > 0 or c_loop > 0:
-            st.warning(f"⚠️ **Redirect Chain & Loop Alert**: Detected **{c_chain} Redirect Chains (>1 Hop)** and **{c_loop} Redirect Loops**. Multiple hops slow down crawlers and dilute link equity. Filter by `Redirection (Chain)` or `Redirection (Loop)` below to audit full paths.")
-
         # Build Filter Options matching user's requirements + Orphan pages
         c_robots = len(df_pages[df_pages["response_category"] == "Blocked by Robots.txt"]) if "response_category" in df_pages.columns else 0
         c_blocked_res = len(df_pages[df_pages["response_category"] == "Blocked Resource"]) if "response_category" in df_pages.columns else 0
