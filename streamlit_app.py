@@ -1294,16 +1294,7 @@ with tab_minify:
             with col_m4:
                 st.metric("Potential Payload Savings", "30% - 70%", delta="Core Web Vitals boost", delta_color="normal")
 
-            st.markdown("""
-            <div style="background: rgba(239, 68, 68, 0.08); border-left: 4px solid #EF4444; border-radius: 8px; padding: 12px 16px; margin: 1rem 0 1.2rem;">
-                <div style="font-weight: 700; color: #F87171; font-size: 0.95rem; margin-bottom: 3px;">
-                    ⚡ High Priority Core Web Vitals & PageSpeed Bottleneck
-                </div>
-                <div style="font-size: 0.85rem; color: #CBD5E1; line-height: 1.5;">
-                    Unminified JavaScript and CSS files act as <b>render-blocking resources</b>. The browser cannot construct the DOM render tree or paint text and images until these heavy files finish downloading and parsing. Minifying static assets removes redundant whitespace, comments, and unused code, significantly accelerating <b>First Contentful Paint (FCP)</b> and <b>Largest Contentful Paint (LCP)</b>.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("<div style='margin-bottom: 0.8rem;'></div>", unsafe_allow_html=True)
 
             # Filter buttons
             filter_opts = [
@@ -3270,17 +3261,6 @@ with tab_extractor:
         if "audit_reset_id" not in st.session_state:
             st.session_state["audit_reset_id"] = 0
         audit_reset_id = st.session_state["audit_reset_id"]
-
-        st.markdown("""
-        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(99, 102, 241, 0.28); border-radius: 16px; padding: 1.4rem 1.6rem 1rem; margin-bottom: 1.4rem;">
-            <div style="font-size: 1.1rem; font-weight: 700; color: #F8FAFC; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
-                <span>🔐</span> <span>AI Engine & API Configuration</span>
-            </div>
-            <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 0.4rem;">
-                Connect your AI API key to benchmark against top Google search competitors in your target region and generate 150-160 char meta descriptions with CTAs, title tags, and developer guides.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
         cfg_col1, cfg_col2, cfg_col3 = st.columns([1.4, 2.2, 1.6])
 
