@@ -543,40 +543,61 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
         })
 
     # -------------------------------------------------------------
-    # 13. Redirect Chains & Loops (3XX)
+    # 13. Redirect Chains & Loops (3XX) - Semrush & Screaming Frog Link-Level Parity
     # -------------------------------------------------------------
-    chain_mask = (get_series(df_pages, "is_redirect_chain", False) == True) | (get_series(df_pages, "is_redirect_loop", False) == True)
-    chain_df = df_pages[chain_mask]
-    chain_count = len(chain_df)
+    df_redirect_chains = analysis_result.get("df_redirect_chains")
+    if df_redirect_chains is None or (isinstance(df_redirect_chains, pd.DataFrame) and df_redirect_chains.empty):
+        from seo_analyzer import extract_redirect_chain_instances
+        df_redirect_chains = extract_redirect_chain_instances(df_pages, df_links)
+
     chain_tab = sanitize_sheet_title("Redirect Chains & Loops")
-    if chain_count > 0:
-        cols = [c for c in ["url", "status_code", "redirect_chain_str", "redirect_hops", "final_url"] if c in chain_df.columns]
-        cdf = chain_df[cols].copy().rename(columns={
-            "url": "Start URL",
-            "status_code": "Initial Status",
-            "redirect_chain_str": "Redirect Chain",
-            "redirect_hops": "Hops Count",
-            "final_url": "Final Destination URL"
-        })
-        cdf["Recommended Action"] = "Update inlinks to point directly to the final 200 OK target URL."
-        error_dfs[chain_tab] = cdf
+
+    if isinstance(df_redirect_chains, pd.DataFrame) and not df_redirect_chains.empty:
+        chain_count = len(df_redirect_chains)
+        src_pages_count = df_redirect_chains["Source Page"].nunique() if "Source Page" in df_redirect_chains.columns else 0
+        unique_targets = df_redirect_chains["Initial Redirect URL"].nunique() if "Initial Redirect URL" in df_redirect_chains.columns else 0
+
+        error_dfs[chain_tab] = df_redirect_chains.copy()
         index_rows.append({
             "error_name": "Redirect Chains & Loops",
             "status": f"Failed ({chain_count})",
-            "comments": f"Found {chain_count} URLs involved in multiple redirect hops or loops.",
+            "comments": f"Found {chain_count} internal link instances pointing to {unique_targets} redirect chains/loops across {src_pages_count} source pages (Semrush-level audit).",
             "sheet_name": chain_tab,
             "count": chain_count,
             "is_error": True
         })
     else:
-        index_rows.append({
-            "error_name": "Redirect Chains & Loops",
-            "status": "Passed (0)",
-            "comments": "No multi-hop redirect chains or infinite loops detected.",
-            "sheet_name": None,
-            "count": 0,
-            "is_error": False
-        })
+        chain_mask = (get_series(df_pages, "is_redirect_chain", False) == True) | (get_series(df_pages, "is_redirect_loop", False) == True)
+        chain_df = df_pages[chain_mask]
+        chain_count = len(chain_df)
+        if chain_count > 0:
+            cols = [c for c in ["url", "status_code", "redirect_chain_str", "redirect_hops", "final_url"] if c in chain_df.columns]
+            cdf = chain_df[cols].copy().rename(columns={
+                "url": "Start URL",
+                "status_code": "Initial Status",
+                "redirect_chain_str": "Redirect Chain",
+                "redirect_hops": "Hops Count",
+                "final_url": "Final Destination URL"
+            })
+            cdf["Recommended Action"] = "Update inlinks to point directly to the final 200 OK target URL."
+            error_dfs[chain_tab] = cdf
+            index_rows.append({
+                "error_name": "Redirect Chains & Loops",
+                "status": f"Failed ({chain_count})",
+                "comments": f"Found {chain_count} URLs involved in multiple redirect hops or loops.",
+                "sheet_name": chain_tab,
+                "count": chain_count,
+                "is_error": True
+            })
+        else:
+            index_rows.append({
+                "error_name": "Redirect Chains & Loops",
+                "status": "Passed (0)",
+                "comments": "No multi-hop redirect chains or infinite loops detected.",
+                "sheet_name": None,
+                "count": 0,
+                "is_error": False
+            })
 
     return index_rows, error_dfs
 

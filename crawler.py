@@ -323,12 +323,14 @@ class SEOSpider:
         
         if has_redirect:
             redirect_chain_urls = [r.url for r in response.history] + [response.url]
+            redirect_chain_statuses = [r.status_code for r in response.history] + [response.status_code]
             chain_items = [f"{r.url} ({r.status_code})" for r in response.history] + [f"{response.url} ({response.status_code})"]
             redirect_chain_str = " → ".join(chain_items)
             # Detect loop if any URL in the chain was visited more than once
             is_loop = len(redirect_chain_urls) != len(set(redirect_chain_urls))
         else:
             redirect_chain_urls = []
+            redirect_chain_statuses = []
             redirect_chain_str = ""
             is_loop = False
 
@@ -368,6 +370,7 @@ class SEOSpider:
             "size_bytes": 0 if is_redirect else content_length,
             "headers": dict(response.history[0].headers) if has_redirect else dict(response.headers),
             "redirect_chain": redirect_chain_urls,
+            "redirect_chain_statuses": redirect_chain_statuses,
             "redirect_chain_str": redirect_chain_str,
             "redirect_hops": redirect_hops,
             "redirect_issue_type": redirect_issue_type,

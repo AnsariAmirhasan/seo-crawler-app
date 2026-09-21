@@ -1377,10 +1377,16 @@ with tab_responses:
         st.caption("Inspect HTTP status codes, redirection chains, redirect loops, server errors, blocked resources, and orphan pages with 0 internal links.")
 
         # KPI Metrics Row (8 metrics)
+        df_redirect_chains = results.get("df_redirect_chains")
+        if df_redirect_chains is None or (isinstance(df_redirect_chains, pd.DataFrame) and df_redirect_chains.empty):
+            from seo_analyzer import extract_redirect_chain_instances
+            df_redirect_chains = extract_redirect_chain_instances(df_pages, df_links)
+
         c_2xx = len(df_pages[(df_pages["status_code"] >= 200) & (df_pages["status_code"] < 300)])
         c_3xx = len(df_pages[(df_pages["status_code"] >= 300) & (df_pages["status_code"] < 400)])
-        c_chain = len(df_pages[df_pages.get("is_redirect_chain", False) == True])
-        c_loop = len(df_pages[df_pages.get("is_redirect_loop", False) == True])
+        c_chain_unique = len(df_pages[df_pages.get("is_redirect_chain", False) == True])
+        c_loop_unique = len(df_pages[df_pages.get("is_redirect_loop", False) == True])
+        c_chain_instances = len(df_redirect_chains) if isinstance(df_redirect_chains, pd.DataFrame) else 0
         c_4xx = len(df_pages[(df_pages["status_code"] >= 400) & (df_pages["status_code"] < 500)])
         c_5xx = len(df_pages[(df_pages["status_code"] >= 500) & (df_pages["status_code"] < 600)])
         c_orphan = len(df_pages[(df_pages.get("is_orphan", False) == True) | (df_pages.get("inlinks_count", 0) == 0)])
@@ -1389,8 +1395,8 @@ with tab_responses:
         rm1, rm2, rm3, rm4, rm5, rm6, rm7, rm8 = st.columns(8)
         rm1.metric("Success (2xx)", f"{c_2xx}", delta=f"{round(c_2xx/max(total_resp_pages,1)*100)}% of pages")
         rm2.metric("Redirection (3xx)", f"{c_3xx}", delta="Redirects" if c_3xx else None)
-        rm3.metric("Redirect Chains", f"{c_chain}", delta=">1 Hop" if c_chain else None, delta_color="inverse")
-        rm4.metric("Redirect Loops", f"{c_loop}", delta="Circular Loop" if c_loop else None, delta_color="inverse")
+        rm3.metric("Redirect Chains", f"{c_chain_instances} Links" if c_chain_instances > 0 else f"{c_chain_unique}", delta=f"{c_chain_unique} URLs" if c_chain_instances > 0 else (">1 Hop" if c_chain_unique else None), delta_color="inverse")
+        rm4.metric("Redirect Loops", f"{c_loop_unique}", delta="Circular Loop" if c_loop_unique else None, delta_color="inverse")
         rm5.metric("Client Error (4xx)", f"{c_4xx}", delta="Broken links" if c_4xx else None, delta_color="inverse")
         rm6.metric("Server Error (5xx)", f"{c_5xx}", delta="Critical" if c_5xx else None, delta_color="inverse")
         rm7.metric("Orphan URLs", f"{c_orphan}", delta="0 Inlinks" if c_orphan else None, delta_color="inverse")
@@ -1398,19 +1404,24 @@ with tab_responses:
 
         st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
 
-        if c_chain > 0 or c_loop > 0:
-            st.warning(f"⚠️ **Redirect Chain & Loop Alert**: Detected **{c_chain} Redirect Chains (>1 Hop)** and **{c_loop} Redirect Loops**. Multiple hops slow down crawlers and dilute link equity. Filter by `Redirection (Chain)` or `Redirection (Loop)` below to audit full paths.")
+        if c_chain_unique > 0 or c_loop_unique > 0:
+            st.warning(f"⚠️ **Redirect Chain & Loop Alert (Semrush Audit Parity)**: Detected **{c_chain_instances} internal link instances** pointing to **{c_chain_unique} unique Redirect Chains (>1 Hop)** and **{c_loop_unique} Redirect Loops** across your site. Semrush audits every link occurrence on every page. Filter by `Redirection Chains` below to inspect all source pages and link paths.")
 
         # Build Filter Options matching user's requirements + Orphan pages
         c_robots = len(df_pages[df_pages["response_category"] == "Blocked by Robots.txt"]) if "response_category" in df_pages.columns else 0
         c_blocked_res = len(df_pages[df_pages["response_category"] == "Blocked Resource"]) if "response_category" in df_pages.columns else 0
         c_no_resp = len(df_pages[(df_pages["status_code"] == 0) | (df_pages["response_category"] == "No Response")]) if "response_category" in df_pages.columns else 0
 
+        chain_filter_label = f"Redirection Chains ({c_chain_instances} Links / {c_chain_unique} URLs)" if c_chain_instances > 0 else f"Redirection (Chain) ({c_chain_unique})"
+        loop_filter_label = f"Redirection (Loop) ({c_loop_unique})"
+
         sf_options = [
             f"All ({total_resp_pages})",
             f"Success (2xx) ({c_2xx})",
             f"Noindex Pages (noindex tag) ({c_noindex})",
             f"Redirection (3xx) ({c_3xx})",
+            chain_filter_label,
+            loop_filter_label,
             f"Client Error (4xx) ({c_4xx})",
             f"Server Error (5xx) ({c_5xx})",
             f"Blocked by Robots.txt ({c_robots})",
@@ -1438,7 +1449,7 @@ with tab_responses:
         df_resp_filtered = df_pages.copy()
 
         filter_choice = resp_filter.rsplit(" (", 1)[0]
-        if "Redirection (Chain)" in resp_filter:
+        if "Redirection Chains" in resp_filter or "Redirection (Chain)" in resp_filter:
             df_resp_filtered = df_resp_filtered[df_resp_filtered.get("is_redirect_chain", False) == True]
         elif "Redirection (Loop)" in resp_filter:
             df_resp_filtered = df_resp_filtered[df_resp_filtered.get("is_redirect_loop", False) == True]
@@ -1500,168 +1511,212 @@ with tab_responses:
             st.caption(f"Showing **{len(df_resp_filtered)}** of **{total_resp_pages}** URLs matching filter: `{filter_choice}`")
 
         # Table Display: Dedicated view when filtering by Redirection (3xx/Chain/Loop), Client Error (4xx), or Success (2xx)
-        is_redirect_view = ("Redirection (3xx)" in resp_filter) or ("Redirection (Chain)" in resp_filter) or ("Redirection (Loop)" in resp_filter)
+        is_chain_or_loop_filter = ("Redirection Chains" in resp_filter) or ("Redirection (Chain)" in resp_filter) or ("Redirection (Loop)" in resp_filter)
+        is_redirect_view = ("Redirection (3xx)" in resp_filter) or is_chain_or_loop_filter
         is_client_error_view = ("Client Error (4xx)" in resp_filter)
         is_success_view = ("Success (2xx)" in resp_filter)
         
         if is_redirect_view:
-            target_cols = [
-                "url", "status_code", "source_url", "anchor_text",
-                "redirect_chain_str", "redirect_hops", "final_url",
-                "redirect_issue_type", "inlinks_count"
-            ]
-            avail_cols = [c for c in target_cols if c in df_resp_filtered.columns]
-            
-            redirect_urls = df_resp_filtered["url"].tolist()
+            has_semrush_view = isinstance(df_redirect_chains, pd.DataFrame) and not df_redirect_chains.empty and is_chain_or_loop_filter
 
-            st.caption("💡 **Interactive**: Click any **Redirected URL** row in the table above or select from the dropdown below to inspect its **Full Hop-by-Hop Path** and **Direct Link Fix**.")
+            if has_semrush_view:
+                st.info(f"💡 **Semrush Audit Parity**: Semrush reports redirect chains at the **Link / Source Page** level (**{len(df_redirect_chains)} total internal link occurrences** across all crawled pages). Our crawler also tracks the **{len(df_resp_filtered)} unique destination target URLs**. Switch between views below.")
+                tab_semrush, tab_unique = st.tabs([
+                    f"📊 Semrush View: By Source Page ({len(df_redirect_chains)} Links)",
+                    f"🎯 Unique Target URLs ({len(df_resp_filtered)} Targets)"
+                ])
+                with tab_semrush:
+                    col_s1, col_s2 = st.columns([2.5, 1.5])
+                    with col_s1:
+                        sem_search = st.text_input("🔍 Search Semrush Table (Source Page, Initial URL, Destination, Anchor):", "", key="txt_semrush_table_search")
+                    with col_s2:
+                        csv_sem = generate_csv(df_redirect_chains)
+                        st.markdown("<div style='padding-top: 1.8rem;'></div>", unsafe_allow_html=True)
+                        st.download_button(
+                            label=f"📥 Download Semrush Report ({len(df_redirect_chains)} Rows)",
+                            data=csv_sem,
+                            file_name="semrush_redirect_chains_and_loops.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
 
-            table_event = st.dataframe(
-                df_resp_filtered[avail_cols],
-                use_container_width=True,
-                column_config={
-                    "url": st.column_config.LinkColumn("Original URL (Old Link)", width="medium"),
-                    "status_code": st.column_config.NumberColumn("Status", format="%d", width="small"),
-                    "source_url": st.column_config.LinkColumn("Source Page (Found On)", width="large", help="The referring internal page where this redirected link was found"),
-                    "anchor_text": st.column_config.TextColumn("Anchor Text", width="medium", help="Clickable anchor text used on the referring page"),
-                    "redirect_chain_str": st.column_config.TextColumn("Redirect Path", width="large", help="Complete path of redirects from initial URL to final destination"),
-                    "redirect_hops": st.column_config.NumberColumn("Hops", format="%d", width="small"),
-                    "final_url": st.column_config.LinkColumn("Final Destination URL", width="medium"),
-                    "redirect_issue_type": st.column_config.TextColumn("Issue Type", width="small"),
-                    "inlinks_count": st.column_config.NumberColumn("Inlinks", format="%d", width="small"),
-                },
-                hide_index=True,
-                on_select="rerun",
-                selection_mode="single-row",
-                key="df_redirects_selection"
-            )
+                    df_sem_display = df_redirect_chains.copy()
+                    if sem_search:
+                        df_sem_display = df_sem_display[
+                            df_sem_display["Source Page"].astype(str).str.contains(sem_search, case=False, na=False) |
+                            df_sem_display["Initial Redirect URL"].astype(str).str.contains(sem_search, case=False, na=False) |
+                            df_sem_display["Final Destination URL"].astype(str).str.contains(sem_search, case=False, na=False) |
+                            df_sem_display["Anchor Text"].astype(str).str.contains(sem_search, case=False, na=False)
+                        ]
 
-            # Detect clicked row from table
-            selected_url_from_table = None
-            if table_event and hasattr(table_event, "selection") and table_event.selection:
-                sel_rows = table_event.selection.get("rows", [])
-                if sel_rows and sel_rows[0] < len(df_resp_filtered):
-                    selected_url_from_table = df_resp_filtered.iloc[sel_rows[0]]["url"]
+                    sem_cols_config = {
+                        "Source Page": st.column_config.LinkColumn("Source Page (Where link lives)", width="large"),
+                        "Redirect Type": st.column_config.TextColumn("Redirect Type", width="small"),
+                        "Length": st.column_config.NumberColumn("Length", width="small"),
+                        "Initial Redirect URL": st.column_config.LinkColumn("Initial Redirect URL", width="large"),
+                        "Status code of Initial Redirect URL": st.column_config.NumberColumn("Status Code", width="small"),
+                        "Final Destination URL": st.column_config.LinkColumn("Final Destination URL", width="large"),
+                        "Anchor Text": st.column_config.TextColumn("Anchor Text", width="medium"),
+                        "Redirect Path": st.column_config.TextColumn("Redirect Path", width="large"),
+                        "Recommended Action": st.column_config.TextColumn("Recommended Action", width="large"),
+                    }
+                    for hop_i in range(2, 8):
+                        if f"URL {hop_i}" in df_sem_display.columns:
+                            sem_cols_config[f"URL {hop_i}"] = st.column_config.LinkColumn(f"URL {hop_i}", width="medium")
+                        if f"Status code of URL {hop_i}" in df_sem_display.columns:
+                            sem_cols_config[f"Status code of URL {hop_i}"] = st.column_config.NumberColumn(f"Status {hop_i}", width="small")
 
-            if redirect_urls:
-                if selected_url_from_table and selected_url_from_table in redirect_urls:
-                    st.session_state["sb_inspect_redirect_picker"] = selected_url_from_table
-                elif "sb_inspect_redirect_picker" not in st.session_state or st.session_state["sb_inspect_redirect_picker"] not in redirect_urls:
-                    st.session_state["sb_inspect_redirect_picker"] = redirect_urls[0]
-
-                active_idx = redirect_urls.index(st.session_state["sb_inspect_redirect_picker"])
-
-                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-
-                c_sel1, c_sel2 = st.columns([3, 1.2])
-                with c_sel1:
-                    active_redirect_url = st.selectbox(
-                        "🔍 Selected Redirected URL (Click table row above or choose here):",
-                        options=redirect_urls,
-                        index=active_idx,
-                        key="sb_inspect_redirect_picker"
-                    )
-                with c_sel2:
-                    curr_red_row = df_resp_filtered[df_resp_filtered["url"] == active_redirect_url]
-                    hops_val = curr_red_row["redirect_hops"].values[0] if not curr_red_row.empty and "redirect_hops" in curr_red_row.columns else 1
-                    status_val = curr_red_row["status_code"].values[0] if not curr_red_row.empty and "status_code" in curr_red_row.columns else 301
-                    badge_color = "#f59e0b" if hops_val == 1 else "#ef4444"
-                    badge_label = "Redirect (1 Hop)" if hops_val == 1 else f"⚠️ Chain ({hops_val} Hops)"
-                    st.markdown(f"<div style='padding-top: 1.8rem;'><span style='background: rgba(245, 158, 11, 0.15); color: {badge_color}; padding: 7px 16px; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 600; font-size: 0.88rem;'>HTTP {status_val} &nbsp;|&nbsp; {badge_label}</span></div>", unsafe_allow_html=True)
-
-                curr_red_row = df_resp_filtered[df_resp_filtered["url"] == active_redirect_url]
-                final_dest_url = curr_red_row["final_url"].values[0] if not curr_red_row.empty and "final_url" in curr_red_row.columns else active_redirect_url
-                chain_str_val = curr_red_row["redirect_chain_str"].values[0] if not curr_red_row.empty and "redirect_chain_str" in curr_red_row.columns else ""
-                src_page_val = curr_red_row["source_url"].values[0] if not curr_red_row.empty and "source_url" in curr_red_row.columns else ""
-                anchor_val = curr_red_row["anchor_text"].values[0] if not curr_red_row.empty and "anchor_text" in curr_red_row.columns else ""
-
-                st.markdown(f"##### 🛣️ Full Redirect Path Breakdown: `{active_redirect_url}`")
-
-                # Parse and display hop-by-hop cards
-                hop_parts = [p.strip() for p in chain_str_val.split(" → ") if p.strip()] if chain_str_val else [f"{active_redirect_url} ({status_val})", f"{final_dest_url} (200)"]
-                
-                # Flow visualization in styled boxes
-                hop_cards_html = ""
-                # Start step (Origin link on source page)
-                if src_page_val:
-                    hop_cards_html += f"""
-                    <div style='background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;'>
-                        <span style='color: #818cf8; font-weight: 600;'>Origin (Found On):</span> <a href='{src_page_val}' target='_blank' style='color: #93c5fd; text-decoration: underline;'>{src_page_val}</a><br>
-                        <span style='color: #94a3b8; font-size: 0.88rem;'>Anchor Text: </span><b style='color: #f1f5f9;'>"{anchor_val or '[No anchor text]'}"</b>
-                    </div>
-                    <div style='text-align: center; color: #6366f1; font-size: 1.1rem; margin: -4px 0 4px;'>↓</div>
-                    """
-                
-                for idx, hop_item in enumerate(hop_parts):
-                    is_last = (idx == len(hop_parts) - 1)
-                    box_bg = "rgba(16, 185, 129, 0.12)" if is_last else "rgba(245, 158, 11, 0.12)"
-                    border_color = "rgba(16, 185, 129, 0.4)" if is_last else "rgba(245, 158, 11, 0.4)"
-                    title_color = "#34d399" if is_last else "#fbbf24"
-                    title_label = "Final Destination URL (Target)" if is_last else (f"Initial Redirect (Hop 1)" if idx == 0 else f"Intermediate Redirect (Hop {idx+1})")
-                    
-                    hop_cards_html += f"""
-                    <div style='background: {box_bg}; border: 1px solid {border_color}; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;'>
-                        <span style='color: {title_color}; font-weight: 600;'>{title_label}:</span> <span style='color: #f8fafc; word-break: break-all;'>{hop_item}</span>
-                    </div>
-                    """
-                    if not is_last:
-                        hop_cards_html += "<div style='text-align: center; color: #f59e0b; font-size: 1.1rem; margin: -4px 0 4px;'>↓</div>"
-
-                st.markdown(hop_cards_html, unsafe_allow_html=True)
-
-                # Direct Link Fix Helper Section ("Solve karne ke liye")
-                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-                st.markdown("##### 🛠️ How to Fix: Update Link Directly to Final Destination")
-                st.caption("To eliminate redirect hops, save crawl budget, and boost page speed, replace the old link with the final destination URL directly:")
-
-                fix_col1, fix_col2 = st.columns(2)
-                with fix_col1:
-                    st.markdown("**Old URL to Replace:**")
-                    st.code(active_redirect_url, language="text")
-                with fix_col2:
-                    st.markdown("**Final Destination URL (Copy & Paste):**")
-                    st.code(final_dest_url, language="text")
-
-                # HTML Find-and-Replace Snippet Preview
-                with st.expander("📋 View HTML Find-and-Replace Code Snippet", expanded=False):
-                    anchor_clean = anchor_val if anchor_val else "Link Text"
-                    html_snippet = f'<!-- On referring page: {src_page_val or "website"} -->\n<!-- REPLACE OLD LINK: -->\n<a href="{active_redirect_url}">{anchor_clean}</a>\n\n<!-- WITH DIRECT FINAL DESTINATION: -->\n<a href="{final_dest_url}">{anchor_clean}</a>'
-                    st.code(html_snippet, language="html")
-
-                # Query all referring source pages and anchors for this redirected URL from df_links
-                b_clean = active_redirect_url.rstrip("/")
-                referring = pd.DataFrame()
-                if not df_links.empty and "target_url" in df_links.columns:
-                    referring = df_links[
-                        (df_links["target_url"] == active_redirect_url) | 
-                        (df_links["target_url"].str.rstrip("/") == b_clean)
-                    ]
-
-                total_ref_count = len(referring) if not referring.empty else (1 if src_page_val else 0)
-                st.markdown(f"##### 📄 All Referring Pages Linking to this Redirected URL ({total_ref_count})")
-                if not referring.empty:
-                    ref_cols = [c for c in ["source_url", "anchor_text", "is_internal", "nofollow"] if c in referring.columns]
                     st.dataframe(
-                        referring[ref_cols].drop_duplicates(),
+                        df_sem_display,
                         use_container_width=True,
-                        column_config={
-                            "source_url": st.column_config.LinkColumn("Source Page (Where to update link)", width="large"),
-                            "anchor_text": st.column_config.TextColumn("Anchor Text", width="medium"),
-                            "is_internal": st.column_config.CheckboxColumn("Internal Link"),
-                            "nofollow": st.column_config.CheckboxColumn("Nofollow"),
-                        },
+                        column_config=sem_cols_config,
                         hide_index=True
                     )
-                else:
+
+                unique_container = tab_unique
+            else:
+                import contextlib
+                unique_container = contextlib.nullcontext()
+
+            with unique_container:
+                target_cols = [
+                    "url", "status_code", "source_url", "anchor_text",
+                    "redirect_chain_str", "redirect_hops", "final_url",
+                    "redirect_issue_type", "inlinks_count"
+                ]
+                avail_cols = [c for c in target_cols if c in df_resp_filtered.columns]
+                
+                redirect_urls = df_resp_filtered["url"].tolist()
+
+                st.caption("💡 **Interactive**: Click any **Redirected URL** row in the table above or select from the dropdown below to inspect its **Full Hop-by-Hop Path** and **Direct Link Fix**.")
+
+                table_event = st.dataframe(
+                    df_resp_filtered[avail_cols],
+                    use_container_width=True,
+                    column_config={
+                        "url": st.column_config.LinkColumn("Original URL (Old Link)", width="medium"),
+                        "status_code": st.column_config.NumberColumn("Status", format="%d", width="small"),
+                        "source_url": st.column_config.LinkColumn("Source Page (Found On)", width="large", help="The referring internal page where this redirected link was found"),
+                        "anchor_text": st.column_config.TextColumn("Anchor Text", width="medium", help="Clickable anchor text used on the referring page"),
+                        "redirect_chain_str": st.column_config.TextColumn("Redirect Path", width="large", help="Complete path of redirects from initial URL to final destination"),
+                        "redirect_hops": st.column_config.NumberColumn("Hops", format="%d", width="small"),
+                        "final_url": st.column_config.LinkColumn("Final Destination URL", width="medium"),
+                        "redirect_issue_type": st.column_config.TextColumn("Issue Type", width="small"),
+                        "inlinks_count": st.column_config.NumberColumn("Inlinks", format="%d", width="small"),
+                    },
+                    hide_index=True,
+                    on_select="rerun",
+                    selection_mode="single-row",
+                    key="df_redirects_selection"
+                )
+
+                # Detect clicked row from table
+                selected_url_from_table = None
+                if table_event and hasattr(table_event, "selection") and table_event.selection:
+                    sel_rows = table_event.selection.get("rows", [])
+                    if sel_rows and sel_rows[0] < len(df_resp_filtered):
+                        selected_url_from_table = df_resp_filtered.iloc[sel_rows[0]]["url"]
+
+                if redirect_urls:
+                    if selected_url_from_table and selected_url_from_table in redirect_urls:
+                        st.session_state["sb_inspect_redirect_picker"] = selected_url_from_table
+                    elif "sb_inspect_redirect_picker" not in st.session_state or st.session_state["sb_inspect_redirect_picker"] not in redirect_urls:
+                        st.session_state["sb_inspect_redirect_picker"] = redirect_urls[0]
+
+                    active_idx = redirect_urls.index(st.session_state["sb_inspect_redirect_picker"])
+
+                    st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+
+                    c_sel1, c_sel2 = st.columns([3, 1.2])
+                    with c_sel1:
+                        active_redirect_url = st.selectbox(
+                            "🔍 Selected Redirected URL (Click table row above or choose here):",
+                            options=redirect_urls,
+                            index=active_idx,
+                            key="sb_inspect_redirect_picker"
+                        )
+                    with c_sel2:
+                        curr_red_row = df_resp_filtered[df_resp_filtered["url"] == active_redirect_url]
+                        hops_val = curr_red_row["redirect_hops"].values[0] if not curr_red_row.empty and "redirect_hops" in curr_red_row.columns else 1
+                        status_val = curr_red_row["status_code"].values[0] if not curr_red_row.empty and "status_code" in curr_red_row.columns else 301
+                        badge_color = "#f59e0b" if hops_val == 1 else "#ef4444"
+                        badge_label = "Redirect (1 Hop)" if hops_val == 1 else f"⚠️ Chain ({hops_val} Hops)"
+                        st.markdown(f"<div style='padding-top: 1.8rem;'><span style='background: rgba(245, 158, 11, 0.15); color: {badge_color}; padding: 7px 16px; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 600; font-size: 0.88rem;'>HTTP {status_val} &nbsp;|&nbsp; {badge_label}</span></div>", unsafe_allow_html=True)
+
+                    curr_red_row = df_resp_filtered[df_resp_filtered["url"] == active_redirect_url]
+                    final_dest_url = curr_red_row["final_url"].values[0] if not curr_red_row.empty and "final_url" in curr_red_row.columns else active_redirect_url
+                    chain_str_val = curr_red_row["redirect_chain_str"].values[0] if not curr_red_row.empty and "redirect_chain_str" in curr_red_row.columns else ""
+                    src_page_val = curr_red_row["source_url"].values[0] if not curr_red_row.empty and "source_url" in curr_red_row.columns else ""
+                    anchor_val = curr_red_row["anchor_text"].values[0] if not curr_red_row.empty and "anchor_text" in curr_red_row.columns else ""
+
+                    st.markdown(f"##### 🛣️ Full Redirect Path Breakdown: `{active_redirect_url}`")
+
+                    # Parse and display hop-by-hop cards
+                    hop_parts = [p.strip() for p in chain_str_val.split(" → ") if p.strip()] if chain_str_val else [f"{active_redirect_url} ({status_val})", f"{final_dest_url} (200)"]
+                    
+                    # Flow visualization in styled boxes
+                    hop_cards_html = ""
+                    # Start step (Origin link on source page)
                     if src_page_val:
-                        single_ref_df = pd.DataFrame([{
-                            "source_url": src_page_val,
-                            "anchor_text": anchor_val or "[Direct link / No text]",
-                            "is_internal": True,
-                            "nofollow": False
-                        }])
+                        hop_cards_html += f"""
+                        <div style='background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;'>
+                            <span style='color: #818cf8; font-weight: 600;'>Origin (Found On):</span> <a href='{src_page_val}' target='_blank' style='color: #93c5fd; text-decoration: underline;'>{src_page_val}</a><br>
+                            <span style='color: #94a3b8; font-size: 0.88rem;'>Anchor Text: </span><b style='color: #f1f5f9;'>"{anchor_val or '[No anchor text]'}"</b>
+                        </div>
+                        <div style='text-align: center; color: #6366f1; font-size: 1.1rem; margin: -4px 0 4px;'>↓</div>
+                        """
+                    
+                    for idx, hop_item in enumerate(hop_parts):
+                        is_last = (idx == len(hop_parts) - 1)
+                        box_bg = "rgba(16, 185, 129, 0.12)" if is_last else "rgba(245, 158, 11, 0.12)"
+                        border_color = "rgba(16, 185, 129, 0.4)" if is_last else "rgba(245, 158, 11, 0.4)"
+                        title_color = "#34d399" if is_last else "#fbbf24"
+                        title_label = "Final Destination URL (Target)" if is_last else (f"Initial Redirect (Hop 1)" if idx == 0 else f"Intermediate Redirect (Hop {idx+1})")
+                        
+                        hop_cards_html += f"""
+                        <div style='background: {box_bg}; border: 1px solid {border_color}; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;'>
+                            <span style='color: {title_color}; font-weight: 600;'>{title_label}:</span> <span style='color: #f8fafc; word-break: break-all;'>{hop_item}</span>
+                        </div>
+                        """
+                        if not is_last:
+                            hop_cards_html += "<div style='text-align: center; color: #f59e0b; font-size: 1.1rem; margin: -4px 0 4px;'>↓</div>"
+
+                    st.markdown(hop_cards_html, unsafe_allow_html=True)
+
+                    # Direct Link Fix Helper Section ("Solve karne ke liye")
+                    st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+                    st.markdown("##### 🛠️ How to Fix: Update Link Directly to Final Destination")
+                    st.caption("To eliminate redirect hops, save crawl budget, and boost page speed, replace the old link with the final destination URL directly:")
+
+                    fix_col1, fix_col2 = st.columns(2)
+                    with fix_col1:
+                        st.markdown("**Old URL to Replace:**")
+                        st.code(active_redirect_url, language="text")
+                    with fix_col2:
+                        st.markdown("**Final Destination URL (Copy & Paste):**")
+                        st.code(final_dest_url, language="text")
+
+                    # HTML Find-and-Replace Snippet Preview
+                    with st.expander("📋 View HTML Find-and-Replace Code Snippet", expanded=False):
+                        anchor_clean = anchor_val if anchor_val else "Link Text"
+                        html_snippet = f'<!-- On referring page: {src_page_val or "website"} -->\n<!-- REPLACE OLD LINK: -->\n<a href="{active_redirect_url}">{anchor_clean}</a>\n\n<!-- WITH DIRECT FINAL DESTINATION: -->\n<a href="{final_dest_url}">{anchor_clean}</a>'
+                        st.code(html_snippet, language="html")
+
+                    # Query all referring source pages and anchors for this redirected URL from df_links
+                    b_clean = active_redirect_url.rstrip("/")
+                    referring = pd.DataFrame()
+                    if not df_links.empty and "target_url" in df_links.columns:
+                        referring = df_links[
+                            (df_links["target_url"] == active_redirect_url) | 
+                            (df_links["target_url"].str.rstrip("/") == b_clean)
+                        ]
+
+                    total_ref_count = len(referring) if not referring.empty else (1 if src_page_val else 0)
+                    st.markdown(f"##### 📄 All Referring Pages Linking to this Redirected URL ({total_ref_count})")
+                    if not referring.empty:
+                        ref_cols = [c for c in ["source_url", "anchor_text", "is_internal", "nofollow"] if c in referring.columns]
                         st.dataframe(
-                            single_ref_df,
+                            referring[ref_cols].drop_duplicates(),
                             use_container_width=True,
                             column_config={
                                 "source_url": st.column_config.LinkColumn("Source Page (Where to update link)", width="large"),
@@ -1672,7 +1727,26 @@ with tab_responses:
                             hide_index=True
                         )
                     else:
-                        st.info("No internal referring page recorded for this URL (Discovered directly from initial seed).")
+                        if src_page_val:
+                            single_ref_df = pd.DataFrame([{
+                                "source_url": src_page_val,
+                                "anchor_text": anchor_val or "[Direct link / No text]",
+                                "is_internal": True,
+                                "nofollow": False
+                            }])
+                            st.dataframe(
+                                single_ref_df,
+                                use_container_width=True,
+                                column_config={
+                                    "source_url": st.column_config.LinkColumn("Source Page (Where to update link)", width="large"),
+                                    "anchor_text": st.column_config.TextColumn("Anchor Text", width="medium"),
+                                    "is_internal": st.column_config.CheckboxColumn("Internal Link"),
+                                    "nofollow": st.column_config.CheckboxColumn("Nofollow"),
+                                },
+                                hide_index=True
+                            )
+                        else:
+                            st.info("No internal referring page recorded for this URL (Discovered directly from initial seed).")
         elif is_client_error_view:
             target_cols = [
                 "url", "status_code", "status_description", "source_url", "anchor_text", "inlinks_count"

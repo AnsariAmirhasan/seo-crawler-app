@@ -42,6 +42,7 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
 
     # Redirect Chain & Loop Data from Crawler
     redirect_chain = page_data.get("redirect_chain", [])
+    redirect_chain_statuses = page_data.get("redirect_chain_statuses", [])
     redirect_chain_str = page_data.get("redirect_chain_str", "")
     redirect_hops = page_data.get("redirect_hops", 0)
     redirect_issue_type = page_data.get("redirect_issue_type", "None")
@@ -63,6 +64,7 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         "error": error_msg,
         # Redirect Chain & Loop Tracking
         "redirect_chain": redirect_chain,
+        "redirect_chain_statuses": redirect_chain_statuses,
         "redirect_chain_str": redirect_chain_str,
         "redirect_hops": redirect_hops,
         "redirect_issue_type": redirect_issue_type,
@@ -772,13 +774,15 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
     penalty = (critical_errors * 10 + warnings * 3 + notices * 0.5) / total_pages * 10
     health_score = max(0, min(100, round(100 - penalty)))
 
-    c_noindex_pages = len(df_pages[(df_pages.get("is_noindex", False) == True) | (df_pages.get("meta_robots", "").fillna("").str.contains("noindex", case=False))]) if not df_pages.empty else 0
+    # Extract Semrush-grade link-level redirect chain instances
+    df_redirect_chains = extract_redirect_chain_instances(df_pages, df_links)
 
     return {
         "df_pages": df_pages,
         "df_issues": df_issues,
         "df_links": df_links,
         "df_images": df_images,
+        "df_redirect_chains": df_redirect_chains,
         "health_score": health_score,
         "summary": {
             "total_crawled": len(df_pages),
@@ -792,6 +796,7 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
             "orphan_pages_count": int(df_pages["is_orphan"].sum()) if not df_pages.empty and "is_orphan" in df_pages.columns else 0,
             "redirect_chains_count": int(df_pages["is_redirect_chain"].sum()) if not df_pages.empty and "is_redirect_chain" in df_pages.columns else 0,
             "redirect_loops_count": int(df_pages["is_redirect_loop"].sum()) if not df_pages.empty and "is_redirect_loop" in df_pages.columns else 0,
+            "redirect_chain_instances_count": len(df_redirect_chains) if not df_redirect_chains.empty else 0,
             "total_links": len(df_links),
             "total_images": len(df_images),
             "images_missing_alt_count": int(df_pages["images_missing_alt_count"].sum()) if not df_pages.empty and "images_missing_alt_count" in df_pages.columns else 0,
@@ -799,3 +804,115 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
             "images_over_100kb_count": int(df_images["is_over_100kb"].sum()) if not df_images.empty and "is_over_100kb" in df_images.columns else 0
         }
     }
+
+def extract_redirect_chain_instances(df_pages: pd.DataFrame, df_links: pd.DataFrame) -> pd.DataFrame:
+    """
+    Extracts all redirect chain & loop instances matching Semrush and Screaming Frog format.
+    Maps each internal hyperlink in df_links to its corresponding redirect chain,
+    listing the exact Source Page, Initial Redirect URL, Length, and Final Destination URL.
+    """
+    if df_pages.empty:
+        return pd.DataFrame()
+
+    chain_mask = (df_pages.get("is_redirect_chain", False) == True) | (df_pages.get("is_redirect_loop", False) == True)
+    chain_pages = df_pages[chain_mask]
+    if chain_pages.empty:
+        return pd.DataFrame()
+
+    chain_map = {}
+    for _, r in chain_pages.iterrows():
+        u = str(r["url"]).strip()
+        chain_urls = r.get("redirect_chain", []) or []
+        hops = r.get("redirect_hops", max(len(chain_urls) - 1, 1) if chain_urls else 1)
+        length = len(chain_urls) if chain_urls else (hops + 1)
+        is_loop = bool(r.get("is_redirect_loop", False))
+        chain_str = str(r.get("redirect_chain_str", "") or "")
+        
+        statuses = r.get("redirect_chain_statuses", []) or []
+        if not statuses and chain_str:
+            statuses = [int(s) for s in re.findall(r'\((\d{3})\)', chain_str)]
+        if not statuses:
+            statuses = [r.get("status_code", 301)] + [301] * max(len(chain_urls) - 2, 0) + [200]
+
+        info = {
+            "redirect_type": "loop" if is_loop else "chain",
+            "length": length,
+            "status_code": statuses[0] if statuses else r.get("status_code", 301),
+            "final_url": r.get("final_url", u),
+            "redirect_chain_str": chain_str,
+            "redirect_chain": chain_urls,
+            "statuses": statuses,
+            "source_page_fallback": r.get("source_url", "")
+        }
+        chain_map[u] = info
+        chain_map[u.rstrip("/")] = info
+        chain_map[u.rstrip("/") + "/"] = info
+
+    instances = []
+    seen_pairs = set()
+
+    if not df_links.empty:
+        for _, l in df_links.iterrows():
+            tgt = str(l.get("target_url", "")).strip()
+            src = str(l.get("source_url", "")).strip()
+            if not tgt or not src:
+                continue
+
+            inf = chain_map.get(tgt) or chain_map.get(tgt.rstrip("/")) or chain_map.get(tgt.rstrip("/") + "/")
+            if inf:
+                pair_key = (src, tgt)
+                seen_pairs.add(pair_key)
+
+                chain_list = inf["redirect_chain"]
+                st_list = inf["statuses"]
+                row_data = {
+                    "Source Page": src,
+                    "Redirect Type": inf["redirect_type"],
+                    "Length": inf["length"],
+                    "Initial Redirect URL": tgt,
+                    "Status code of Initial Redirect URL": inf["status_code"],
+                    "Final Destination URL": inf["final_url"],
+                    "Anchor Text": str(l.get("anchor_text", "")),
+                    "Redirect Path": inf["redirect_chain_str"],
+                    "Recommended Action": f"Update link on Source Page directly to final destination '{inf['final_url']}'."
+                }
+
+                # Add intermediate and destination hops (URL 2, Status code of URL 2, URL 3...)
+                if len(chain_list) > 1:
+                    for hop_idx in range(1, len(chain_list)):
+                        hop_num = hop_idx + 1
+                        row_data[f"URL {hop_num}"] = chain_list[hop_idx]
+                        hop_status = st_list[hop_idx] if hop_idx < len(st_list) else (200 if hop_idx == len(chain_list) - 1 else 301)
+                        row_data[f"Status code of URL {hop_num}"] = hop_status
+
+                instances.append(row_data)
+
+    for _, r in chain_pages.iterrows():
+        u = str(r["url"]).strip()
+        inf = chain_map.get(u, {})
+        has_instance = any(k[1] == u or k[1] == u.rstrip('/') for k in seen_pairs)
+        if not has_instance:
+            chain_list = inf.get("redirect_chain", [])
+            st_list = inf.get("statuses", [])
+            row_data = {
+                "Source Page": r.get("source_url", "") or "Direct / Discovered URL",
+                "Redirect Type": inf.get("redirect_type", "chain"),
+                "Length": inf.get("length", 2),
+                "Initial Redirect URL": u,
+                "Status code of Initial Redirect URL": inf.get("status_code", 301),
+                "Final Destination URL": inf.get("final_url", u),
+                "Anchor Text": r.get("anchor_text", ""),
+                "Redirect Path": inf.get("redirect_chain_str", ""),
+                "Recommended Action": f"Update internal links directly to final destination '{inf.get('final_url', u)}'."
+            }
+            if len(chain_list) > 1:
+                for hop_idx in range(1, len(chain_list)):
+                    hop_num = hop_idx + 1
+                    row_data[f"URL {hop_num}"] = chain_list[hop_idx]
+                    hop_status = st_list[hop_idx] if hop_idx < len(st_list) else (200 if hop_idx == len(chain_list) - 1 else 301)
+                    row_data[f"Status code of URL {hop_num}"] = hop_status
+
+            instances.append(row_data)
+
+    return pd.DataFrame(instances)
+
