@@ -787,15 +787,11 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
     # Count noindex pages
     c_noindex_pages = len(df_pages[(df_pages.get("is_noindex", False) == True) | (df_pages.get("meta_robots", "").fillna("").str.contains("noindex", case=False))]) if not df_pages.empty else 0
 
-    # Extract Semrush-grade link-level redirect chain instances
-    df_redirect_chains = extract_redirect_chain_instances(df_pages, df_links)
-
     return {
         "df_pages": df_pages,
         "df_issues": df_issues,
         "df_links": df_links,
         "df_images": df_images,
-        "df_redirect_chains": df_redirect_chains,
         "health_score": health_score,
         "summary": {
             "total_crawled": len(df_pages),
@@ -809,7 +805,6 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
             "orphan_pages_count": int(df_pages["is_orphan"].sum()) if not df_pages.empty and "is_orphan" in df_pages.columns else 0,
             "redirect_chains_count": int(df_pages["is_redirect_chain"].sum()) if not df_pages.empty and "is_redirect_chain" in df_pages.columns else 0,
             "redirect_loops_count": int(df_pages["is_redirect_loop"].sum()) if not df_pages.empty and "is_redirect_loop" in df_pages.columns else 0,
-            "redirect_chain_instances_count": len(df_redirect_chains) if not df_redirect_chains.empty else 0,
             "total_links": len(df_links),
             "total_images": len(df_images),
             "images_missing_alt_count": int(df_pages["images_missing_alt_count"].sum()) if not df_pages.empty and "images_missing_alt_count" in df_pages.columns else 0,
