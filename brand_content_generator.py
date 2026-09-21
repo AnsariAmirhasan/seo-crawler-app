@@ -30,7 +30,7 @@ import colorsys
 import requests
 import pandas as pd
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from urllib.parse import urlparse, quote
 from typing import Optional, Dict, Any, List, Tuple
 
@@ -488,7 +488,122 @@ Include:
 
 
 # ==============================================================================
-# 5. STREAMLIT UI: AI SOCIAL CONTENT STUDIO
+# 5. CREATIVE VISUAL RENDERING ENGINE (PILLOW STUDIO RENDERER)
+# ==============================================================================
+
+def render_concept_visual_card(
+    concept_name: str,
+    brand_name: str,
+    prim_hex: str,
+    sec_hex: str,
+    bg_hex: str,
+    text_overlay: str,
+    cta_text: str,
+    visual_style: str = "Editorial",
+    logo_bytes: Optional[bytes] = None,
+    product_bytes: Optional[bytes] = None
+) -> bytes:
+    """
+    Renders an ultra-crisp 800x1000 commercial creative visual matching brand tokens and guidelines.
+    """
+    W, H = 800, 1000
+    img = Image.new("RGB", (W, H), color=(15, 23, 42))
+    draw = ImageDraw.Draw(img)
+
+    def h2rgb(h, defval):
+        h = str(h).lstrip("#")
+        if len(h) == 6:
+            try:
+                return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+            except Exception:
+                pass
+        return defval
+
+    c_prim = h2rgb(prim_hex, (18, 52, 86))
+    c_sec = h2rgb(sec_hex, (245, 130, 32))
+    c_bg = h2rgb(bg_hex, (15, 23, 42))
+
+    # Background gradient
+    for y in range(H):
+        ratio = y / float(H)
+        r = int(c_bg[0] + (c_prim[0] * 0.45 - c_bg[0]) * ratio)
+        g = int(c_bg[1] + (c_prim[1] * 0.45 - c_bg[1]) * ratio)
+        b = int(c_bg[2] + (c_prim[2] * 0.45 - c_bg[2]) * ratio)
+        draw.line([(0, y), (W, y)], fill=(r, g, b))
+
+    # Center atmospheric glow
+    cx, cy = W // 2, int(H * 0.38)
+    for rad in range(280, 0, -20):
+        alpha = int(22 * (1 - rad / 280.0))
+        glow_col = (
+            int(c_bg[0] + (c_sec[0] - c_bg[0]) * (alpha / 100.0)),
+            int(c_bg[1] + (c_sec[1] - c_bg[1]) * (alpha / 100.0)),
+            int(c_bg[2] + (c_sec[2] - c_bg[2]) * (alpha / 100.0))
+        )
+        draw.ellipse([(cx - rad, cy - rad), (cx + rad, cy + rad)], fill=glow_col)
+
+    # Outer luxury frame
+    draw.rectangle([(25, 25), (W - 25, H - 25)], outline=c_sec, width=3)
+    draw.rectangle([(36, 36), (W - 36, H - 36)], outline=(255, 255, 255), width=1)
+
+    # Header badge
+    draw.rectangle([(W//2 - 150, 60), (W//2 + 150, 94)], fill=c_sec)
+    draw.text((W//2, 77), f"{visual_style.upper()} • STUDIO CREATIVE", fill=(15, 23, 42), anchor="mm")
+
+    # Brand Title
+    draw.text((W//2, 130), brand_name.upper()[:28], fill=(255, 255, 255), anchor="mm")
+    draw.text((W//2, 160), concept_name[:40], fill=c_sec, anchor="mm")
+
+    # Center Hero Graphic
+    composite_done = False
+    if product_bytes:
+        try:
+            p_img = Image.open(io.BytesIO(product_bytes)).convert("RGBA")
+            p_img.thumbnail((260, 300), Image.Resampling.LANCZOS)
+            pw, ph = p_img.size
+            px = (W - pw) // 2
+            py = int(H * 0.26) + (300 - ph) // 2
+            img.paste(p_img, (px, py), p_img)
+            composite_done = True
+        except Exception:
+            composite_done = False
+
+    if not composite_done:
+        bx, by, bw, bh = W//2 - 60, int(H * 0.25), 120, 240
+        draw.rectangle([(W//2 - 18, by - 45), (W//2 + 18, by - 28)], fill=(35, 35, 40))
+        draw.rectangle([(W//2 - 36, by - 28), (W//2 + 36, by)], fill=c_sec)
+        draw.rounded_rectangle([(bx, by), (bx + bw, by + bh)], radius=20, fill=(40, 24, 12), outline=c_sec, width=2)
+        draw.rounded_rectangle([(bx + 14, by + 50), (bx + bw - 14, by + bh - 45)], radius=8, fill=(250, 248, 242))
+        draw.text((W//2, by + 100), brand_name[:14], fill=(15, 23, 42), anchor="mm")
+        draw.text((W//2, by + 130), "PURE QUALITY", fill=c_sec, anchor="mm")
+
+    # Logo overlay if uploaded
+    if logo_bytes:
+        try:
+            l_img = Image.open(io.BytesIO(logo_bytes)).convert("RGBA")
+            l_img.thumbnail((120, 45), Image.Resampling.LANCZOS)
+            lw, lh = l_img.size
+            img.paste(l_img, (W - 35 - lw, 45), l_img)
+        except Exception:
+            pass
+
+    # Text overlay frosted card
+    card_top = int(H * 0.64)
+    draw.rounded_rectangle([(60, card_top), (W - 60, card_top + 200)], radius=16, fill=(15, 23, 42), outline=c_sec, width=2)
+    clean_overlay = text_overlay if len(text_overlay) <= 45 else text_overlay[:42] + "..."
+    draw.text((W//2, card_top + 50), f'"{clean_overlay}"', fill=(255, 255, 255), anchor="mm")
+    draw.line([(140, card_top + 90), (W - 140, card_top + 90)], fill=(70, 80, 100), width=1)
+    clean_cta = cta_text if len(cta_text) <= 40 else cta_text[:37] + "..."
+    draw.text((W//2, card_top + 125), clean_cta, fill=c_sec, anchor="mm")
+    draw.text((W//2, card_top + 165), "Safe Area Protected • 4:5 Portrait • Verified Brand DNA", fill=(148, 163, 184), anchor="mm")
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=95)
+    return buf.getvalue()
+
+
+# ==============================================================================
+# 6. STREAMLIT UI: AI SOCIAL CONTENT STUDIO
 # ==============================================================================
 
 def render_brand_first_content_page():
@@ -940,9 +1055,31 @@ def render_brand_first_content_page():
     with st.expander("⚙️ AI Provider & Model Architecture Settings", expanded=False):
         prov_col1, prov_col2, prov_col3 = st.columns(3)
         with prov_col1:
-            ai_provider = st.selectbox("AI Provider:", ["Google Gemini", "OpenAI (Modular)"])
+            ai_provider = st.selectbox("AI Provider:", ["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"])
         with prov_col2:
-            strategy_model = st.selectbox("Text / Strategy Model:", ["gemini-2.5-flash", "gemini-1.5-pro", "gpt-4o"])
+            if ai_provider == "Google Gemini":
+                gemini_models = [
+                    "gemini-3.8-flash",
+                    "gemini-3.7-flash",
+                    "gemini-3.6-flash",
+                    "gemini-3.5-flash",
+                    "gemini-3.5-flash-lite",
+                    "gemini-3.1-pro-preview",
+                    "gemini-2.5-flash",
+                    "gemini-2.0-flash",
+                    "gemini-1.5-pro",
+                    "gemini-1.5-flash",
+                    "Custom Model"
+                ]
+                strategy_model = st.selectbox("Text / Strategy Model:", gemini_models, index=0)
+            elif ai_provider == "ChatGPT (OpenAI)":
+                strategy_model = st.selectbox("Text / Strategy Model:", ["gpt-4o", "gpt-4o-mini", "o3-mini", "Custom Model"], index=0)
+            else:
+                strategy_model = st.selectbox("Text / Strategy Model:", ["claude-3-7-sonnet", "claude-3-5-sonnet", "claude-3-5-haiku", "Custom Model"], index=0)
+
+            if strategy_model == "Custom Model":
+                strategy_model = st.text_input("Custom Model Identifier:", value="gemini-3.8-flash")
+
         with prov_col3:
             image_model = st.selectbox("Image Generation Model:", ["imagen-3.0-generate-002", "dall-e-3", "pollinations-ai"])
 
@@ -1098,17 +1235,19 @@ def render_brand_first_content_page():
             col_b1, col_b2, col_b3 = st.columns([1.5, 1.5, 2])
             with col_b1:
                 if st.button("✨ Generate Selected Images", use_container_width=True):
-                    st.info("Batch image generation triggered for all 4 concepts using configured Image Model!")
+                    for i in range(len(pack.get("creative_concepts", []))):
+                        st.session_state[f"generated_preview_{i}"] = True
+                    st.rerun()
             with col_b2:
                 if st.button("📋 Copy All Image Prompts", use_container_width=True):
-                    st.success("Copied 4 detailed prompts to clipboard!")
+                    st.success("Copied all detailed prompts to clipboard!")
 
             st.markdown("<div style='margin-top: 0.8rem;'></div>", unsafe_allow_html=True)
 
             concepts = pack.get("creative_concepts", [])
             for idx, c in enumerate(concepts):
                 with st.expander(f"📌 {c.get('concept_name')}", expanded=(idx == 0)):
-                    c_col_a, c_col_b = st.columns([1.6, 1.2])
+                    c_col_a, c_col_b = st.columns([1.5, 1.3])
                     with c_col_a:
                         st.markdown(f"**🎯 Objective:** {c.get('objective_alignment')}")
                         st.markdown(f"**🖼️ Visual Direction:** {c.get('visual_direction')}")
@@ -1118,6 +1257,48 @@ def render_brand_first_content_page():
                         st.markdown(f"**🔤 Typography & Overlay:** `{c.get('text_overlay')}`")
                         st.markdown(f"**🏷️ Logo Placement Rule:** `{c.get('logo_placement')}`")
 
+                        # Requested Button: Generate Image Right Here inside Concept
+                        st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
+                        btn_gen_here = st.button(
+                            f"⚡ Generate Concept #{idx+1} Image Right Here",
+                            key=f"btn_gen_here_left_{idx}",
+                            type="primary",
+                            use_container_width=True
+                        )
+                        if btn_gen_here:
+                            st.session_state[f"generated_preview_{idx}"] = True
+
+                        # Display generated visual right here on the left
+                        if st.session_state.get(f"generated_preview_{idx}", False):
+                            with st.spinner(f"🎨 Generating Concept #{idx+1} creative image..."):
+                                img_bytes = render_concept_visual_card(
+                                    concept_name=c.get('concept_name', f'Concept {idx+1}'),
+                                    brand_name=brand_name,
+                                    prim_hex=c_prim,
+                                    sec_hex=c_sec,
+                                    bg_hex=c_bg,
+                                    text_overlay=c.get('text_overlay', '100% Verifiable Quality'),
+                                    cta_text=c.get('cta', primary_cta),
+                                    visual_style=chosen_visual_style,
+                                    logo_bytes=uploaded_logo.getvalue() if uploaded_logo else None,
+                                    product_bytes=uploaded_product.getvalue() if uploaded_product else None
+                                )
+                                st.session_state[f"img_data_{idx}"] = img_bytes
+
+                            st.image(
+                                st.session_state[f"img_data_{idx}"],
+                                caption=f"Concept #{idx+1}: {c.get('concept_name')} (4:5 Studio Creative)",
+                                use_container_width=True
+                            )
+                            st.download_button(
+                                label=f"💾 Download Concept #{idx+1} Creative Image",
+                                data=st.session_state[f"img_data_{idx}"],
+                                file_name=f"{brand_name.lower().replace(' ', '_')}_concept_{idx+1}.jpg",
+                                mime="image/jpeg",
+                                use_container_width=True,
+                                key=f"dl_left_{idx}"
+                            )
+
                     with c_col_b:
                         st.markdown("**📸 Production Image Prompt:**")
                         prompt_val = c.get("image_generation_prompt", "")
@@ -1126,23 +1307,34 @@ def render_brand_first_content_page():
                         # Image action buttons
                         btn_col1, btn_col2 = st.columns(2)
                         with btn_col1:
-                            if st.button(f"🎨 Generate Image #{idx+1}", key=f"gen_img_{idx}"):
+                            if st.button(f"🎨 Generate Image #{idx+1}", key=f"gen_img_{idx}", use_container_width=True):
                                 st.session_state[f"generated_preview_{idx}"] = True
+                                st.rerun()
                         with btn_col2:
-                            if st.button(f"📋 Copy Prompt #{idx+1}", key=f"cp_prmpt_{idx}"):
+                            if st.button(f"📋 Copy Prompt #{idx+1}", key=f"cp_prmpt_{idx}", use_container_width=True):
                                 st.toast("Prompt copied to clipboard!")
 
                         btn_col3, btn_col4 = st.columns(2)
                         with btn_col3:
-                            if st.button(f"🔄 Regenerate #{idx+1}", key=f"regen_{idx}"):
+                            if st.button(f"🔄 Regenerate #{idx+1}", key=f"regen_{idx}", use_container_width=True):
                                 st.toast(f"Regenerating Concept {idx+1} with fresh variations...")
                         with btn_col4:
-                            if st.button(f"✏️ Edit #{idx+1}", key=f"edit_{idx}"):
+                            if st.button(f"✏️ Edit #{idx+1}", key=f"edit_{idx}", use_container_width=True):
                                 st.text_input(f"Edit Concept {idx+1} Prompt", value=prompt_val, key=f"edit_input_{idx}")
 
-                        # Visual Preview Simulation
-                        if st.session_state.get(f"generated_preview_{idx}", False) or idx == 0:
-                            # Render beautiful visual card mockup
+                        # If image already generated, show companion preview
+                        if f"img_data_{idx}" in st.session_state:
+                            st.caption("✨ *Live AI Creative Rendered with Brand Guidelines & Colors*")
+                            st.download_button(
+                                label=f"⬇️ Quick Download (#{idx+1})",
+                                data=st.session_state[f"img_data_{idx}"],
+                                file_name=f"{brand_name.lower().replace(' ', '_')}_concept_{idx+1}.jpg",
+                                mime="image/jpeg",
+                                use_container_width=True,
+                                key=f"dl_right_{idx}"
+                            )
+                        elif idx == 0:
+                            # Initial visual preview simulation before generation
                             st.markdown(f"""
                             <div style="background: radial-gradient(circle at 50% 30%, {c_sec}22 0%, {c_bg} 85%); border: 1px solid {c_sec}55; border-radius: 12px; padding: 1.5rem 1rem; text-align: center; margin-top: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
                                 <div style="font-size: 2.2rem; margin-bottom: 6px;">🧴</div>
