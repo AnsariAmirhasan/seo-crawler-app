@@ -843,7 +843,7 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
     ws_index = wb.create_sheet(title="Index")
     ws_index.views.sheetView[0].showGridLines = True
 
-    has_ai_plan = any("ai_action_plan" in item for item in index_rows)
+    has_ai_plan = any("suggested_action_plan" in item or "ai_action_plan" in item for item in index_rows)
     merge_range = "A1:D1" if has_ai_plan else "A1:C1"
     banner_cols = ["A", "B", "C", "D"] if has_ai_plan else ["A", "B", "C"]
 
@@ -863,12 +863,12 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
         c.fill = fill_main_green
 
     # Row 2: Header Columns
-    headers = ["Errors", "Status", "Comments", "AI Recommended Action Plan"] if has_ai_plan else ["Errors", "Status", "Comments"]
+    headers = ["Errors", "Status", "Comments", "Suggested Action Plan & Developer Guide"] if has_ai_plan else ["Errors", "Status", "Comments"]
     ws_index.row_dimensions[2].height = 22
     for col_num, h_text in enumerate(headers, 1):
         c = ws_index.cell(row=2, column=col_num)
         c.value = h_text
-        if "AI " in h_text:
+        if any(k in h_text for k in ["Suggested", "Developer", "AI "]):
             c.font = font_ai_header
             c.fill = fill_ai_header
         else:
@@ -914,7 +914,7 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
 
         if has_ai_plan:
             c_ai = ws_index.cell(row=current_row, column=4)
-            c_ai.value = item.get("ai_action_plan", "")
+            c_ai.value = item.get("suggested_action_plan", item.get("ai_action_plan", ""))
             c_ai.font = font_data
             c_ai.fill = fill_ai_cell
             c_ai.alignment = align_left
@@ -927,7 +927,7 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
     ws_index.column_dimensions["B"].width = 24
     ws_index.column_dimensions["C"].width = 65
     if has_ai_plan:
-        ws_index.column_dimensions["D"].width = 65
+        ws_index.column_dimensions["D"].width = 75
     ws_index.freeze_panes = "A3"
 
     # -------------------------------------------------------------
@@ -947,7 +947,7 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
         for col_idx, col_name in enumerate(col_names, 1):
             c = ws_err.cell(row=1, column=col_idx)
             c.value = str(col_name)
-            if "AI " in str(col_name):
+            if any(k in str(col_name) for k in ["Suggested", "Developer Guide", "Action Plan", "AI "]):
                 c.font = font_ai_header
                 c.fill = fill_ai_header
                 ai_col_indices.add(col_idx)

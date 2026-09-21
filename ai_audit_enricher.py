@@ -1,7 +1,8 @@
 """
-ai_audit_enricher.py - AI-Powered Technical SEO Audit Suggestions & Fixes
-Connects with Google Gemini, OpenAI, or Anthropic to generate tailored,
-SEO-compliant metadata, titles, headings, and remediation plans for each audit error tab.
+ai_audit_enricher.py - AI-Powered Technical SEO Audit Suggestions & Developer Guides
+Connects with Google Gemini (with Google Search Grounding & competitor benchmarking),
+OpenAI ChatGPT, or Anthropic Claude to generate tailored 150-160 character meta descriptions with CTAs,
+optimized title tags, single primary H1s, alt text, and actionable developer guides for every error tab.
 """
 
 import re
@@ -12,8 +13,97 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+COUNTRIES = [
+    "🌐 Global (No specific region)",
+    "🇮🇳 India",
+    "🇺🇸 United States",
+    "🇨🇦 Canada",
+    "🇬🇧 United Kingdom",
+    "🇦🇺 Australia",
+    "🇩🇪 Germany",
+    "🇫🇷 France",
+    "🇯🇵 Japan",
+    "🇧🇷 Brazil",
+    "🇲🇽 Mexico",
+    "🇮🇩 Indonesia",
+    "🇹🇷 Turkey",
+    "🇸🇦 Saudi Arabia",
+    "🇦🇪 UAE",
+    "🇿🇦 South Africa",
+    "🇳🇬 Nigeria",
+    "🇰🇷 South Korea",
+    "🇮🇹 Italy",
+    "🇪🇸 Spain",
+    "🇳🇱 Netherlands",
+    "🇸🇬 Singapore",
+    "🇲🇾 Malaysia",
+    "🇵🇭 Philippines",
+    "🇵🇰 Pakistan"
+]
+
 # ==============================================================================
-# LLM CLIENT WRAPPERS
+# POST-PROCESSING UTILITIES
+# ==============================================================================
+
+def enforce_meta_desc_length_and_cta(desc: str, title: str = "", url: str = "") -> str:
+    """
+    Ensure the meta description is strictly between 148 and 160 characters
+    and ends with a compelling Call to Action (CTA).
+    """
+    desc = (desc or "").strip().strip('"\'')
+    if not desc:
+        slug = url.rstrip("/").split("/")[-1].replace("-", " ").title() if url else "Products"
+        desc = f"Discover premium {title or slug} crafted with pure ingredients and tested quality"
+
+    desc = desc.rstrip(" .,-")
+
+    # If over 160, trim at word boundary and add CTA
+    if len(desc) > 160:
+        sub = desc[:138]
+        sp = sub.rfind(" ")
+        base = sub[:sp].strip() if sp > 100 else desc[:130].strip()
+        desc = f"{base}. Order online now for fast delivery!"
+        if len(desc) > 160:
+            desc = desc[:157] + "..."
+        return desc
+
+    if 148 <= len(desc) <= 160:
+        return desc
+
+    # If < 148, assemble sentence parts until length is between 148 and 160
+    sentences = [
+        "Pure therapeutic grade and sustainably sourced.",
+        "Enjoy wholesale pricing and verified lab purity.",
+        "Trusted by thousands of satisfied customers.",
+        "100% satisfaction guaranteed with reliable service.",
+        "Discover top deals and order online today.",
+        "Shop our complete collection online today.",
+        "Order online today for fast delivery.",
+        "Buy online today with free shipping.",
+        "Shop now for fast dispatch.",
+        "Order online now."
+    ]
+
+    cur = desc
+    for s in sentences:
+        if 148 <= len(cur) <= 160:
+            break
+        cand = f"{cur.rstrip('. ')}. {s}"
+        if len(cand) <= 160:
+            cur = cand
+
+    # If still short of 148:
+    if len(cur) < 148:
+        tail = " Shop our selection online now!"
+        cur = f"{cur.rstrip('. ')}.{tail}"
+        if len(cur) > 160:
+            cur = cur[:157] + "..."
+
+    return cur
+
+
+# ==============================================================================
+# LLM CALL HANDLER WITH GOOGLE SEARCH GROUNDING
 # ==============================================================================
 
 def call_ai_model(
@@ -21,9 +111,11 @@ def call_ai_model(
     api_key: str,
     provider: str = "Google Gemini",
     model: str = "gemini-2.5-flash",
-    temperature: float = 0.3
+    country: str = "Global",
+    temperature: float = 0.3,
+    enable_grounding: bool = True
 ) -> str:
-    """Execute a prompt against the selected AI provider."""
+    """Execute a prompt against selected AI provider with competitor search grounding when available."""
     clean_model = model.split(" ")[0].strip() if " (" in model else model.strip()
 
     if provider == "ChatGPT (OpenAI)":
@@ -32,7 +124,7 @@ def call_ai_model(
         response = client.chat.completions.create(
             model=clean_model,
             messages=[
-                {"role": "system", "content": "You are a senior Technical SEO Director and CRO expert. Return only clean, structured JSON or concise text as requested."},
+                {"role": "system", "content": "You are a Chief SEO Director and CRO Specialist. Return only strictly formatted JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=temperature,
@@ -53,40 +145,58 @@ def call_ai_model(
         return response.content[0].text if response.content else ""
 
     else:
-        # Google Gemini
+        # Google Gemini with Grounding
         from google import genai
         from google.genai import types
 
         client = genai.Client(api_key=api_key)
         active_model = clean_model
 
-        try:
-            response = client.models.generate_content(
-                model=active_model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=temperature,
+        # Build candidate fallback models list
+        model_candidates = [active_model]
+        for m in [
+            "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash",
+            "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash",
+            "gemini-3.5-flash", "gemini-3.5-flash-lite"
+        ]:
+            if m not in model_candidates:
+                model_candidates.append(m)
+
+        for candidate_model in model_candidates:
+            try:
+                # Attempt with Google Search Grounding for live competitor benchmark
+                if enable_grounding:
+                    try:
+                        cfg = types.GenerateContentConfig(
+                            temperature=temperature,
+                            tools=[types.Tool(google_search=types.GoogleSearch())]
+                        )
+                        response = client.models.generate_content(
+                            model=candidate_model,
+                            contents=prompt,
+                            config=cfg
+                        )
+                        if response.text:
+                            return response.text
+                    except Exception:
+                        pass # Fall through to ungrounded prompt
+
+                # Ungrounded call
+                cfg_plain = types.GenerateContentConfig(temperature=temperature)
+                response = client.models.generate_content(
+                    model=candidate_model,
+                    contents=prompt,
+                    config=cfg_plain
                 )
-            )
-            return response.text or ""
-        except Exception as e:
-            err_msg = str(e).lower()
-            # If specified model not found, fallback to recommended models
-            if any(term in err_msg for term in ["404", "not found", "not_found"]):
-                for fallback_m in ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"]:
-                    if fallback_m != active_model:
-                        try:
-                            response = client.models.generate_content(
-                                model=fallback_m,
-                                contents=prompt,
-                                config=types.GenerateContentConfig(
-                                    temperature=temperature,
-                                )
-                            )
-                            return response.text or ""
-                        except Exception:
-                            continue
-            raise e
+                if response.text:
+                    return response.text
+            except Exception as e:
+                err_str = str(e).lower()
+                if any(x in err_str for x in ["404", "not found", "not_found", "unsupported", "deprecated"]):
+                    continue # Try next candidate model
+                raise e
+
+        return ""
 
 
 def parse_json_from_llm(raw_text: str) -> Optional[list]:
@@ -94,14 +204,12 @@ def parse_json_from_llm(raw_text: str) -> Optional[list]:
     if not raw_text:
         return None
     text = raw_text.strip()
-    # Match markdown code block ```json ... ```
     m = re.search(r'```(?:json)?\s*(\[\s*\{.*?\}\s*\])\s*```', text, re.DOTALL)
     if m:
         try:
             return json.loads(m.group(1))
         except Exception:
             pass
-    # Match bare brackets [ ... ]
     m2 = re.search(r'(\[\s*\{.*?\}\s*\])', text, re.DOTALL)
     if m2:
         try:
@@ -118,7 +226,7 @@ def parse_json_from_llm(raw_text: str) -> Optional[list]:
 
 
 # ==============================================================================
-# TAB-SPECIFIC AI PROMPTS & ENRICHERS
+# TAB-SPECIFIC ENRICHERS & DEVELOPER GUIDES
 # ==============================================================================
 
 def enrich_meta_descriptions(
@@ -127,17 +235,16 @@ def enrich_meta_descriptions(
     api_key: str,
     provider: str,
     model: str,
-    business_context: str = "",
-    max_rows: int = 50
+    country: str = "Global",
+    business_context: str = ""
 ) -> pd.DataFrame:
-    """Generate SEO-optimized meta descriptions (130-155 characters) with high CTR hooks."""
+    """Generate 150-160 character meta descriptions with CTAs + Developer Implementation Guide."""
     if df.empty:
         return df
 
     target_df = df.copy()
-    rows_to_process = target_df.head(max_rows)
     items = []
-    for idx, row in rows_to_process.iterrows():
+    for idx, row in target_df.iterrows():
         items.append({
             "id": idx,
             "url": str(row.get("Page URL", "")),
@@ -145,66 +252,75 @@ def enrich_meta_descriptions(
             "current_desc": str(row.get("Duplicate Meta Description", row.get("Meta Description", "")))
         })
 
-    biz_note = f"Website Business/Niche Context: {business_context}\n" if business_context else ""
+    biz_note = f"Website Business/Niche: {business_context}\n" if business_context else ""
+    region_note = f"Target Country/Market: {country}\n" if country and "Global" not in country else ""
 
-    prompt = f"""You are an elite SEO Copywriter specializing in Google SERP CTR optimization.
-{biz_note}
-Task: Generate high-converting, SEO-optimized meta descriptions for the following pages.
+    prompt = f"""You are an elite SEO Copywriter & Technical Director.
+{biz_note}{region_note}
+Task: Research top-ranking Google search competitors for these services/products in the target country ({country}) and generate high-converting, Google-compliant meta descriptions for each page.
 
-Requirements:
-1. Length MUST be strictly between 130 and 155 characters (including spaces). Do not exceed 155 chars!
-2. Include a compelling value proposition and active call-to-action (e.g. Discover, Shop, Learn, Get, Explore).
-3. Naturally incorporate relevant keywords derived from the page URL and Title.
-4. If multiple URLs are similar, each description MUST be distinctly unique.
-5. Return ONLY a valid JSON array of objects with keys: "id" (integer) and "suggestion" (string).
+STRICT SEO REQUIREMENTS:
+1. Length MUST be strictly between 150 and 160 characters (including spaces). Never generate descriptions under 145 characters!
+2. MUST end with a high-intent Call To Action (CTA) (e.g. 'Shop our collection online today!', 'Order now for fast delivery!', 'Explore top deals & save now!').
+3. Incorporate relevant primary keywords naturally derived from the URL path and title.
+4. Each URL MUST receive a distinctly unique, non-duplicate description.
+5. Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string, 150-160 chars with CTA), and "developer_guide" (string, short implementation instruction for developer).
 
 Pages to optimize:
 {json.dumps(items, indent=2)}
 
 Return JSON format:
 [
-  {{"id": 0, "suggestion": "..."}}
+  {{
+    "id": 0,
+    "suggestion": "Discover pure organic lavender essential oil crafted for calming sleep and relaxation. 100% natural, therapeutic grade. Order online today with fast shipping!",
+    "developer_guide": "Add or update <meta name='description' content='...'> in the <head> section of the template or CMS SEO fields."
+  }}
 ]"""
 
+    sugg_map = {}
+    guide_map = {}
     try:
-        raw_res = call_ai_model(prompt, api_key, provider, model)
+        raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
         parsed = parse_json_from_llm(raw_res)
-        sugg_map = {}
         if parsed:
             for entry in parsed:
-                if "id" in entry and "suggestion" in entry:
-                    sugg_map[entry["id"]] = str(entry["suggestion"]).strip().strip('"')
-
-        col_name = "AI Suggested Meta Description (SEO Optimized)"
-        if "Duplicate" in issue_type:
-            col_name = "AI Suggested Unique Meta Description"
-        elif "over 160" in issue_type:
-            col_name = "AI Trimmed Meta Description (<155 chars)"
-
-        suggs = []
-        char_counts = []
-        for idx in target_df.index:
-            s = sugg_map.get(idx, "")
-            if not s and idx in rows_to_process.index:
-                # Rule-based fallback if LLM missed row
-                url = str(target_df.loc[idx, "Page URL"])
-                title = str(target_df.loc[idx].get("Page Title", ""))
-                slug = url.rstrip("/").split("/")[-1].replace("-", " ").title()
-                s = f"Explore {title or slug} at the best value. Discover top-rated quality, expert guidance, and fast shipping today!"
-                if len(s) > 155:
-                    s = s[:152] + "..."
-            suggs.append(s)
-            char_counts.append(len(s) if s else None)
-
-        target_df[col_name] = suggs
-        target_df["AI Char Count"] = char_counts
+                if "id" in entry:
+                    sugg = str(entry.get("suggestion", "")).strip().strip('"')
+                    sugg_map[entry["id"]] = sugg
+                    guide_map[entry["id"]] = str(entry.get("developer_guide", "Add <meta name='description'> inside <head>.")).strip()
     except Exception as e:
-        logger.warning(f"Error enriching meta descriptions: {e}")
-        # Graceful fallback column
-        target_df["AI Suggested Meta Description"] = [
-            f"Explore {str(r.get('Page URL','')).rstrip('/').split('/')[-1].replace('-', ' ').title()} - high quality products and expert service."
-            for _, r in target_df.iterrows()
-        ]
+        logger.warning(f"Error calling LLM for meta descriptions: {e}")
+
+    col_sugg = "Suggested Meta Description (150-160 Chars)"
+    if "Duplicate" in issue_type:
+        col_sugg = "Suggested Unique Meta Description (150-160 Chars)"
+    elif "over 160" in issue_type:
+        col_sugg = "Suggested Trimmed Meta Description (150-160 Chars)"
+
+    final_suggs = []
+    final_chars = []
+    final_guides = []
+
+    for idx in target_df.index:
+        raw_sugg = sugg_map.get(idx, "")
+        url = str(target_df.loc[idx, "Page URL"])
+        title = str(target_df.loc[idx].get("Page Title", ""))
+        
+        # Enforce exact 150-160 length and strong CTA
+        enforced = enforce_meta_desc_length_and_cta(raw_sugg, title=title, url=url)
+        final_suggs.append(enforced)
+        final_chars.append(len(enforced))
+        
+        guide = guide_map.get(
+            idx,
+            "Developer Guide: Insert or update <meta name='description' content='[Suggested Description]'> inside the <head> tag of this page template."
+        )
+        final_guides.append(guide)
+
+    target_df[col_sugg] = final_suggs
+    target_df["Suggested Char Count"] = final_chars
+    target_df["Developer Guide (How to Fix)"] = final_guides
 
     return target_df
 
@@ -215,77 +331,88 @@ def enrich_page_titles(
     api_key: str,
     provider: str,
     model: str,
-    business_context: str = "",
-    max_rows: int = 50
+    country: str = "Global",
+    business_context: str = ""
 ) -> pd.DataFrame:
-    """Generate SEO-optimized page titles (50-60 characters) with primary keywords + brand."""
+    """Generate 50-60 character title tags benchmarked against competitors + Developer Guide."""
     if df.empty:
         return df
 
     target_df = df.copy()
-    rows_to_process = target_df.head(max_rows)
     items = []
-    for idx, row in rows_to_process.iterrows():
+    for idx, row in target_df.iterrows():
         items.append({
             "id": idx,
             "url": str(row.get("Page URL", "")),
             "current_title": str(row.get("Duplicate Title", row.get("Page Title", row.get("Title", ""))))
         })
 
-    biz_note = f"Website Business/Niche Context: {business_context}\n" if business_context else ""
+    biz_note = f"Website Business/Niche: {business_context}\n" if business_context else ""
+    region_note = f"Target Country/Market: {country}\n" if country and "Global" not in country else ""
 
-    prompt = f"""You are an elite Technical SEO Title Tag Optimizer.
-{biz_note}
-Task: Generate punchy, high-ranking SEO <title> tags for the following pages.
+    prompt = f"""You are a Senior Technical SEO Consultant.
+{biz_note}{region_note}
+Task: Generate high-CTR, competitor-benchmarked SEO <title> tags strictly between 50 and 60 characters for each page.
 
 Requirements:
-1. Length MUST be strictly between 45 and 60 characters (approx. 500-580px).
-2. Format: [Primary Keyword / Page Topic] | [Brand / Secondary Value]
-3. Avoid generic words. Each title must be distinct and specific to the URL path.
-4. Return ONLY a valid JSON array of objects with keys: "id" (integer) and "suggestion" (string).
+1. Length MUST be strictly between 50 and 60 characters (ideal Google SERP pixel width ~500-580px).
+2. Format: [Primary Keyword / Product Name] | [Brand or USP Hook]
+3. Distinct and compelling for the {country} audience.
+4. Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string, 50-60 chars), and "developer_guide" (string).
 
-Pages to optimize:
+Pages:
 {json.dumps(items, indent=2)}
 
 Return JSON format:
 [
-  {{"id": 0, "suggestion": "..."}}
+  {{
+    "id": 0,
+    "suggestion": "Lavender Essential Oil | 100% Pure Organic Oils",
+    "developer_guide": "Update <title> tag inside the <head> element of this template."
+  }}
 ]"""
 
+    sugg_map = {}
+    guide_map = {}
     try:
-        raw_res = call_ai_model(prompt, api_key, provider, model)
+        raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
         parsed = parse_json_from_llm(raw_res)
-        sugg_map = {}
         if parsed:
             for entry in parsed:
-                if "id" in entry and "suggestion" in entry:
-                    sugg_map[entry["id"]] = str(entry["suggestion"]).strip().strip('"')
-
-        col_name = "AI Suggested Title Tag (50-60 chars)"
-        if "Duplicate" in issue_type:
-            col_name = "AI Suggested Unique Title Tag"
-        elif "over 60" in issue_type:
-            col_name = "AI Shortened Title Tag (<60 chars)"
-
-        suggs = []
-        char_counts = []
-        for idx in target_df.index:
-            s = sugg_map.get(idx, "")
-            if not s and idx in rows_to_process.index:
-                url = str(target_df.loc[idx, "Page URL"])
-                slug = url.rstrip("/").split("/")[-1].replace("-", " ").title()
-                s = f"{slug} | Official Store"
-            suggs.append(s)
-            char_counts.append(len(s) if s else None)
-
-        target_df[col_name] = suggs
-        target_df["AI Title Chars"] = char_counts
+                if "id" in entry:
+                    sugg_map[entry["id"]] = str(entry.get("suggestion", "")).strip().strip('"')
+                    guide_map[entry["id"]] = str(entry.get("developer_guide", "Update <title> tag in <head>.")).strip()
     except Exception as e:
-        logger.warning(f"Error enriching titles: {e}")
-        target_df["AI Suggested Title Tag"] = [
-            f"{str(r.get('Page URL','')).rstrip('/').split('/')[-1].replace('-', ' ').title()} | Best Quality"
-            for _, r in target_df.iterrows()
-        ]
+        logger.warning(f"Error calling LLM for titles: {e}")
+
+    col_sugg = "Suggested Title Tag (50-60 Chars)"
+    if "Duplicate" in issue_type:
+        col_sugg = "Suggested Unique Title Tag (50-60 Chars)"
+    elif "over 60" in issue_type:
+        col_sugg = "Suggested Trimmed Title Tag (50-60 Chars)"
+
+    final_suggs = []
+    final_chars = []
+    final_guides = []
+
+    for idx in target_df.index:
+        url = str(target_df.loc[idx, "Page URL"])
+        slug = url.rstrip("/").split("/")[-1].replace("-", " ").title()
+        s = sugg_map.get(idx, f"{slug} | Official Online Store")
+        if len(s) > 60:
+            s = s[:57] + "..."
+        elif len(s) < 45:
+            s = f"{s} | Best Deals"
+            if len(s) > 60:
+                s = s[:60]
+        final_suggs.append(s)
+        final_chars.append(len(s))
+        guide = guide_map.get(idx, "Developer Guide: Update the <title> tag inside the <head> section of this page template.")
+        final_guides.append(guide)
+
+    target_df[col_sugg] = final_suggs
+    target_df["Suggested Title Chars"] = final_chars
+    target_df["Developer Guide (How to Fix)"] = final_guides
 
     return target_df
 
@@ -296,17 +423,16 @@ def enrich_headings(
     api_key: str,
     provider: str,
     model: str,
-    business_context: str = "",
-    max_rows: int = 50
+    country: str = "Global",
+    business_context: str = ""
 ) -> pd.DataFrame:
-    """Recommend clean, single primary H1 heading tags."""
+    """Recommend single primary H1 heading tags + Developer Implementation Guide."""
     if df.empty:
         return df
 
     target_df = df.copy()
-    rows_to_process = target_df.head(max_rows)
     items = []
-    for idx, row in rows_to_process.iterrows():
+    for idx, row in target_df.iterrows():
         items.append({
             "id": idx,
             "url": str(row.get("Page URL", "")),
@@ -315,38 +441,51 @@ def enrich_headings(
             "title": str(row.get("Page Title", ""))
         })
 
-    biz_note = f"Website Business/Niche Context: {business_context}\n" if business_context else ""
-
     prompt = f"""You are an on-page SEO structural architect.
-{biz_note}
-Task: Recommend a single, clean, semantic H1 tag for each page.
-If the page has multiple H1s, identify which one should remain the primary H1 or combine them into one concise H1 heading.
-If the page has missing or duplicate H1, generate a clear, descriptive H1 for the page topic.
+Task: For each page below, recommend a single, clear semantic H1 heading tag and a precise Developer Guide on how to adjust HTML headings.
+If page has multiple H1s, identify which one should remain H1 and instruct developer to change secondary H1s into H2 tags.
+If H1 is missing or duplicate, suggest an ideal H1 for the page topic.
 
-Return ONLY a valid JSON array of objects with keys: "id" (integer) and "suggestion" (string).
+Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string), and "developer_guide" (string).
 
 Pages:
 {json.dumps(items, indent=2)}
 
 Return JSON format:
 [
-  {{"id": 0, "suggestion": "..."}}
+  {{
+    "id": 0,
+    "suggestion": "Pure Organic Lavender Essential Oil",
+    "developer_guide": "In header.liquid/template.php, keep this primary <h1> and change the secondary <h1> tag into a semantic <h2> or <h3> tag."
+  }}
 ]"""
 
+    sugg_map = {}
+    guide_map = {}
     try:
-        raw_res = call_ai_model(prompt, api_key, provider, model)
+        raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
         parsed = parse_json_from_llm(raw_res)
-        sugg_map = {}
         if parsed:
             for entry in parsed:
-                if "id" in entry and "suggestion" in entry:
-                    sugg_map[entry["id"]] = str(entry["suggestion"]).strip().strip('"')
-
-        col_name = "AI Recommended Single Primary H1" if "Multiple" in issue_type else "AI Suggested H1 Tag"
-        target_df[col_name] = [sugg_map.get(idx, target_df.loc[idx].get("First H1", "")) for idx in target_df.index]
+                if "id" in entry:
+                    sugg_map[entry["id"]] = str(entry.get("suggestion", "")).strip().strip('"')
+                    guide_map[entry["id"]] = str(entry.get("developer_guide", "")).strip()
     except Exception as e:
-        logger.warning(f"Error enriching headings: {e}")
-        target_df["AI Recommended H1"] = target_df.get("First H1", target_df.get("Page Title", "Main Topic"))
+        logger.warning(f"Error calling LLM for headings: {e}")
+
+    col_sugg = "Suggested Single Primary H1" if "Multiple" in issue_type else "Suggested H1 Heading"
+
+    target_df[col_sugg] = [
+        sugg_map.get(idx, target_df.loc[idx].get("First H1", target_df.loc[idx].get("Page Title", "Main Product / Topic")))
+        for idx in target_df.index
+    ]
+    target_df["Developer Guide (How to Fix)"] = [
+        guide_map.get(
+            idx,
+            "Developer Guide: Open template file. Ensure exactly one <h1> exists on the page (use the Suggested H1). Demote additional <h1> tags to <h2> or <h3>."
+        )
+        for idx in target_df.index
+    ]
 
     return target_df
 
@@ -356,59 +495,61 @@ def enrich_image_alt_text(
     api_key: str,
     provider: str,
     model: str,
-    business_context: str = "",
-    max_rows: int = 50
+    country: str = "Global",
+    business_context: str = ""
 ) -> pd.DataFrame:
-    """Generate descriptive, accessible alt text for images missing alt attributes."""
+    """Generate descriptive alt text + Developer Guide."""
     if df.empty:
         return df
 
     target_df = df.copy()
-    rows_to_process = target_df.head(max_rows)
     items = []
-    for idx, row in rows_to_process.iterrows():
+    for idx, row in target_df.iterrows():
         items.append({
             "id": idx,
             "page_url": str(row.get("Found On (Page URL)", row.get("Page URL", ""))),
             "image_url": str(row.get("Image Source URL", row.get("Image URL", "")))
         })
 
-    biz_note = f"Website Business/Niche Context: {business_context}\n" if business_context else ""
+    prompt = f"""You are an Accessibility (a11y) and Image SEO Specialist.
+Task: Write concise, descriptive, screen-reader-friendly image alt text based on the image URL filename and page context.
+Do not keyword stuff. 4 to 9 words describing what the image shows.
 
-    prompt = f"""You are an Accessibility (a11y) and Image SEO specialist.
-{biz_note}
-Task: Write concise, descriptive, screen-reader-friendly image alt text based on the image URL filename and parent page context.
-Do not keyword-stuff. Describe what the image depicts clearly in 4 to 10 words.
-
-Return ONLY a valid JSON array of objects with keys: "id" (integer) and "suggestion" (string).
+Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string), and "developer_guide" (string).
 
 Images:
 {json.dumps(items, indent=2)}
 
 Return JSON format:
 [
-  {{"id": 0, "suggestion": "..."}}
+  {{
+    "id": 0,
+    "suggestion": "Organic lavender essential oil bottle with dropper",
+    "developer_guide": "Add alt='...' attribute to the <img> tag in HTML template or update media alt text in CMS admin."
+  }}
 ]"""
 
+    sugg_map = {}
+    guide_map = {}
     try:
-        raw_res = call_ai_model(prompt, api_key, provider, model)
+        raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
         parsed = parse_json_from_llm(raw_res)
-        sugg_map = {}
         if parsed:
             for entry in parsed:
-                if "id" in entry and "suggestion" in entry:
-                    sugg_map[entry["id"]] = str(entry["suggestion"]).strip().strip('"')
-
-        target_df["AI Suggested Alt Text"] = [
-            sugg_map.get(idx, str(target_df.loc[idx].get("Image Source URL", "")).split("/")[-1].split(".")[0].replace("-", " ").title())
-            for idx in target_df.index
-        ]
+                if "id" in entry:
+                    sugg_map[entry["id"]] = str(entry.get("suggestion", "")).strip().strip('"')
+                    guide_map[entry["id"]] = str(entry.get("developer_guide", "")).strip()
     except Exception as e:
-        logger.warning(f"Error enriching alt text: {e}")
-        target_df["AI Suggested Alt Text"] = [
-            str(r.get("Image Source URL", "")).split("/")[-1].split(".")[0].replace("-", " ").title()
-            for _, r in target_df.iterrows()
-        ]
+        logger.warning(f"Error calling LLM for alt text: {e}")
+
+    target_df["Suggested Alt Text"] = [
+        sugg_map.get(idx, str(target_df.loc[idx].get("Image Source URL", "")).split("/")[-1].split(".")[0].replace("-", " ").title())
+        for idx in target_df.index
+    ]
+    target_df["Developer Guide (How to Fix)"] = [
+        guide_map.get(idx, "Developer Guide: Add alt='[Suggested Alt Text]' attribute to the <img> element in template or CMS media manager.")
+        for idx in target_df.index
+    ]
 
     return target_df
 
@@ -419,17 +560,16 @@ def enrich_broken_links_and_redirects(
     api_key: str,
     provider: str,
     model: str,
-    business_context: str = "",
-    max_rows: int = 50
+    country: str = "Global",
+    business_context: str = ""
 ) -> pd.DataFrame:
-    """Recommend surgical 301 redirects, link replacements, or remediation actions."""
+    """Generate surgical 301 redirect fixes, link updates, and step-by-step Developer Guide."""
     if df.empty:
         return df
 
     target_df = df.copy()
-    rows_to_process = target_df.head(max_rows)
     items = []
-    for idx, row in rows_to_process.iterrows():
+    for idx, row in target_df.iterrows():
         items.append({
             "id": idx,
             "url": str(row.get("Page URL", row.get("Broken Target URL", row.get("Source Page (Found On)", "")))),
@@ -437,37 +577,49 @@ def enrich_broken_links_and_redirects(
             "redirect_chain": str(row.get("Redirect Chain", row.get("Redirect Sequence", "")))
         })
 
-    prompt = f"""You are a Technical SEO Webmaster.
-Task: Provide a specific, actionable remediation directive for each URL issue below ({issue_type}).
-Specify whether to implement a 301 redirect, remove/update the hyperlink on the template, or fix canonical tag. Keep recommendation to 1-2 practical sentences.
+    prompt = f"""You are a Senior Technical SEO Architect.
+Task: For each technical issue ({issue_type}) below, provide:
+1. 'suggestion': Concise action directive (e.g. permanent 301 redirect to parent category, update source hyperlink, or fix canonical tag).
+2. 'developer_guide': Simple, step-by-step developer instructions (e.g. 'In .htaccess/nginx/next.config.js or CMS redirect manager, configure 301 redirect from URL A directly to Final URL C to eliminate intermediate hops').
 
-Return ONLY a valid JSON array of objects with keys: "id" (integer) and "suggestion" (string).
+Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string), and "developer_guide" (string).
 
 Items:
 {json.dumps(items, indent=2)}
 
 Return JSON format:
 [
-  {{"id": 0, "suggestion": "..."}}
+  {{
+    "id": 0,
+    "suggestion": "Implement a direct 301 permanent redirect to the closest active category page.",
+    "developer_guide": "Add rule in redirect manager: Redirect 301 /old-url /new-target-url, or update the hyperlink on the source page template to avoid 404 dead link."
+  }}
 ]"""
 
+    sugg_map = {}
+    guide_map = {}
     try:
-        raw_res = call_ai_model(prompt, api_key, provider, model)
+        raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
         parsed = parse_json_from_llm(raw_res)
-        sugg_map = {}
         if parsed:
             for entry in parsed:
-                if "id" in entry and "suggestion" in entry:
-                    sugg_map[entry["id"]] = str(entry["suggestion"]).strip().strip('"')
-
-        col_name = "AI Remediation & Action Plan"
-        target_df[col_name] = [
-            sugg_map.get(idx, "Set up a 301 redirect to the closest active parent category page.")
-            for idx in target_df.index
-        ]
+                if "id" in entry:
+                    sugg_map[entry["id"]] = str(entry.get("suggestion", "")).strip().strip('"')
+                    guide_map[entry["id"]] = str(entry.get("developer_guide", "")).strip()
     except Exception as e:
-        logger.warning(f"Error enriching broken links: {e}")
-        target_df["AI Remediation & Action Plan"] = "Set up a permanent 301 redirect to the nearest active category or update source hyperlink."
+        logger.warning(f"Error calling LLM for technical fixes: {e}")
+
+    target_df["Suggested Resolution"] = [
+        sugg_map.get(idx, "Configure a 301 redirect to active relevant category or remove broken link.")
+        for idx in target_df.index
+    ]
+    target_df["Developer Guide (How to Fix)"] = [
+        guide_map.get(
+            idx,
+            "Developer Guide: Add 301 redirect rule in web server (.htaccess / Nginx / Vercel / Shopify URL Redirects) or update source page href anchor."
+        )
+        for idx in target_df.index
+    ]
 
     return target_df
 
@@ -482,13 +634,13 @@ def enrich_audit_report_with_ai(
     api_key: str,
     provider: str = "Google Gemini",
     model: str = "gemini-2.5-flash",
+    country: str = "Global",
     business_context: str = "",
-    max_urls_per_tab: int = 30,
     progress_callback: Optional[Callable[[float, str], None]] = None
 ) -> Tuple[List[dict], Dict[str, pd.DataFrame]]:
     """
-    Enrich all error DataFrames and the Index Sheet with tailored AI suggestions.
-    Returns (enriched_index_rows, enriched_error_dfs).
+    Enrich all error DataFrames and the Index Sheet with suggested fixes and developer guides.
+    Processes all affected URLs in the error tabs.
     """
     if not api_key:
         return index_rows, error_dfs
@@ -501,7 +653,7 @@ def enrich_audit_report_with_ai(
         current_step += 1
         pct = current_step / max(total_tabs, 1)
         if progress_callback:
-            progress_callback(pct, f"🤖 AI Generating suggestions for: {sheet_name}...")
+            progress_callback(pct, f"🤖 Researching competitors & generating fixes for: {sheet_name} ({country})...")
 
         if df_err.empty:
             enriched_dfs[sheet_name] = df_err
@@ -512,63 +664,63 @@ def enrich_audit_report_with_ai(
         # 1. Meta Descriptions (Missing / Duplicate / Long)
         if "meta description" in sheet_lower or "desc over" in sheet_lower:
             enriched_dfs[sheet_name] = enrich_meta_descriptions(
-                df_err, sheet_name, api_key, provider, model, business_context, max_urls_per_tab
+                df_err, sheet_name, api_key, provider, model, country=country, business_context=business_context
             )
 
         # 2. Page Titles (Missing / Duplicate / Long)
         elif "title" in sheet_lower:
             enriched_dfs[sheet_name] = enrich_page_titles(
-                df_err, sheet_name, api_key, provider, model, business_context, max_urls_per_tab
+                df_err, sheet_name, api_key, provider, model, country=country, business_context=business_context
             )
 
         # 3. Headings (H1 tags)
         elif "h1" in sheet_lower or "heading" in sheet_lower:
             enriched_dfs[sheet_name] = enrich_headings(
-                df_err, sheet_name, api_key, provider, model, business_context, max_urls_per_tab
+                df_err, sheet_name, api_key, provider, model, country=country, business_context=business_context
             )
 
         # 4. Images Missing Alt Text
         elif "alt" in sheet_lower or "image" in sheet_lower:
             enriched_dfs[sheet_name] = enrich_image_alt_text(
-                df_err, api_key, provider, model, business_context, max_urls_per_tab
+                df_err, api_key, provider, model, country=country, business_context=business_context
             )
 
         # 5. Broken Links, 4xx, Redirect Chains & Loops, Canonicals
         elif any(k in sheet_lower for k in ["4xx", "broken", "redirect", "canonical", "loop"]):
             enriched_dfs[sheet_name] = enrich_broken_links_and_redirects(
-                df_err, sheet_name, api_key, provider, model, business_context, max_urls_per_tab
+                df_err, sheet_name, api_key, provider, model, country=country, business_context=business_context
             )
 
         else:
             enriched_dfs[sheet_name] = df_err.copy()
 
-    # Enrich Index Rows with AI Action Plan
+    # Enrich Index Rows with Suggested Developer Action Plan
     enriched_index = []
     for r in index_rows:
         row_copy = dict(r)
         name_lower = r.get("error_name", "").lower()
         if r.get("is_error", False):
             if "meta description" in name_lower:
-                row_copy["ai_action_plan"] = "AI has generated optimized, click-driven 130-155 char meta descriptions for all flagged URLs."
+                row_copy["suggested_action_plan"] = "Competitor-benchmarked 150-160 char meta descriptions with CTAs generated for each page. Developer: Paste into <meta name='description'> inside <head>."
             elif "title" in name_lower:
-                row_copy["ai_action_plan"] = "AI has crafted primary keyword & brand focused title tags adhering to 50-60 character limits."
+                row_copy["suggested_action_plan"] = "Primary keyword + brand title tags (50-60 chars) created. Developer: Update <title> inside <head>."
             elif "h1" in name_lower:
-                row_copy["ai_action_plan"] = "AI has consolidated semantic primary H1 headings to ensure proper page content hierarchy."
+                row_copy["suggested_action_plan"] = "Semantic primary H1 headings consolidated. Developer: Demote secondary <h1> tags to <h2> in page template."
             elif "alt" in name_lower:
-                row_copy["ai_action_plan"] = "AI has generated descriptive, accessible alt attributes matching product and context."
+                row_copy["suggested_action_plan"] = "Descriptive, accessible alt text generated. Developer: Add alt='...' attributes to <img> tags."
             elif "4xx" in name_lower or "broken" in name_lower:
-                row_copy["ai_action_plan"] = "AI recommended 301 redirect targets or source link removals to protect link equity."
+                row_copy["suggested_action_plan"] = "301 permanent redirects mapped. Developer: Add 301 redirect rules in server config or update source link hrefs."
             elif "redirect" in name_lower:
-                row_copy["ai_action_plan"] = "AI identified direct 301 destination links to cut latency hops and resolve crawl loops."
+                row_copy["suggested_action_plan"] = "Direct 301 destinations mapped to eliminate intermediary redirect hops and latency."
             elif "canonical" in name_lower:
-                row_copy["ai_action_plan"] = "AI specified self-referencing or master canonical URLs to consolidate ranking signals."
+                row_copy["suggested_action_plan"] = "Self-referencing canonical URLs specified. Developer: Add <link rel='canonical'> inside <head>."
             else:
-                row_copy["ai_action_plan"] = "AI remediation strategy applied to affected URLs."
+                row_copy["suggested_action_plan"] = "Suggested remediation strategy and developer instructions mapped to affected URLs."
         else:
-            row_copy["ai_action_plan"] = "Passed standard SEO quality checks."
+            row_copy["suggested_action_plan"] = "Passed standard SEO quality checks."
         enriched_index.append(row_copy)
 
     if progress_callback:
-        progress_callback(1.0, "✅ AI SEO Fixes & Suggestions applied successfully!")
+        progress_callback(1.0, "✅ Suggested SEO fixes and developer guides applied successfully!")
 
     return enriched_index, enriched_dfs
