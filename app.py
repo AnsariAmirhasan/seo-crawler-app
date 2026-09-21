@@ -33,7 +33,7 @@ from urllib.parse import urlparse, urljoin
 import xml.etree.ElementTree as ET
 
 from crawler import SEOSpider, USER_AGENTS, normalize_url
-from seo_analyzer import analyze_crawl_results, parse_page_seo
+from seo_analyzer import analyze_crawl_results, parse_page_seo, is_pagination_url, get_base_unpaginated_url
 from visualizer import (
     create_health_gauge,
     create_status_code_chart,
@@ -1934,24 +1934,53 @@ with tab_titles:
         df_titles = df_pages[[
             "url", "status_code", "title", "title_length", "title_pixel_width", "is_indexable"
         ]].copy()
+        if "canonical_url" in df_pages.columns:
+            df_titles["canonical_url"] = df_pages["canonical_url"]
+        else:
+            df_titles["canonical_url"] = ""
 
-        # Map Duplicate Partners (Only 200 OK & Indexable pages count toward duplicates!)
+        # Map Duplicate Partners (Only 200 OK & Indexable pages count toward duplicates, excluding pagination copies!)
         valid_titles_df = df_titles[
             (df_titles["status_code"] == 200) & 
             (df_titles["is_indexable"] == True) & 
             (df_titles["title"].str.strip() != "")
+        ].copy()
+
+        valid_titles_df["is_pagination"] = [
+            is_pagination_url(u, c) for u, c in zip(valid_titles_df["url"], valid_titles_df["canonical_url"])
         ]
-        title_to_urls = valid_titles_df.groupby("title")["url"].apply(list).to_dict()
-        dup_titles_set = {t for t, urls in title_to_urls.items() if len(urls) > 1}
+        valid_titles_df["base_url"] = [
+            get_base_unpaginated_url(u, c) for u, c in zip(valid_titles_df["url"], valid_titles_df["canonical_url"])
+        ]
+
+        title_to_base_urls = {}
+        title_to_urls = {}
+        dup_titles_set = set()
+
+        for t, group in valid_titles_df.groupby("title"):
+            t_clean = str(t).strip()
+            if not t_clean:
+                continue
+            all_non_pag = list(group[~group["is_pagination"]]["url"])
+            distinct_bases = sorted(list(set(group["base_url"])))
+            title_to_base_urls[t_clean] = distinct_bases
+            title_to_urls[t_clean] = all_non_pag if all_non_pag else list(group["url"])
+            if len(distinct_bases) > 1:
+                dup_titles_set.add(t_clean)
 
         def get_title_dup_info(row):
             if row.get("status_code", 200) != 200 or not row.get("is_indexable", True):
                 return 0, "— (Non-Indexable / Redirect)"
+            u = row["url"]
+            can = row.get("canonical_url", "")
+            if is_pagination_url(u, can):
+                return 1, "— (Paginated View)"
             t = str(row["title"]).strip()
-            if t and t in title_to_urls and len(title_to_urls[t]) > 1:
-                all_urls = title_to_urls[t]
-                other_urls = [u for u in all_urls if u != row["url"]]
-                return len(all_urls), " | ".join(other_urls)
+            if t and t in dup_titles_set:
+                row_base = get_base_unpaginated_url(u, can)
+                other_bases = [b for b in title_to_base_urls.get(t, []) if b != row_base]
+                if other_bases:
+                    return len(title_to_base_urls.get(t, [])), " | ".join(other_bases)
             return 1, "—"
 
         dup_title_info = df_titles.apply(get_title_dup_info, axis=1)
@@ -1971,7 +2000,9 @@ with tab_titles:
             t = str(row["title"]).strip()
             if not t:
                 return "Missing"
-            if row.get("is_indexable", True) and t in dup_titles_set:
+            u = row["url"]
+            can = row.get("canonical_url", "")
+            if not is_pagination_url(u, can) and row.get("is_indexable", True) and t in dup_titles_set:
                 return "Duplicate"
             if row["title_length"] > 60 or row["title_pixel_width"] > 600:
                 return "Over 60 Chars (>600px)"
@@ -2133,24 +2164,53 @@ with tab_descriptions:
         df_desc = df_pages[[
             "url", "status_code", "meta_description", "meta_description_length", "is_indexable"
         ]].copy()
+        if "canonical_url" in df_pages.columns:
+            df_desc["canonical_url"] = df_pages["canonical_url"]
+        else:
+            df_desc["canonical_url"] = ""
 
-        # Map Duplicate Partners (Only 200 OK & Indexable pages count toward duplicates!)
+        # Map Duplicate Partners (Only 200 OK & Indexable pages count toward duplicates, excluding pagination copies!)
         valid_desc_df = df_desc[
             (df_desc["status_code"] == 200) & 
             (df_desc["is_indexable"] == True) & 
             (df_desc["meta_description"].str.strip() != "")
+        ].copy()
+
+        valid_desc_df["is_pagination"] = [
+            is_pagination_url(u, c) for u, c in zip(valid_desc_df["url"], valid_desc_df["canonical_url"])
         ]
-        desc_to_urls = valid_desc_df.groupby("meta_description")["url"].apply(list).to_dict()
-        dup_desc_set = {d for d, urls in desc_to_urls.items() if len(urls) > 1}
+        valid_desc_df["base_url"] = [
+            get_base_unpaginated_url(u, c) for u, c in zip(valid_desc_df["url"], valid_desc_df["canonical_url"])
+        ]
+
+        desc_to_base_urls = {}
+        desc_to_urls = {}
+        dup_desc_set = set()
+
+        for d, group in valid_desc_df.groupby("meta_description"):
+            d_clean = str(d).strip()
+            if not d_clean:
+                continue
+            all_non_pag = list(group[~group["is_pagination"]]["url"])
+            distinct_bases = sorted(list(set(group["base_url"])))
+            desc_to_base_urls[d_clean] = distinct_bases
+            desc_to_urls[d_clean] = all_non_pag if all_non_pag else list(group["url"])
+            if len(distinct_bases) > 1:
+                dup_desc_set.add(d_clean)
 
         def get_desc_dup_info(row):
             if row.get("status_code", 200) != 200 or not row.get("is_indexable", True):
                 return 0, "— (Non-Indexable / Redirect)"
+            u = row["url"]
+            can = row.get("canonical_url", "")
+            if is_pagination_url(u, can):
+                return 1, "— (Paginated View)"
             d = str(row["meta_description"]).strip()
-            if d and d in desc_to_urls and len(desc_to_urls[d]) > 1:
-                all_urls = desc_to_urls[d]
-                other_urls = [u for u in all_urls if u != row["url"]]
-                return len(all_urls), " | ".join(other_urls)
+            if d and d in dup_desc_set:
+                row_base = get_base_unpaginated_url(u, can)
+                other_bases = [b for b in desc_to_base_urls.get(d, []) if b != row_base]
+                if other_bases:
+                    return len(desc_to_base_urls.get(d, [])), " | ".join(other_bases)
             return 1, "—"
 
         dup_desc_info = df_desc.apply(get_desc_dup_info, axis=1)
@@ -2170,7 +2230,9 @@ with tab_descriptions:
             d = str(row["meta_description"]).strip()
             if not d:
                 return "Missing"
-            if row.get("is_indexable", True) and d in dup_desc_set:
+            u = row["url"]
+            can = row.get("canonical_url", "")
+            if not is_pagination_url(u, can) and row.get("is_indexable", True) and d in dup_desc_set:
                 return "Duplicate"
             if row["meta_description_length"] > 160:
                 return "Over 160 Chars"
@@ -2310,28 +2372,57 @@ with tab_headings:
             cols_to_extract.append("h2_2")
 
         df_headings = df_pages[cols_to_extract].copy()
+        if "canonical_url" in df_pages.columns:
+            df_headings["canonical_url"] = df_pages["canonical_url"]
+        else:
+            df_headings["canonical_url"] = ""
         if "h1_2" not in df_headings.columns:
             df_headings["h1_2"] = ""
         if "h2_2" not in df_headings.columns:
             df_headings["h2_2"] = ""
 
-        # Calculate H1 and H2 duplicates with partner URL matching (Only 200 OK & Indexable pages!)
+        # Calculate H1 and H2 duplicates with partner URL matching (Only 200 OK & Indexable pages, excluding pagination!)
         valid_h1_df = df_headings[
             (df_headings["status_code"] == 200) & 
             (df_headings["is_indexable"] == True) & 
             (df_headings["h1"].str.strip() != "")
+        ].copy()
+
+        valid_h1_df["is_pagination"] = [
+            is_pagination_url(u, c) for u, c in zip(valid_h1_df["url"], valid_h1_df["canonical_url"])
         ]
-        h1_to_urls = valid_h1_df.groupby("h1")["url"].apply(list).to_dict()
-        dup_h1_set = {h for h, urls in h1_to_urls.items() if len(urls) > 1}
+        valid_h1_df["base_url"] = [
+            get_base_unpaginated_url(u, c) for u, c in zip(valid_h1_df["url"], valid_h1_df["canonical_url"])
+        ]
+
+        h1_to_base_urls = {}
+        h1_to_urls = {}
+        dup_h1_set = set()
+
+        for h, group in valid_h1_df.groupby("h1"):
+            h_clean = str(h).strip()
+            if not h_clean:
+                continue
+            all_non_pag = list(group[~group["is_pagination"]]["url"])
+            distinct_bases = sorted(list(set(group["base_url"])))
+            h1_to_base_urls[h_clean] = distinct_bases
+            h1_to_urls[h_clean] = all_non_pag if all_non_pag else list(group["url"])
+            if len(distinct_bases) > 1:
+                dup_h1_set.add(h_clean)
 
         def get_h1_dup_info(row):
             if row.get("status_code", 200) != 200 or not row.get("is_indexable", True):
                 return 0, "— (Non-Indexable / Redirect)"
+            u = row["url"]
+            can = row.get("canonical_url", "")
+            if is_pagination_url(u, can):
+                return 1, "— (Paginated View)"
             h = str(row["h1"]).strip()
-            if h and h in h1_to_urls and len(h1_to_urls[h]) > 1:
-                all_urls = h1_to_urls[h]
-                other_urls = [u for u in all_urls if u != row["url"]]
-                return len(all_urls), " | ".join(other_urls)
+            if h and h in dup_h1_set:
+                row_base = get_base_unpaginated_url(u, can)
+                other_bases = [b for b in h1_to_base_urls.get(h, []) if b != row_base]
+                if other_bases:
+                    return len(h1_to_base_urls.get(h, [])), " | ".join(other_bases)
             return 1, "—"
 
         dup_h1_info = df_headings.apply(get_h1_dup_info, axis=1)
@@ -2357,7 +2448,9 @@ with tab_headings:
                 return "Missing"
             if c > 1:
                 return "Multiple H1s"
-            if row.get("is_indexable", True) and h in dup_h1_set:
+            u = row["url"]
+            can = row.get("canonical_url", "")
+            if not is_pagination_url(u, can) and row.get("is_indexable", True) and h in dup_h1_set:
                 return "Duplicate"
             if len(h) > 70:
                 return "Over 70 Chars"

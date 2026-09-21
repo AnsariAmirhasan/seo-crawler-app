@@ -9,6 +9,7 @@ import re
 from urllib.parse import urlparse
 from collections import Counter
 import pandas as pd
+from seo_analyzer import is_pagination_url, get_base_unpaginated_url
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -167,10 +168,16 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
     dup_descs = set()
     desc_counts = {}
     if not eval_pages.empty and "meta_description" in eval_pages.columns:
-        non_empty_descs = eval_pages[meta_s != ""]["meta_description"]
-        desc_counts = Counter(non_empty_descs)
-        dup_descs = {d for d, cnt in desc_counts.items() if cnt > 1}
-        dup_desc_df = eval_pages[eval_pages["meta_description"].isin(dup_descs)]
+        valid_ep = eval_pages[meta_s != ""].copy()
+        canon_col = get_series(valid_ep, "canonical_url", "")
+        valid_ep["is_pagination"] = [is_pagination_url(u, c) for u, c in zip(valid_ep["url"], canon_col)]
+        valid_ep["base_url"] = [get_base_unpaginated_url(u, c) for u, c in zip(valid_ep["url"], canon_col)]
+
+        desc_to_bases = valid_ep.groupby("meta_description")["base_url"].apply(lambda s: set(s)).to_dict()
+        dup_descs = {d for d, bases in desc_to_bases.items() if len(bases) > 1}
+        # Only non-pagination pages count as duplicate errors
+        dup_desc_df = valid_ep[valid_ep["meta_description"].isin(dup_descs) & (~valid_ep["is_pagination"])]
+        desc_counts = {d: len(bases) for d, bases in desc_to_bases.items() if len(bases) > 1}
     
     dup_desc_count = len(dup_desc_df)
     dmd_tab = sanitize_sheet_title("Duplicate Meta Descriptions")
@@ -246,10 +253,16 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
     dup_titles = set()
     title_counts = {}
     if not eval_pages.empty and "title" in eval_pages.columns:
-        non_empty_titles = eval_pages[title_s != ""]["title"]
-        title_counts = Counter(non_empty_titles)
-        dup_titles = {t for t, cnt in title_counts.items() if cnt > 1}
-        dup_title_df = eval_pages[eval_pages["title"].isin(dup_titles)]
+        valid_ep_t = eval_pages[title_s != ""].copy()
+        canon_col_t = get_series(valid_ep_t, "canonical_url", "")
+        valid_ep_t["is_pagination"] = [is_pagination_url(u, c) for u, c in zip(valid_ep_t["url"], canon_col_t)]
+        valid_ep_t["base_url"] = [get_base_unpaginated_url(u, c) for u, c in zip(valid_ep_t["url"], canon_col_t)]
+
+        title_to_bases = valid_ep_t.groupby("title")["base_url"].apply(lambda s: set(s)).to_dict()
+        dup_titles = {t for t, bases in title_to_bases.items() if len(bases) > 1}
+        # Only non-pagination pages count as duplicate errors
+        dup_title_df = valid_ep_t[valid_ep_t["title"].isin(dup_titles) & (~valid_ep_t["is_pagination"])]
+        title_counts = {t: len(bases) for t, bases in title_to_bases.items() if len(bases) > 1}
     
     dup_title_count = len(dup_title_df)
     dtt_tab = sanitize_sheet_title("Duplicate title tags")

@@ -1,11 +1,88 @@
 import re
 import json
+import urllib.parse
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 import pandas as pd
 from collections import Counter
 import requests
 from concurrent.futures import ThreadPoolExecutor
+
+PAGINATION_QUERY_KEYS = {
+    "page", "p", "pg", "paged", "page_number", "page_no", "pagination", "pageid", "pno"
+}
+PAGINATION_PATH_REGEX = re.compile(
+    r'(?:^|/)(?:page|paged|p|pagina|seite)[/-](\d+)(?:/|$)',
+    re.IGNORECASE
+)
+
+def is_pagination_url(url: str, canonical_url: str = "") -> bool:
+    """
+    Checks if a URL represents a paginated view (e.g. ?page=3, /page/2/, ?p=2).
+    """
+    if not url or not isinstance(url, str):
+        return False
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        # 1. Query parameters
+        if parsed.query:
+            qs = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+            for k, vals in qs.items():
+                if k.lower() in PAGINATION_QUERY_KEYS:
+                    for val in vals:
+                        if val.isdigit() or val.lower().startswith("page"):
+                            return True
+                    if k.lower() in ("page", "paged", "page_no", "page_number"):
+                        return True
+        # 2. Path patterns
+        if parsed.path and PAGINATION_PATH_REGEX.search(parsed.path):
+            return True
+        # 3. Canonical URL points to root path without query params
+        if canonical_url and isinstance(canonical_url, str) and canonical_url.strip():
+            c_parsed = urllib.parse.urlsplit(canonical_url.strip())
+            if c_parsed.netloc.lower() == parsed.netloc.lower() and c_parsed.path.rstrip("/") == parsed.path.rstrip("/"):
+                if parsed.query and not c_parsed.query:
+                    return True
+    except Exception:
+        pass
+    return False
+
+def get_base_unpaginated_url(url: str, canonical_url: str = "") -> str:
+    """
+    Strips pagination query parameters and path segments to find the root/base page URL.
+    Example:
+      https://plantspower.ca/collections/all-collections?page=3 -> https://plantspower.ca/collections/all-collections
+      https://example.com/blog/page/2/ -> https://example.com/blog
+    """
+    if not url or not isinstance(url, str):
+        return ""
+    # If canonical_url is provided and clean on the same domain
+    if canonical_url and isinstance(canonical_url, str) and canonical_url.strip():
+        c_clean = canonical_url.strip().split("#")[0]
+        if not is_pagination_url(c_clean):
+            try:
+                p_url = urllib.parse.urlsplit(url)
+                p_can = urllib.parse.urlsplit(c_clean)
+                if p_url.netloc.lower() == p_can.netloc.lower():
+                    return c_clean.rstrip("/")
+            except Exception:
+                pass
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        filtered_qs = []
+        if parsed.query:
+            for k, v in urllib.parse.parse_qsl(parsed.query, keep_blank_values=True):
+                if k.lower() not in PAGINATION_QUERY_KEYS:
+                    filtered_qs.append((k, v))
+        new_query = urllib.parse.urlencode(filtered_qs)
+        clean_path = parsed.path
+        if clean_path:
+            clean_path = PAGINATION_PATH_REGEX.sub("/", clean_path)
+            clean_path = re.sub(r"/+", "/", clean_path)
+        base = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, clean_path.rstrip("/"), new_query, ""))
+        return base.rstrip("/")
+    except Exception:
+        return url.rstrip("/")
 
 def estimate_pixel_width(text: str) -> int:
     """Approximate Google SERP title pixel width."""
@@ -688,19 +765,30 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
         df_pages["images_missing_alt_count"] = 0
         df_pages["images_over_100kb_count"] = 0
 
-    # Detect duplicate Page Titles across the site (ONLY 200 OK & Indexable pages!)
-    indexable_pages = df_pages[(df_pages["status_code"] == 200) & (df_pages["is_indexable"] == True)]
+    # Detect duplicate Page Titles across the site (ONLY 200 OK & Indexable pages, ignoring pagination!)
+    indexable_pages = df_pages[(df_pages["status_code"] == 200) & (df_pages["is_indexable"] == True)].copy()
+    canon_col = indexable_pages["canonical_url"] if "canonical_url" in indexable_pages.columns else [""] * len(indexable_pages)
     
-    title_counts = Counter(indexable_pages[indexable_pages["title"] != ""]["title"])
-    duplicate_titles = {t for t, count in title_counts.items() if count > 1}
+    indexable_pages["is_pagination"] = [
+        is_pagination_url(u, c) for u, c in zip(indexable_pages["url"], canon_col)
+    ]
+    indexable_pages["base_url"] = [
+        get_base_unpaginated_url(u, c) for u, c in zip(indexable_pages["url"], canon_col)
+    ]
 
-    # Detect duplicate H1 Headings across the site (ONLY 200 OK & Indexable pages!)
-    h1_counts = Counter(indexable_pages[indexable_pages["h1"] != ""]["h1"])
-    duplicate_h1s = {h for h, count in h1_counts.items() if count > 1}
+    valid_titles = indexable_pages[indexable_pages["title"].fillna("").str.strip() != ""]
+    title_to_bases = valid_titles.groupby("title")["base_url"].apply(lambda s: set(s)).to_dict()
+    duplicate_titles = {t for t, bases in title_to_bases.items() if len(bases) > 1}
 
-    # Detect duplicate Meta Descriptions across the site (ONLY 200 OK & Indexable pages!)
-    desc_counts = Counter(indexable_pages[indexable_pages["meta_description"] != ""]["meta_description"])
-    duplicate_descriptions = {d for d, count in desc_counts.items() if count > 1}
+    # Detect duplicate H1 Headings across the site (ONLY 200 OK & Indexable pages, ignoring pagination!)
+    valid_h1s = indexable_pages[indexable_pages["h1"].fillna("").str.strip() != ""]
+    h1_to_bases = valid_h1s.groupby("h1")["base_url"].apply(lambda s: set(s)).to_dict()
+    duplicate_h1s = {h for h, bases in h1_to_bases.items() if len(bases) > 1}
+
+    # Detect duplicate Meta Descriptions across the site (ONLY 200 OK & Indexable pages, ignoring pagination!)
+    valid_descs = indexable_pages[indexable_pages["meta_description"].fillna("").str.strip() != ""]
+    desc_to_bases = valid_descs.groupby("meta_description")["base_url"].apply(lambda s: set(s)).to_dict()
+    duplicate_descriptions = {d for d, bases in desc_to_bases.items() if len(bases) > 1}
 
     # Add duplicate issues to individual pages & collect aggregated issue list
     all_issues = []
@@ -708,9 +796,11 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
     for idx, row in df_pages.iterrows():
         issues_list = row["issues"]
         url = row["url"]
+        can = row.get("canonical_url", "")
+        is_paginated = is_pagination_url(url, can)
 
-        # Only evaluate duplicate content warnings for 200 OK & Indexable pages
-        if row["status_code"] == 200 and row.get("is_indexable", True):
+        # Only evaluate duplicate content warnings for 200 OK & Indexable pages that are NOT pagination pages
+        if row["status_code"] == 200 and row.get("is_indexable", True) and not is_paginated:
             if row["title"] in duplicate_titles:
                 issues_list.append({
                     "type": "Warning",
@@ -801,6 +891,7 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
             "health_score": health_score,
             "noindex_pages_count": c_noindex_pages,
             "duplicate_titles_count": len(duplicate_titles),
+            "duplicate_descriptions_count": len(duplicate_descriptions),
             "duplicate_h1_count": len(duplicate_h1s),
             "orphan_pages_count": int(df_pages["is_orphan"].sum()) if not df_pages.empty and "is_orphan" in df_pages.columns else 0,
             "redirect_chains_count": int(df_pages["is_redirect_chain"].sum()) if not df_pages.empty and "is_redirect_chain" in df_pages.columns else 0,
