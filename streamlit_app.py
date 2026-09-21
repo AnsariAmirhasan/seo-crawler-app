@@ -74,6 +74,15 @@ html, body, [class*="css"] {
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* Hide Fork, GitHub icon, and View Source menu from top header */
+[data-testid="stHeaderActionElements"],
+[data-testid="stToolbar"],
+#MainMenu,
+footer {
+    display: none !important;
+    visibility: hidden !important;
+}
+
 /* Background overrides */
 .stApp {
     background-color: #0B0E14 !important;
