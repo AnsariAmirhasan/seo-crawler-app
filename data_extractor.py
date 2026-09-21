@@ -298,6 +298,74 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
         })
 
     # -------------------------------------------------------------
+    # 5b. Missing title tags
+    # -------------------------------------------------------------
+    missing_title_mask = get_series(eval_pages, "title", "").fillna("").str.strip() == ""
+    missing_title_df = eval_pages[missing_title_mask]
+    missing_title_count = len(missing_title_df)
+    mtt_tab = sanitize_sheet_title("Missing title tags")
+    if missing_title_count > 0:
+        cols = [c for c in ["url", "status_code"] if c in missing_title_df.columns]
+        mtt_df = missing_title_df[cols].copy().rename(columns={"url": "Page URL", "status_code": "Status Code"})
+        mtt_df["Recommended Action"] = "Add a descriptive, keyword-rich <title> tag between 30 and 60 characters."
+        error_dfs[mtt_tab] = mtt_df
+        index_rows.append({
+            "error_name": "Missing title tags",
+            "status": f"Failed ({missing_title_count})",
+            "comments": f"Found {missing_title_count} indexable pages completely missing a <title> tag.",
+            "sheet_name": mtt_tab,
+            "count": missing_title_count,
+            "is_error": True
+        })
+    else:
+        index_rows.append({
+            "error_name": "Missing title tags",
+            "status": "Passed (0)",
+            "comments": "All indexable pages have a title tag.",
+            "sheet_name": None,
+            "count": 0,
+            "is_error": False
+        })
+
+    # -------------------------------------------------------------
+    # 5c. Title tags over 60 Chars (>600px)
+    # -------------------------------------------------------------
+    t_len_s = get_series(eval_pages, "title_length", 0)
+    t_px_s = get_series(eval_pages, "title_pixel_width", 0)
+    long_t_mask = (t_len_s > 60) | (t_px_s > 600)
+    long_title_df = eval_pages[long_t_mask]
+    long_title_count = len(long_title_df)
+    ltt_tab = sanitize_sheet_title("Titles over 60 Chars")
+    if long_title_count > 0:
+        cols = [c for c in ["url", "title", "title_length", "title_pixel_width", "status_code"] if c in long_title_df.columns]
+        ltdf = long_title_df[cols].copy().rename(columns={
+            "url": "Page URL",
+            "title": "Page Title",
+            "title_length": "Length (Chars)",
+            "title_pixel_width": "Pixel Width (px)",
+            "status_code": "Status Code"
+        })
+        ltdf["Recommended Action"] = "Shorten title to under 60 characters (<600px) to avoid ellipsis truncation in search results."
+        error_dfs[ltt_tab] = ltdf
+        index_rows.append({
+            "error_name": "Title tags over 60 Chars (>600px)",
+            "status": f"Attention Needed ({long_title_count})",
+            "comments": f"Found {long_title_count} pages with titles exceeding SERP display limits (>60 chars or >600px).",
+            "sheet_name": ltt_tab,
+            "count": long_title_count,
+            "is_error": True
+        })
+    else:
+        index_rows.append({
+            "error_name": "Title tags over 60 Chars (>600px)",
+            "status": "Passed (0)",
+            "comments": "All page titles fit comfortably within Google SERP pixel limits.",
+            "sheet_name": None,
+            "count": 0,
+            "is_error": False
+        })
+
+    # -------------------------------------------------------------
     # 6. Unminified JavaScript and CSS files
     # -------------------------------------------------------------
     unminified_list = []
@@ -410,6 +478,42 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
         })
 
     # -------------------------------------------------------------
+    # 8b. Meta descriptions over 160 Chars
+    # -------------------------------------------------------------
+    d_len_s = get_series(eval_pages, "meta_description_length", 0)
+    long_desc_mask = d_len_s > 160
+    long_desc_df = eval_pages[long_desc_mask]
+    long_desc_count = len(long_desc_df)
+    ld_tab = sanitize_sheet_title("Desc over 160 Chars")
+    if long_desc_count > 0:
+        cols = [c for c in ["url", "meta_description", "meta_description_length", "status_code"] if c in long_desc_df.columns]
+        lddf = long_desc_df[cols].copy().rename(columns={
+            "url": "Page URL",
+            "meta_description": "Meta Description",
+            "meta_description_length": "Length (Chars)",
+            "status_code": "Status Code"
+        })
+        lddf["Recommended Action"] = "Shorten meta description to 120-155 characters to avoid SERP ellipsis truncation."
+        error_dfs[ld_tab] = lddf
+        index_rows.append({
+            "error_name": "Meta descriptions over 160 Chars",
+            "status": f"Attention Needed ({long_desc_count})",
+            "comments": f"Found {long_desc_count} pages with meta descriptions over 160 characters.",
+            "sheet_name": ld_tab,
+            "count": long_desc_count,
+            "is_error": True
+        })
+    else:
+        index_rows.append({
+            "error_name": "Meta descriptions over 160 Chars",
+            "status": "Passed (0)",
+            "comments": "No meta descriptions exceed standard SERP snippet limits.",
+            "sheet_name": None,
+            "count": 0,
+            "is_error": False
+        })
+
+    # -------------------------------------------------------------
     # 9. Missing H1
     # -------------------------------------------------------------
     h1_text = get_series(eval_pages, "h1", "").fillna("").str.strip()
@@ -440,6 +544,85 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
             "error_name": "Missing H1",
             "status": "Passed (0)",
             "comments": "All indexable pages contain at least one valid H1 heading tag.",
+            "sheet_name": None,
+            "count": 0,
+            "is_error": False
+        })
+
+    # -------------------------------------------------------------
+    # 9b. Multiple H1 tags
+    # -------------------------------------------------------------
+    multi_h1_mask = h1_count_ser > 1
+    multi_h1_df = eval_pages[multi_h1_mask]
+    multi_h1_count = len(multi_h1_df)
+    multi_h1_tab = sanitize_sheet_title("Multiple H1 tags")
+    if multi_h1_count > 0:
+        cols = [c for c in ["url", "h1_count", "h1", "h1_2", "status_code"] if c in multi_h1_df.columns]
+        mhdf = multi_h1_df[cols].copy().rename(columns={
+            "url": "Page URL",
+            "h1_count": "Total H1 Count",
+            "h1": "First H1 Tag",
+            "h1_2": "Second H1 Tag",
+            "status_code": "Status Code"
+        })
+        mhdf["Recommended Action"] = "Remove superfluous H1 tags so each page has exactly one primary H1 heading."
+        error_dfs[multi_h1_tab] = mhdf
+        index_rows.append({
+            "error_name": "Multiple H1 tags",
+            "status": f"Failed ({multi_h1_count})",
+            "comments": f"Found {multi_h1_count} indexable pages containing multiple H1 tags (more than 1 H1).",
+            "sheet_name": multi_h1_tab,
+            "count": multi_h1_count,
+            "is_error": True
+        })
+    else:
+        index_rows.append({
+            "error_name": "Multiple H1 tags",
+            "status": "Passed (0)",
+            "comments": "No multiple H1 tags found; all pages have at most one primary H1.",
+            "sheet_name": None,
+            "count": 0,
+            "is_error": False
+        })
+
+    # -------------------------------------------------------------
+    # 9c. Duplicate H1 tags
+    # -------------------------------------------------------------
+    valid_h1_ep = eval_pages[h1_text != ""].copy()
+    dup_h1_df = pd.DataFrame()
+    dup_h1_count = 0
+    if not valid_h1_ep.empty:
+        canon_col_h = get_series(valid_h1_ep, "canonical_url", "")
+        valid_h1_ep["is_pagination"] = [is_pagination_url(u, c) for u, c in zip(valid_h1_ep["url"], canon_col_h)]
+        valid_h1_ep["base_url"] = [get_base_unpaginated_url(u, c) for u, c in zip(valid_h1_ep["url"], canon_col_h)]
+        h1_to_bases = valid_h1_ep.groupby("h1")["base_url"].apply(lambda s: set(s)).to_dict()
+        dup_h1_set = {h for h, bases in h1_to_bases.items() if len(bases) > 1}
+        dup_h1_df = valid_h1_ep[valid_h1_ep["h1"].isin(dup_h1_set) & (~valid_h1_ep["is_pagination"])]
+        dup_h1_count = len(dup_h1_df)
+
+    dh1_tab = sanitize_sheet_title("Duplicate H1 tags")
+    if dup_h1_count > 0:
+        cols = [c for c in ["url", "h1", "status_code"] if c in dup_h1_df.columns]
+        dhdf = dup_h1_df[cols].copy().rename(columns={
+            "url": "Page URL",
+            "h1": "Duplicate H1 Tag",
+            "status_code": "Status Code"
+        })
+        dhdf["Recommended Action"] = "Provide unique H1 headings for distinct landing pages."
+        error_dfs[dh1_tab] = dhdf
+        index_rows.append({
+            "error_name": "Duplicate H1 tags",
+            "status": f"Failed ({dup_h1_count})",
+            "comments": f"Found {dup_h1_count} pages sharing duplicate H1 headings across distinct pages.",
+            "sheet_name": dh1_tab,
+            "count": dup_h1_count,
+            "is_error": True
+        })
+    else:
+        index_rows.append({
+            "error_name": "Duplicate H1 tags",
+            "status": "Passed (0)",
+            "comments": "All indexable pages have unique H1 headings.",
             "sheet_name": None,
             "count": 0,
             "is_error": False
@@ -481,43 +664,102 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
         })
 
     # -------------------------------------------------------------
-    # 11. Page Speed & Heavy Resources
+    # 10b. Canonical URL points to alternative URL
     # -------------------------------------------------------------
-    slow_pages = df_pages[get_series(df_pages, "response_time_ms", 0) > 1500]
-    heavy_images = df_images[get_series(df_images, "is_over_100kb", False) == True] if not df_images.empty else pd.DataFrame()
-    psi_count = len(slow_pages) + len(heavy_images)
-    psi_tab = sanitize_sheet_title("Page Speed Insight")
-    if psi_count > 0:
-        psi_rows = []
-        for _, r in slow_pages.iterrows():
-            psi_rows.append({
-                "Resource / Page URL": r.get("url", ""),
-                "Type": "Slow Server Response",
-                "Metric": f"{r.get('response_time_ms', 0)} ms",
-                "Recommended Action": "Optimize database queries, enable server-side caching or CDN."
-            })
-        for _, r in heavy_images.iterrows():
-            psi_rows.append({
-                "Resource / Page URL": r.get("image_url", ""),
-                "Type": "Large Image (>100KB)",
-                "Metric": f"{r.get('size_kb', 0)} KB",
-                "Recommended Action": "Compress or convert image to modern WebP format under 100 KB."
-            })
-        psidf = pd.DataFrame(psi_rows).head(500)
-        error_dfs[psi_tab] = psidf
+    canon_stat_s = get_series(eval_pages, "canonical_status", "")
+    canon_alt_mask = canon_stat_s == "Canonicalised"
+    canon_alt_df = eval_pages[canon_alt_mask]
+    canon_alt_count = len(canon_alt_df)
+    can_tab = sanitize_sheet_title("Canonical URL issues")
+    if canon_alt_count > 0:
+        cols = [c for c in ["url", "canonical_url", "status_code"] if c in canon_alt_df.columns]
+        candf = canon_alt_df[cols].copy().rename(columns={
+            "url": "Crawled Page URL",
+            "canonical_url": "Points to Canonical URL",
+            "status_code": "Status Code"
+        })
+        candf["Recommended Action"] = "Verify that this canonical target is the desired master version to consolidate link equity."
+        error_dfs[can_tab] = candf
         index_rows.append({
-            "error_name": "Page Speed Insight",
-            "status": f"Attention Needed ({psi_count})",
-            "comments": f"Found {len(slow_pages)} slow pages (>1.5s) and {len(heavy_images)} heavy images (>100KB).",
-            "sheet_name": psi_tab,
-            "count": psi_count,
+            "error_name": "Canonical URL points to alternative URL",
+            "status": f"Attention Needed ({canon_alt_count})",
+            "comments": f"Found {canon_alt_count} pages where canonical tag points to an alternative URL.",
+            "sheet_name": can_tab,
+            "count": canon_alt_count,
             "is_error": True
         })
     else:
         index_rows.append({
-            "error_name": "Page Speed Insight",
+            "error_name": "Canonical URL points to alternative URL",
             "status": "Passed (0)",
-            "comments": "No severe page latency or heavy unoptimized resources detected.",
+            "comments": "All canonical tags are self-referential or clean.",
+            "sheet_name": None,
+            "count": 0,
+            "is_error": False
+        })
+
+    # -------------------------------------------------------------
+    # 11. Images over 100 KB
+    # -------------------------------------------------------------
+    heavy_images = df_images[get_series(df_images, "is_over_100kb", False) == True] if not df_images.empty else pd.DataFrame()
+    heavy_count = len(heavy_images)
+    img_tab = sanitize_sheet_title("Images over 100 KB")
+    if heavy_count > 0:
+        cols = [c for c in ["page_url", "image_url", "size_kb", "content_type"] if c in heavy_images.columns]
+        ihdf = heavy_images[cols].copy().rename(columns={
+            "page_url": "Page URL (Found On)",
+            "image_url": "Heavy Image URL",
+            "size_kb": "File Size (KB)",
+            "content_type": "Format"
+        }).head(1000)
+        ihdf["Recommended Action"] = "Compress or convert image to modern WebP format under 100 KB."
+        error_dfs[img_tab] = ihdf
+        index_rows.append({
+            "error_name": "Images over 100 KB",
+            "status": f"Failed ({heavy_count})",
+            "comments": f"Found {heavy_count} heavy image files exceeding 100 KB.",
+            "sheet_name": img_tab,
+            "count": heavy_count,
+            "is_error": True
+        })
+    else:
+        index_rows.append({
+            "error_name": "Images over 100 KB",
+            "status": "Passed (0)",
+            "comments": "All images are optimized under 100 KB.",
+            "sheet_name": None,
+            "count": 0,
+            "is_error": False
+        })
+
+    # -------------------------------------------------------------
+    # 11b. Slow server response time (>1.5s)
+    # -------------------------------------------------------------
+    slow_pages = df_pages[(get_series(df_pages, "response_time_ms", 0) > 1500) | (get_series(df_pages, "latency_ms", 0) > 1500)]
+    slow_count = len(slow_pages)
+    slow_tab = sanitize_sheet_title("Slow response time")
+    if slow_count > 0:
+        cols = [c for c in ["url", "status_code", "latency_ms"] if c in slow_pages.columns]
+        sdf = slow_pages[cols].copy().rename(columns={
+            "url": "Slow Page URL",
+            "status_code": "Status Code",
+            "latency_ms": "Latency (ms)"
+        })
+        sdf["Recommended Action"] = "Optimize database queries, enable server-side caching or CDN."
+        error_dfs[slow_tab] = sdf
+        index_rows.append({
+            "error_name": "Slow server response time (>1.5s)",
+            "status": f"Attention Needed ({slow_count})",
+            "comments": f"Found {slow_count} pages taking more than 1.5 seconds to respond.",
+            "sheet_name": slow_tab,
+            "count": slow_count,
+            "is_error": True
+        })
+    else:
+        index_rows.append({
+            "error_name": "Slow server response time (>1.5s)",
+            "status": "Passed (0)",
+            "comments": "All crawled pages responded within optimal latency (<1.5s).",
             "sheet_name": None,
             "count": 0,
             "is_error": False
