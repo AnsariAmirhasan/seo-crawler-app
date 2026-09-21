@@ -383,7 +383,7 @@ with st.sidebar:
             "🗺️ XML Sitemap Generator",
             "🎯 Query Fan-Out Extractor",
             "🏛️ AI Silo / Competitor / Blog Topic",
-            "🎨 Brand-First Content Generator",
+            "📱 AI Social Content Studio",
             "📊 SERP Rank Tracker (Coming Soon)",
             "🔗 Backlink Explorer (Coming Soon)",
             "⚡ Core Web Vitals (Coming Soon)"
@@ -717,7 +717,7 @@ if selected_tool == "🏛️ AI Silo / Competitor / Blog Topic":
     render_silo_architect_page()
     st.stop()
 
-if selected_tool == "🎨 Brand-First Content Generator":
+if selected_tool == "📱 AI Social Content Studio":
     render_brand_first_content_page()
     st.stop()
 
