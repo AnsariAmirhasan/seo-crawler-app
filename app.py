@@ -54,6 +54,7 @@ from sitemap_generator import (
 )
 from query_fanout import render_query_fanout_page
 from silo_architect import render_silo_architect_page
+from brand_content_generator import render_brand_first_content_page
 
 @functools.lru_cache(maxsize=16)
 def get_asset_base64(filepath: str) -> str:
@@ -382,6 +383,7 @@ with st.sidebar:
             "🗺️ XML Sitemap Generator",
             "🎯 Query Fan-Out Extractor",
             "🏛️ AI Silo / Competitor / Blog Topic",
+            "🎨 Brand-First Content Generator",
             "📊 SERP Rank Tracker (Coming Soon)",
             "🔗 Backlink Explorer (Coming Soon)",
             "⚡ Core Web Vitals (Coming Soon)"
@@ -713,6 +715,10 @@ if selected_tool == "🎯 Query Fan-Out Extractor":
 
 if selected_tool == "🏛️ AI Silo / Competitor / Blog Topic":
     render_silo_architect_page()
+    st.stop()
+
+if selected_tool == "🎨 Brand-First Content Generator":
+    render_brand_first_content_page()
     st.stop()
 
 if selected_tool != "🕷️ CrawlPilot Engine":
