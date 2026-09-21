@@ -2556,6 +2556,9 @@ with tab_links:
 
             st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
 
+            if c_header == 0 and c_footer == 0 and total_links_count > 0:
+                st.info("💡 **Notice:** Ye crawl results purane session ke cache se loaded hain. Header aur Footer placement data ko popualte karne ke liye please upar **'▶ Start Crawl'** button par click karke ek baar fresh crawl run karein.")
+
             # Row 1: Dropdown Filters
             col_l1, col_l2 = st.columns(2)
             with col_l1:
