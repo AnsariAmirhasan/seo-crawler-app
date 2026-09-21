@@ -86,6 +86,8 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         "h2_count": 0,
         # Directives & Indexability
         "meta_robots": "",
+        "is_noindex": False,
+        "is_nofollow": False,
         "is_indexable": True,
         "indexability_reason": "Indexable",
         "canonical_url": "",
@@ -196,7 +198,47 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     except Exception:
         soup = BeautifulSoup(html, "html.parser")
 
-    # 1. Page Titles
+    # 1. Meta Robots & Indexability (Check FIRST so we know if page is Noindex!)
+    meta_robots = soup.find("meta", attrs={"name": re.compile(r"^(robots|googlebot)$", re.I)})
+    robots_content = ""
+    if meta_robots and meta_robots.get("content"):
+        robots_content = meta_robots["content"].lower().strip()
+        seo_info["meta_robots"] = meta_robots["content"].strip()
+
+    headers_dict = page_data.get("headers", {}) or {}
+    x_robots = ""
+    for hk, hv in headers_dict.items():
+        if hk.lower() == "x-robots-tag":
+            x_robots = str(hv).lower().strip()
+            if not seo_info["meta_robots"]:
+                seo_info["meta_robots"] = str(hv).strip()
+            break
+
+    combined_robots = f"{robots_content} {x_robots}".strip()
+    is_noindex = "noindex" in combined_robots
+    is_nofollow = "nofollow" in combined_robots
+
+    seo_info["is_noindex"] = is_noindex
+    seo_info["is_nofollow"] = is_nofollow
+
+    if is_noindex:
+        seo_info["is_indexable"] = False
+        seo_info["indexability_reason"] = "Blocked by meta robots noindex" if "noindex" in robots_content else "Blocked by X-Robots-Tag noindex"
+        seo_info["issues"].append({
+            "type": "Notice",
+            "category": "Indexability",
+            "issue": f"Noindex Tag Detected ({seo_info['meta_robots']})",
+            "recommendation": "This page is intentionally excluded from search engines. On-page SEO issues (H1, title, description) are bypassed."
+        })
+    elif is_nofollow:
+        seo_info["issues"].append({
+            "type": "Notice",
+            "category": "Indexability",
+            "issue": f"Nofollow Tag Detected ({seo_info['meta_robots']})",
+            "recommendation": "Search engine crawlers are instructed not to follow outbound links on this page."
+        })
+
+    # 2. Page Titles
     title_tags = soup.find_all("title")
     seo_info["title_count"] = len(title_tags)
     if title_tags:
@@ -205,91 +247,97 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         seo_info["title_length"] = len(title_text)
         seo_info["title_pixel_width"] = estimate_pixel_width(title_text)
 
-        if len(title_tags) > 1:
-            seo_info["issues"].append({
-                "type": "Warning",
-                "category": "Page Title",
-                "issue": f"Multiple <title> tags found ({len(title_tags)})",
-                "recommendation": "Keep only one canonical <title> tag inside the <head>."
-            })
-        if len(title_text) == 0:
+        if not is_noindex:
+            if len(title_tags) > 1:
+                seo_info["issues"].append({
+                    "type": "Warning",
+                    "category": "Page Title",
+                    "issue": f"Multiple <title> tags found ({len(title_tags)})",
+                    "recommendation": "Keep only one canonical <title> tag inside the <head>."
+                })
+            if len(title_text) == 0:
+                seo_info["issues"].append({
+                    "type": "Error",
+                    "category": "Page Title",
+                    "issue": "Empty <title> tag",
+                    "recommendation": "Add a descriptive, keyword-rich title between 40-60 characters."
+                })
+            elif len(title_text) < 30:
+                seo_info["issues"].append({
+                    "type": "Notice",
+                    "category": "Page Title",
+                    "issue": f"Title too short ({len(title_text)} chars)",
+                    "recommendation": "Expand title tag to 40-60 characters for better search click-through."
+                })
+            elif len(title_text) > 60:
+                seo_info["issues"].append({
+                    "type": "Warning",
+                    "category": "Page Title",
+                    "issue": f"Title too long ({len(title_text)} chars / {seo_info['title_pixel_width']}px)",
+                    "recommendation": "Shorten title to under 60 characters (approx. 580px) to prevent truncation in Google SERPs."
+                })
+    else:
+        if not is_noindex:
             seo_info["issues"].append({
                 "type": "Error",
                 "category": "Page Title",
-                "issue": "Empty <title> tag",
-                "recommendation": "Add a descriptive, keyword-rich title between 40-60 characters."
+                "issue": "Missing <title> tag",
+                "recommendation": "Add a unique <title> tag to every indexable page."
             })
-        elif len(title_text) < 30:
-            seo_info["issues"].append({
-                "type": "Notice",
-                "category": "Page Title",
-                "issue": f"Title too short ({len(title_text)} chars)",
-                "recommendation": "Expand title tag to 40-60 characters for better search click-through."
-            })
-        elif len(title_text) > 60:
-            seo_info["issues"].append({
-                "type": "Warning",
-                "category": "Page Title",
-                "issue": f"Title too long ({len(title_text)} chars / {seo_info['title_pixel_width']}px)",
-                "recommendation": "Shorten title to under 60 characters (approx. 580px) to prevent truncation in Google SERPs."
-            })
-    else:
-        seo_info["issues"].append({
-            "type": "Error",
-            "category": "Page Title",
-            "issue": "Missing <title> tag",
-            "recommendation": "Add a unique <title> tag to every indexable page."
-        })
 
-    # 2. Meta Descriptions
+    # 3. Meta Descriptions
     meta_desc = soup.find("meta", attrs={"name": re.compile(r"^description$", re.I)})
     if meta_desc and meta_desc.get("content"):
         desc_text = meta_desc["content"].strip()
         seo_info["meta_description"] = desc_text
         seo_info["meta_description_length"] = len(desc_text)
 
-        if len(desc_text) < 70:
-            seo_info["issues"].append({
-                "type": "Notice",
-                "category": "Meta Description",
-                "issue": f"Meta description too short ({len(desc_text)} chars)",
-                "recommendation": "Aim for 120-155 characters to maximize search snippet engagement."
-            })
-        elif len(desc_text) > 160:
+        if not is_noindex:
+            if len(desc_text) < 70:
+                seo_info["issues"].append({
+                    "type": "Notice",
+                    "category": "Meta Description",
+                    "issue": f"Meta description too short ({len(desc_text)} chars)",
+                    "recommendation": "Aim for 120-155 characters to maximize search snippet engagement."
+                })
+            elif len(desc_text) > 160:
+                seo_info["issues"].append({
+                    "type": "Warning",
+                    "category": "Meta Description",
+                    "issue": f"Meta description too long ({len(desc_text)} chars)",
+                    "recommendation": "Shorten description to under 160 characters to avoid SERP truncation."
+                })
+    else:
+        if not is_noindex:
             seo_info["issues"].append({
                 "type": "Warning",
                 "category": "Meta Description",
-                "issue": f"Meta description too long ({len(desc_text)} chars)",
-                "recommendation": "Shorten description to under 160 characters to avoid SERP truncation."
+                "issue": "Missing Meta Description",
+                "recommendation": "Add a unique and compelling meta description summarizing the page content."
             })
-    else:
-        seo_info["issues"].append({
-            "type": "Warning",
-            "category": "Meta Description",
-            "issue": "Missing Meta Description",
-            "recommendation": "Add a unique and compelling meta description summarizing the page content."
-        })
 
-    # 3. Headings (H1 & H2)
+    # 4. Headings (H1 & H2)
     h1_tags = soup.find_all("h1")
     seo_info["h1_count"] = len(h1_tags)
     if h1_tags:
         seo_info["h1"] = h1_tags[0].get_text(strip=True)
         if len(h1_tags) > 1:
             seo_info["h1_2"] = h1_tags[1].get_text(strip=True)
-            seo_info["issues"].append({
-                "type": "Warning",
-                "category": "H1 Heading",
-                "issue": f"Multiple H1 tags found ({len(h1_tags)}): H1-1 ('{seo_info['h1'][:28]}...') & H1-2 ('{seo_info['h1_2'][:28]}...')",
-                "recommendation": "Use exactly one primary H1 tag per page for clean structural hierarchy."
-            })
+            if not is_noindex:
+                seo_info["issues"].append({
+                    "type": "Warning",
+                    "category": "H1 Heading",
+                    "issue": f"Multiple H1 tags found ({len(h1_tags)}): H1-1 ('{seo_info['h1'][:28]}...') & H1-2 ('{seo_info['h1_2'][:28]}...')",
+                    "recommendation": "Use exactly one primary H1 tag per page for clean structural hierarchy."
+                })
     else:
-        seo_info["issues"].append({
-            "type": "Error",
-            "category": "H1 Heading",
-            "issue": "Missing H1 tag",
-            "recommendation": "Add a primary H1 heading reflecting the main topic of the page."
-        })
+        if not is_noindex:
+            seo_info["issues"].append({
+                "type": "Error",
+                "category": "H1 Heading",
+                "issue": "Missing H1 tag",
+                "recommendation": "Add a primary H1 heading reflecting the main topic of the page."
+            })
 
     h2_tags = soup.find_all("h2")
     seo_info["h2_count"] = len(h2_tags)
@@ -298,33 +346,12 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         if len(h2_tags) > 1:
             seo_info["h2_2"] = h2_tags[1].get_text(strip=True)
     else:
-        seo_info["issues"].append({
-            "type": "Notice",
-            "category": "H2 Heading",
-            "issue": "No H2 subheadings found",
-            "recommendation": "Structure content with H2 tags to improve scannability and topic coverage."
-        })
-
-    # 4. Meta Robots & Indexability
-    meta_robots = soup.find("meta", attrs={"name": re.compile(r"^robots$", re.I)})
-    if meta_robots and meta_robots.get("content"):
-        robots_content = meta_robots["content"].lower()
-        seo_info["meta_robots"] = robots_content
-        if "noindex" in robots_content:
-            seo_info["is_indexable"] = False
-            seo_info["indexability_reason"] = "Blocked by meta robots noindex"
+        if not is_noindex:
             seo_info["issues"].append({
                 "type": "Notice",
-                "category": "Indexability",
-                "issue": "Meta robots contains 'noindex'",
-                "recommendation": "Verify if this page is intentionally hidden from search engines."
-            })
-        if "nofollow" in robots_content:
-            seo_info["issues"].append({
-                "type": "Notice",
-                "category": "Indexability",
-                "issue": "Meta robots contains 'nofollow'",
-                "recommendation": "Ensure internal link juice is not inadvertently blocked."
+                "category": "H2 Heading",
+                "issue": "No H2 subheadings found",
+                "recommendation": "Structure content with H2 tags to improve scannability and topic coverage."
             })
 
     # Meta Refresh Redirects
@@ -374,26 +401,30 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         raw_canon = canonical_tags[0]["href"].strip()
         canon_url = urljoin(final_url, raw_canon)
         seo_info["canonical_url"] = canon_url
-        
+
         # Compare canonical with actual crawled URL
         if canon_url.rstrip("/") == final_url.rstrip("/"):
             seo_info["canonical_status"] = "Self-Referential"
         else:
             seo_info["canonical_status"] = "Canonicalised"
+            if not is_noindex:
+                seo_info["issues"].append({
+                    "type": "Notice",
+                    "category": "Canonical",
+                    "issue": f"Canonical points to alternative URL: {canon_url}",
+                    "recommendation": "Verify that this canonical target is the desired master version to consolidate link equity."
+                })
+    else:
+        if is_noindex:
+            seo_info["canonical_status"] = "Noindex (Optional)"
+        else:
+            seo_info["canonical_status"] = "Missing"
             seo_info["issues"].append({
                 "type": "Notice",
                 "category": "Canonical",
-                "issue": f"Canonical points to alternative URL: {canon_url}",
-                "recommendation": "Verify that this canonical target is the desired master version to consolidate link equity."
+                "issue": "Missing Canonical Tag",
+                "recommendation": "Add a self-referential canonical tag (<link rel='canonical' href='...'>) to prevent duplicate content issues."
             })
-    else:
-        seo_info["canonical_status"] = "Missing"
-        seo_info["issues"].append({
-            "type": "Notice",
-            "category": "Canonical",
-            "issue": "Missing Canonical Tag",
-            "recommendation": "Add a self-referential canonical tag (<link rel='canonical' href='...'>) to prevent duplicate content issues."
-        })
 
     # 6. Word Count & Content Quality
     # Remove script, style, nav, footer for word count estimation
@@ -403,7 +434,7 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     words = re.findall(r"\b\w+\b", raw_text)
     seo_info["word_count"] = len(words)
 
-    if seo_info["is_indexable"] and len(words) < 250:
+    if seo_info["is_indexable"] and not is_noindex and len(words) < 250:
         seo_info["issues"].append({
             "type": "Warning",
             "category": "Content",
@@ -422,7 +453,7 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     twitter_card = soup.find("meta", attrs={"name": "twitter:card"})
     seo_info["twitter_card"] = twitter_card["content"] if twitter_card and twitter_card.get("content") else ""
 
-    if not seo_info["og_title"] or not seo_info["og_image"]:
+    if not is_noindex and (not seo_info["og_title"] or not seo_info["og_image"]):
         seo_info["issues"].append({
             "type": "Notice",
             "category": "Social Meta",
@@ -553,10 +584,11 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
         err = str(row.get("error") or "").lower()
         has_meta = row.get("has_meta_refresh", False)
         has_js = row.get("has_js_redirect", False)
+        is_noindex = bool(row.get("is_noindex", False) or ("noindex" in str(row.get("meta_robots", "")).lower()))
 
         # Status Description
         if code == 200:
-            desc = "200 OK"
+            desc = "200 OK (Noindex)" if is_noindex else "200 OK"
         elif code == 201:
             desc = "201 Created"
         elif code == 204:
@@ -598,6 +630,8 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
         # Category for Screaming Frog filter parity
         if "robots" in err:
             cat = "Blocked by Robots.txt"
+        elif is_noindex and 200 <= code < 300:
+            cat = "Noindex (2xx)"
         elif code == 403 or (code != 200 and "blocked" in err):
             cat = "Blocked Resource"
         elif is_loop:
@@ -687,7 +721,9 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
                     "recommendation": "Write tailored meta descriptions for key landing pages."
                 })
 
-        if row.get("is_orphan", False):
+        is_row_noindex = bool(row.get("is_noindex", False) or ("noindex" in str(row.get("meta_robots", "")).lower()))
+
+        if row.get("is_orphan", False) and not is_row_noindex and row.get("is_indexable", True):
             issues_list.append({
                 "type": "Warning",
                 "category": "Architecture",
@@ -695,7 +731,7 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
                 "recommendation": "Add internal links pointing to this URL from navigation, category pages, or relevant articles."
             })
 
-        if row.get("images_missing_alt_count", 0) > 0:
+        if row.get("images_missing_alt_count", 0) > 0 and not is_row_noindex and row.get("is_indexable", True):
             issues_list.append({
                 "type": "Warning",
                 "category": "Images",
@@ -703,7 +739,7 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
                 "recommendation": "Add descriptive alt attributes to help image search and accessibility."
             })
 
-        if row.get("images_over_100kb_count", 0) > 0:
+        if row.get("images_over_100kb_count", 0) > 0 and not is_row_noindex and row.get("is_indexable", True):
             issues_list.append({
                 "type": "Warning",
                 "category": "Images",
@@ -734,6 +770,8 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
     penalty = (critical_errors * 10 + warnings * 3 + notices * 0.5) / total_pages * 10
     health_score = max(0, min(100, round(100 - penalty)))
 
+    c_noindex_pages = len(df_pages[(df_pages.get("is_noindex", False) == True) | (df_pages.get("meta_robots", "").fillna("").str.contains("noindex", case=False))]) if not df_pages.empty else 0
+
     return {
         "df_pages": df_pages,
         "df_issues": df_issues,
@@ -746,6 +784,7 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
             "warnings": warnings,
             "notices": notices,
             "health_score": health_score,
+            "noindex_pages_count": c_noindex_pages,
             "duplicate_titles_count": len(duplicate_titles),
             "duplicate_h1_count": len(duplicate_h1s),
             "orphan_pages_count": int(df_pages["is_orphan"].sum()) if not df_pages.empty and "is_orphan" in df_pages.columns else 0,
@@ -754,7 +793,7 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
             "total_links": len(df_links),
             "total_images": len(df_images),
             "images_missing_alt_count": int(df_pages["images_missing_alt_count"].sum()) if not df_pages.empty and "images_missing_alt_count" in df_pages.columns else 0,
-            "missing_titles_count": len(df_pages[(df_pages["title"].fillna("").str.strip() == "") & (df_pages["status_code"] == 200)]) if not df_pages.empty and "title" in df_pages.columns else 0,
+            "missing_titles_count": len(df_pages[(df_pages["title"].fillna("").str.strip() == "") & (df_pages["status_code"] == 200) & (df_pages.get("is_noindex", False) == False) & (df_pages["is_indexable"] == True)]) if not df_pages.empty and "title" in df_pages.columns else 0,
             "images_over_100kb_count": int(df_images["is_over_100kb"].sum()) if not df_images.empty and "is_over_100kb" in df_images.columns else 0
         }
     }

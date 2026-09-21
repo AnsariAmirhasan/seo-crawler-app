@@ -1375,7 +1375,7 @@ with tab_responses:
         st.subheader("🚦 Response Codes & HTTP Status Breakdown")
         st.caption("Inspect HTTP status codes, redirection chains, redirect loops, server errors, blocked resources, and orphan pages with 0 internal links.")
 
-        # KPI Metrics Row (7 metrics)
+        # KPI Metrics Row (8 metrics)
         c_2xx = len(df_pages[(df_pages["status_code"] >= 200) & (df_pages["status_code"] < 300)])
         c_3xx = len(df_pages[(df_pages["status_code"] >= 300) & (df_pages["status_code"] < 400)])
         c_chain = len(df_pages[df_pages.get("is_redirect_chain", False) == True])
@@ -1383,8 +1383,9 @@ with tab_responses:
         c_4xx = len(df_pages[(df_pages["status_code"] >= 400) & (df_pages["status_code"] < 500)])
         c_5xx = len(df_pages[(df_pages["status_code"] >= 500) & (df_pages["status_code"] < 600)])
         c_orphan = len(df_pages[(df_pages.get("is_orphan", False) == True) | (df_pages.get("inlinks_count", 0) == 0)])
+        c_noindex = len(df_pages[(df_pages.get("is_noindex", False) == True) | (df_pages.get("meta_robots", "").fillna("").str.contains("noindex", case=False))])
 
-        rm1, rm2, rm3, rm4, rm5, rm6, rm7 = st.columns(7)
+        rm1, rm2, rm3, rm4, rm5, rm6, rm7, rm8 = st.columns(8)
         rm1.metric("Success (2xx)", f"{c_2xx}", delta=f"{round(c_2xx/max(total_resp_pages,1)*100)}% of pages")
         rm2.metric("Redirection (3xx)", f"{c_3xx}", delta="Redirects" if c_3xx else None)
         rm3.metric("Redirect Chains", f"{c_chain}", delta=">1 Hop" if c_chain else None, delta_color="inverse")
@@ -1392,6 +1393,7 @@ with tab_responses:
         rm5.metric("Client Error (4xx)", f"{c_4xx}", delta="Broken links" if c_4xx else None, delta_color="inverse")
         rm6.metric("Server Error (5xx)", f"{c_5xx}", delta="Critical" if c_5xx else None, delta_color="inverse")
         rm7.metric("Orphan URLs", f"{c_orphan}", delta="0 Inlinks" if c_orphan else None, delta_color="inverse")
+        rm8.metric("Noindex Pages", f"{c_noindex}", delta="Blocked" if c_noindex else "None", delta_color="inverse" if c_noindex else "normal")
 
         st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
 
@@ -1406,6 +1408,7 @@ with tab_responses:
         sf_options = [
             f"All ({total_resp_pages})",
             f"Success (2xx) ({c_2xx})",
+            f"Noindex Pages (noindex tag) ({c_noindex})",
             f"Redirection (3xx) ({c_3xx})",
             f"Client Error (4xx) ({c_4xx})",
             f"Server Error (5xx) ({c_5xx})",
@@ -1444,6 +1447,8 @@ with tab_responses:
             df_resp_filtered = df_resp_filtered[df_resp_filtered["response_category"] == "Blocked Resource"]
         elif "No Response" in resp_filter:
             df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] == 0) | (df_resp_filtered["response_category"] == "No Response")]
+        elif "Noindex Pages" in resp_filter:
+            df_resp_filtered = df_resp_filtered[(df_resp_filtered.get("is_noindex", False) == True) | (df_resp_filtered.get("meta_robots", "").fillna("").str.contains("noindex", case=False))]
         elif "Success (2xx)" in resp_filter:
             df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 200) & (df_resp_filtered["status_code"] < 300)]
         elif "Redirection (3xx)" in resp_filter:
@@ -1775,7 +1780,7 @@ with tab_responses:
                         st.info("No internal referring page recorded for this URL (Discovered directly from initial seed).")
         elif is_success_view:
             target_cols = [
-                "url", "status_code", "status_description", "response_category", "is_indexable"
+                "url", "status_code", "status_description", "response_category", "meta_robots", "is_indexable"
             ]
             avail_cols = [c for c in target_cols if c in df_resp_filtered.columns]
 
@@ -1787,6 +1792,7 @@ with tab_responses:
                     "status_code": st.column_config.NumberColumn("Status Code", format="%d", width="small"),
                     "status_description": st.column_config.TextColumn("Response Description", width="medium"),
                     "response_category": st.column_config.TextColumn("Response Category", width="medium"),
+                    "meta_robots": st.column_config.TextColumn("Meta Robots", width="medium"),
                     "is_indexable": st.column_config.CheckboxColumn("Indexable", width="small"),
                 },
                 hide_index=True
@@ -1794,8 +1800,9 @@ with tab_responses:
         else:
             resp_cols = [
                 "url", "status_code", "status_description", "response_category",
+                "meta_robots", "is_indexable",
                 "source_url", "anchor_text",
-                "inlinks_count", "internal_outlinks_count", "is_indexable"
+                "inlinks_count", "internal_outlinks_count"
             ]
             available_resp_cols = [c for c in resp_cols if c in df_resp_filtered.columns]
 
@@ -1807,11 +1814,12 @@ with tab_responses:
                     "status_code": st.column_config.NumberColumn("Status Code", format="%d"),
                     "status_description": st.column_config.TextColumn("Response Description"),
                     "response_category": st.column_config.TextColumn("Response Category"),
+                    "meta_robots": st.column_config.TextColumn("Meta Robots"),
+                    "is_indexable": st.column_config.CheckboxColumn("Indexable"),
                     "source_url": st.column_config.LinkColumn("Source Page (Found On)"),
                     "anchor_text": st.column_config.TextColumn("Anchor Text"),
                     "inlinks_count": st.column_config.NumberColumn("Inlinks (Inbound)", help="Number of internal pages linking to this URL. 0 = Orphan Page!"),
                     "internal_outlinks_count": st.column_config.NumberColumn("Outlinks"),
-                    "is_indexable": st.column_config.CheckboxColumn("Indexable"),
                 },
                 hide_index=True
             )
@@ -1845,21 +1853,23 @@ with tab_canonicals:
         total_pages = len(df_pages)
         self_ref_count = len(df_pages[df_pages["canonical_status"] == "Self-Referential"])
         canonicalised_count = len(df_pages[df_pages["canonical_status"] == "Canonicalised"])
-        missing_count = len(df_pages[df_pages["canonical_status"] == "Missing"])
+        missing_count = len(df_pages[(df_pages["canonical_status"] == "Missing") & (df_pages.get("is_noindex", False) == False) & (df_pages["is_indexable"] == True)])
         multiple_count = len(df_pages[df_pages["canonical_status"] == "Multiple"])
+        noindex_canon_count = len(df_pages[df_pages["canonical_status"] == "Noindex (Optional)"])
 
-        cm1, cm2, cm3, cm4 = st.columns(4)
+        cm1, cm2, cm3, cm4, cm5 = st.columns(5)
         cm1.metric("Self-Referential (OK)", f"{self_ref_count}", delta=f"{round(self_ref_count/max(total_pages,1)*100)}% of pages")
         cm2.metric("Canonicalised (Points Elsewhere)", f"{canonicalised_count}", delta="Consolidating equity" if canonicalised_count else None)
         cm3.metric("Missing Canonical", f"{missing_count}", delta="Needs attention" if missing_count else None, delta_color="inverse")
         cm4.metric("Multiple Canonicals", f"{multiple_count}", delta="Critical conflict" if multiple_count else None, delta_color="inverse")
+        cm5.metric("Noindex (Optional)", f"{noindex_canon_count}", delta="Bypassed" if noindex_canon_count else None)
 
         # Filters
         fcol1, fcol2 = st.columns([1, 2])
         with fcol1:
             canon_filter = st.selectbox(
                 "Filter by Canonical Status:",
-                ["All Pages", "Self-Referential", "Canonicalised", "Missing", "Multiple"]
+                ["All Pages", "Self-Referential", "Canonicalised", "Missing", "Multiple", "Noindex (Optional)"]
             )
         with fcol2:
             canon_search = st.text_input("🔍 Search Page URL or Canonical Target URL:", "")
@@ -1955,6 +1965,9 @@ with tab_titles:
                 return f"Redirect ({code})"
             if code >= 400:
                 return f"Error ({code})"
+            is_noindex = bool(row.get("is_noindex", False) or ("noindex" in str(row.get("meta_robots", "")).lower()))
+            if is_noindex or not row.get("is_indexable", True):
+                return "Noindex (Non-Indexable)"
             t = str(row["title"]).strip()
             if not t:
                 return "Missing"
@@ -1997,7 +2010,8 @@ with tab_titles:
                     "Missing Title",
                     "Title Over 60 Chars (>600px)",
                     "Title Below 30 Chars",
-                    "Optimal Title (OK)"
+                    "Optimal Title (OK)",
+                    "Noindex Pages"
                 ]
             )
         with fcol2:
@@ -2015,6 +2029,8 @@ with tab_titles:
             df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "Below 30 Chars"]
         elif title_filter == "Optimal Title (OK)":
             df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "OK"]
+        elif title_filter == "Noindex Pages":
+            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "Noindex (Non-Indexable)"]
 
         if title_search:
             df_filtered_t = df_filtered_t[
@@ -2148,6 +2164,9 @@ with tab_descriptions:
                 return f"Redirect ({code})"
             if code >= 400:
                 return f"Error ({code})"
+            is_noindex = bool(row.get("is_noindex", False) or ("noindex" in str(row.get("meta_robots", "")).lower()))
+            if is_noindex or not row.get("is_indexable", True):
+                return "Noindex (Non-Indexable)"
             d = str(row["meta_description"]).strip()
             if not d:
                 return "Missing"
@@ -2190,7 +2209,8 @@ with tab_descriptions:
                     "Missing Meta Description",
                     "Meta Desc Over 160 Chars",
                     "Meta Desc Below 70 Chars",
-                    "Optimal Meta Description (OK)"
+                    "Optimal Meta Description (OK)",
+                    "Noindex Pages"
                 ]
             )
         with dfcol2:
@@ -2208,6 +2228,8 @@ with tab_descriptions:
             df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "Below 70 Chars"]
         elif desc_filter == "Optimal Meta Description (OK)":
             df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "OK"]
+        elif desc_filter == "Noindex Pages":
+            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "Noindex (Non-Indexable)"]
 
         if desc_search:
             df_filtered_d = df_filtered_d[
@@ -2326,6 +2348,9 @@ with tab_headings:
                 return f"Redirect ({code})"
             if code >= 400:
                 return f"Error ({code})"
+            is_noindex = bool(row.get("is_noindex", False) or ("noindex" in str(row.get("meta_robots", "")).lower()))
+            if is_noindex or not row.get("is_indexable", True):
+                return "Noindex (Non-Indexable)"
             h = str(row["h1"]).strip()
             c = row.get("h1_count", 0)
             if not h or c == 0:
@@ -2340,6 +2365,9 @@ with tab_headings:
 
         # H2 Status Tag
         def get_h2_status(row):
+            is_noindex = bool(row.get("is_noindex", False) or ("noindex" in str(row.get("meta_robots", "")).lower()))
+            if is_noindex or not row.get("is_indexable", True):
+                return "Noindex (Non-Indexable)"
             h = str(row["h2_first"]).strip()
             c = row.get("h2_count", 0)
             if not h or c == 0:
@@ -2384,7 +2412,8 @@ with tab_headings:
                     "H1 Over 70 Chars",
                     "Missing H2",
                     "Multiple H2s",
-                    "Duplicate H2"
+                    "Duplicate H2",
+                    "Noindex Pages"
                 ]
             )
         with hfcol2:
@@ -2406,6 +2435,8 @@ with tab_headings:
             df_filtered_hd = df_filtered_hd[df_filtered_hd["h2_status"] == "Multiple H2s"]
         elif heading_filter == "Duplicate H2":
             df_filtered_hd = df_filtered_hd[df_filtered_hd["h2_status"] == "Duplicate"]
+        elif heading_filter == "Noindex Pages":
+            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Noindex (Non-Indexable)"]
 
         if heading_search:
             df_filtered_hd = df_filtered_hd[
