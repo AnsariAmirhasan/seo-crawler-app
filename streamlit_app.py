@@ -1,6 +1,7 @@
 import os
 import functools
 import base64
+from PIL import Image
 import streamlit as st
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -9,10 +10,18 @@ FAVICON_PATH = os.path.join(_SCRIPT_DIR, "assets", "favicon_32.png")
 SPIDER_LOGO_PATH = os.path.join(_SCRIPT_DIR, "assets", "spider_logo.png")
 BANNER_PATH = os.path.join(_SCRIPT_DIR, "assets", "crawl_pilot_banner.png")
 
+# Safely load favicon as PIL Image (most robust across all Streamlit versions)
+_favicon_obj = "🕷️"
+if os.path.exists(FAVICON_PATH):
+    try:
+        _favicon_obj = Image.open(FAVICON_PATH)
+    except Exception:
+        _favicon_obj = "🕷️"
+
 # 1. Streamlit Page Configuration - Must be the very first Streamlit command!
 st.set_page_config(
     page_title="CrawlPilot | CRAWL • ANALYZE • OPTIMIZE • RANK",
-    page_icon=FAVICON_PATH if os.path.exists(FAVICON_PATH) else ("assets/favicon_32.png" if os.path.exists("assets/favicon_32.png") else "🕷️"),
+    page_icon=_favicon_obj,
     layout="wide",
     initial_sidebar_state="expanded"
 )
