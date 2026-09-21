@@ -3222,6 +3222,7 @@ with tab_extractor:
             if btn_clear_cfg:
                 st.session_state[f"api_key_{ai_provider}"] = ""
                 st.session_state.pop("ai_audit_enriched_result", None)
+                st.session_state.pop("client_audit_logo_bytes", None)
                 st.session_state["audit_reset_id"] = audit_reset_id + 1
                 st.rerun()
 
@@ -3238,6 +3239,15 @@ with tab_extractor:
                 help="Helps the AI understand your brand tone to craft accurate, high-CTR meta descriptions and title hooks.",
                 key=f"audit_biz_context_{audit_reset_id}"
             )
+            uploaded_logo = st.file_uploader(
+                "🖼️ Client / Agency Logo (for Word Doc)",
+                type=["png", "jpg", "jpeg", "webp"],
+                help="Upload your agency or client logo. It will be added to the header of every page in the Word audit report.",
+                key=f"audit_logo_{audit_reset_id}"
+            )
+            if uploaded_logo:
+                st.session_state["client_audit_logo_bytes"] = uploaded_logo.getvalue()
+                st.caption("✅ Logo attached. Appears in the header of every page of your Word audit report.")
 
         # Trigger AI Enrichment on Submit
         if btn_audit_submit:
@@ -3293,11 +3303,24 @@ with tab_extractor:
 
         st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
 
-        # Download Toolbar (Standard audit Excel is ALWAYS available, plus Suggested version if generated!)
+        # Download Toolbar (Standard audit Excel, Suggested Excel, and Client Word Doc .docx)
+        from audit_docx_report import generate_technical_seo_audit_docx
+
         excel_standard_bytes = build_error_audit_excel_workbook(index_rows, error_dfs)
+        client_logo_data = st.session_state.get("client_audit_logo_bytes")
+
+        docx_bytes = generate_technical_seo_audit_docx(
+            crawl_results=results,
+            index_rows=active_index_rows,
+            error_dfs=active_error_dfs,
+            logo_bytes=client_logo_data,
+            target_country=target_country,
+            business_niche=business_niche,
+            agency_name="Technical SEO Intelligence"
+        )
 
         if is_ai_enriched:
-            col_btn1, col_btn2, col_btn3, col_info = st.columns([1.4, 1.5, 1.1, 2.4])
+            col_btn1, col_btn2, col_btn3, col_btn4 = st.columns([1.3, 1.4, 1.5, 1.0])
             with col_btn1:
                 st.download_button(
                     label="📥 Download Audit Excel (.xlsx)",
@@ -3319,6 +3342,16 @@ with tab_extractor:
                     key="btn_dl_audit_excel_sugg"
                 )
             with col_btn3:
+                st.download_button(
+                    label="📘 Download Client Audit Doc (.docx)",
+                    data=docx_bytes,
+                    file_name="client_seo_audit_report.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    type="primary",
+                    use_container_width=True,
+                    key="btn_dl_audit_docx"
+                )
+            with col_btn4:
                 df_index_csv = pd.DataFrame([
                     {
                         "Errors": r["error_name"],
@@ -3337,10 +3370,8 @@ with tab_extractor:
                     use_container_width=True,
                     key="btn_dl_audit_csv"
                 )
-            with col_info:
-                st.caption("✨ Both standard audit and suggested fixes workbooks are available.")
         else:
-            col_btn1, col_btn2, col_info = st.columns([1.5, 1.2, 3])
+            col_btn1, col_btn2, col_btn3 = st.columns([1.4, 1.6, 1.1])
             with col_btn1:
                 st.download_button(
                     label="📥 Download Audit Excel (.xlsx)",
@@ -3352,6 +3383,15 @@ with tab_extractor:
                     key="btn_dl_audit_excel"
                 )
             with col_btn2:
+                st.download_button(
+                    label="📘 Download Client Audit Doc (.docx)",
+                    data=docx_bytes,
+                    file_name="client_seo_audit_report.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                    key="btn_dl_audit_docx_std"
+                )
+            with col_btn3:
                 df_index_csv = pd.DataFrame([
                     {"Errors": r["error_name"], "Status": r["status"], "Comments": r["comments"]}
                     for r in index_rows
@@ -3365,8 +3405,6 @@ with tab_extractor:
                     use_container_width=True,
                     key="btn_dl_audit_csv"
                 )
-            with col_info:
-                st.caption("✨ Multi-tab Excel includes **Index sheet** with green header + separate tabs for each error. No API key needed for standard download!")
 
         st.markdown("<div style='margin: 1rem 0 0.5rem;'></div>", unsafe_allow_html=True)
 
