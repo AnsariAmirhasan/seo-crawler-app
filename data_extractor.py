@@ -62,43 +62,7 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
     eval_pages = df_pages[is_indexable_200 & (~is_noindex_mask)]
 
     # -------------------------------------------------------------
-    # 1. General Errors / Server Errors (5xx & Crawl Failures)
-    # -------------------------------------------------------------
-    err_mask = (get_series(df_pages, "status_code", 0) >= 500) | (get_series(df_pages, "error", "").fillna("").str.len() > 0)
-    general_err_df = df_pages[err_mask]
-    gen_count = len(general_err_df)
-    gen_tab = sanitize_sheet_title("General Errors")
-    if gen_count > 0:
-        cols = [c for c in ["url", "status_code", "status_description", "error", "source_url"] if c in general_err_df.columns]
-        edf = general_err_df[cols].copy().rename(columns={
-            "url": "Page URL",
-            "status_code": "Status Code",
-            "status_description": "Status Description",
-            "error": "Error Details",
-            "source_url": "Found On (Source URL)"
-        })
-        edf["Recommended Action"] = "Investigate server error logs, server configuration, or network timeouts."
-        error_dfs[gen_tab] = edf
-        index_rows.append({
-            "error_name": "General Errors",
-            "status": f"Attention Needed ({gen_count})",
-            "comments": f"Found {gen_count} pages with server errors (5xx) or unhandled network failure.",
-            "sheet_name": gen_tab,
-            "count": gen_count,
-            "is_error": True
-        })
-    else:
-        index_rows.append({
-            "error_name": "General Errors",
-            "status": "Passed (0)",
-            "comments": "No 5xx server errors or fatal crawl exceptions detected.",
-            "sheet_name": None,
-            "count": 0,
-            "is_error": False
-        })
-
-    # -------------------------------------------------------------
-    # 2. Internal links are broken (4xx / 5xx internal links)
+    # 1. Internal links are broken (4xx / 5xx internal links)
     # -------------------------------------------------------------
     broken_internal_links = pd.DataFrame()
     if not df_links.empty and "url" in df_pages.columns:
