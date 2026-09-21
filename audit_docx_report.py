@@ -131,6 +131,293 @@ def format_logo_for_docx(logo_bytes: bytes) -> Optional[io.BytesIO]:
 
 
 # ==============================================================================
+# STRATEGIC CLIENT ERROR ANALYSIS & BUSINESS IMPACT
+# ==============================================================================
+
+def get_error_category_analysis(category_name: str, count: int) -> dict:
+    """
+    Returns rich, executive-level client explanations for technical SEO error categories.
+    Explains the business impact, search engine penalty, and commercial ROI of fixing.
+    """
+    name_l = category_name.lower()
+    
+    # 1. Multiple H1 tags
+    if "multiple h1" in name_l:
+        return {
+            "what_is_it": (
+                f"A total of {count:,} pages on your website have more than one <h1> heading tag embedded in their template structure. "
+                "In web semantics, the <h1> tag is designated as the primary title and thematic anchor of the entire webpage."
+            ),
+            "business_impact": (
+                "When prospective buyers or clients land on a page with multiple competing H1 headings, the visual hierarchy is disrupted, "
+                "leading to cognitive confusion and lower conversion rates. Multiple H1s dilute your core marketing message and weaken the page value proposition."
+            ),
+            "search_engine_impact": (
+                "Googlebot and modern search algorithms use the <h1> tag to verify the primary topic of the document. "
+                "When multiple H1s are present, topical relevance is split across multiple headings. This causes internal keyword dilution and "
+                "prevents the page from achieving top 3 ranking positions for competitive commercial search terms."
+            ),
+            "solution_roi": (
+                "Consolidating to exactly one primary <h1> tag focuses 100% of the page's structural authority onto your main commercial keyword, "
+                "strengthening organic rankings and improving visitor clarity."
+            )
+        }
+    
+    # 2. Missing H1 tags
+    elif "missing h1" in name_l or "h1 missing" in name_l or name_l == "h1":
+        return {
+            "what_is_it": (
+                f"We identified {count:,} indexable landing pages that completely lack a primary <h1> heading tag in their HTML markup."
+            ),
+            "business_impact": (
+                "A webpage without an H1 heading is like a book published without a title. Prospective customers landing on the page cannot "
+                "immediately confirm that they have arrived at the solution to their search query, triggering instant page abandonment."
+            ),
+            "search_engine_impact": (
+                "Search engine spiders require strong header hierarchy to comprehend document semantics. Without an H1, Google is forced "
+                "to guess the primary topic from scattered paragraphs, body copy, or footer menus, causing significant ranking instability."
+            ),
+            "solution_roi": (
+                "Implementing a clear, keyword-targeted H1 heading anchors the page topic, boosts organic relevance scores, and reassures visitors."
+            )
+        }
+
+    # 3. Minify JavaScript and CSS files
+    elif "minify" in name_l or "unminified" in name_l or "javascript" in name_l or "css" in name_l:
+        return {
+            "what_is_it": (
+                f"Our audit detected {count:,} unminified JavaScript (.js) and stylesheet (.css) files loading across your key pages. "
+                "These files contain unnecessary whitespace, developer comments, formatting indentations, and uncompressed code."
+            ),
+            "business_impact": (
+                "Every additional 100 milliseconds of page load latency decreases website conversion rates by up to 7%. "
+                "Unminified scripts force user browsers to download bloated files, resulting in sluggish mobile page loading, frustrating shoppers, "
+                "and driving high bounce rates directly into the arms of faster competitors."
+            ),
+            "search_engine_impact": (
+                "Google officially uses Core Web Vitals (including Largest Contentful Paint [LCP] and First Contentful Paint [FCP]) "
+                "as critical ranking factors. Unminified JavaScript and CSS files act as severe 'render-blocking resources'—meaning the browser "
+                "cannot paint text or products on the screen until these heavy files finish downloading. This directly drags down your Google PageSpeed "
+                "scores and suppresses mobile search rankings."
+            ),
+            "solution_roi": (
+                "Minifying and bundling these static assets slashes payload weight by 30% to 70%, unblocks critical rendering paths, "
+                "improves Core Web Vitals scores, and elevates mobile search visibility and checkout completion rates."
+            )
+        }
+
+    # 4. Meta Description Missing
+    elif "meta description" in name_l and ("missing" in name_l or "empty" in name_l):
+        return {
+            "what_is_it": (
+                f"There are {count:,} pages on your website that completely lack a meta description tag in their header code."
+            ),
+            "business_impact": (
+                "The meta description is your free digital billboard on Google's search engine results page (SERP). "
+                "When it is missing, Google automatically extracts random sentences from the page—often displaying copyright disclaimers, "
+                "cookie policies, or navigation menus. This creates disjointed search snippets that fail to attract clicks or convey your value proposition."
+            ),
+            "search_engine_impact": (
+                "While meta descriptions are not a direct ranking score factor, snippet appeal directly dictates Organic Click-Through Rate (CTR). "
+                "Pages with missing descriptions suffer a 30% to 50% lower CTR compared to competitors with enticing, polished descriptions."
+            ),
+            "solution_roi": (
+                "Deploying tailored, 150-160 character meta descriptions with clear Call-to-Actions (CTAs) captures user attention and drives "
+                "up to 35% higher organic traffic from your existing ranking positions without any additional advertising spend."
+            )
+        }
+
+    # 5. Meta Description Over 160 Characters
+    elif "desc over" in name_l or ("meta description" in name_l and "over" in name_l):
+        return {
+            "what_is_it": (
+                f"We discovered {count:,} pages where meta descriptions exceed Google's display limit of 160 characters (or ~960 desktop pixels)."
+            ),
+            "business_impact": (
+                "Google automatically cuts off descriptions exceeding 160 characters with an awkward ellipsis (...). "
+                "In almost every case, this cuts off your phone number, special offer, warranty, or the critical Call-to-Action at the end of the sentence."
+            ),
+            "search_engine_impact": (
+                "Truncated search snippets look amateurish and incomplete in SERP listings, eroding user trust and depressing click-through rates. "
+                "Users prefer clicking full, well-crafted messages rather than interrupted thoughts."
+            ),
+            "solution_roi": (
+                "Trimming descriptions to exactly 150-160 characters ensures that 100% of your marketing message and conversion hook displays "
+                "intact across both mobile smartphones and desktop computers."
+            )
+        }
+
+    # 6. Duplicate Meta Descriptions
+    elif "duplicate" in name_l and "description" in name_l:
+        return {
+            "what_is_it": (
+                f"Our audit revealed {count:,} pages sharing the exact same duplicate meta description."
+            ),
+            "business_impact": (
+                "When different product or category pages use identical descriptions, they fail to communicate what makes each page unique. "
+                "Shoppers comparing your listings in search cannot tell the difference between distinct services or collections."
+            ),
+            "search_engine_impact": (
+                "Google penalizes duplicate metadata by ignoring the author's tag entirely and algorithmically generating its own snippet. "
+                "Furthermore, widespread duplication signals low-quality site architecture to search engine quality raters."
+            ),
+            "solution_roi": (
+                "Providing unique, customized descriptions for each URL establishes clear intent, preserves brand voice, and increases SERP engagement."
+            )
+        }
+
+    # 7. Page Title Missing
+    elif "title" in name_l and ("missing" in name_l or "empty" in name_l):
+        return {
+            "what_is_it": (
+                f"A critical technical defect was found: {count:,} pages completely lack an HTML <title> tag."
+            ),
+            "business_impact": (
+                "The page title is the single most visible text in Google Search and browser tabs. Without a title, searchers see only a raw URL "
+                "or a garbled system guess, causing almost 0% click confidence."
+            ),
+            "search_engine_impact": (
+                "The <title> tag is universally recognized as the single strongest on-page ranking factor in SEO. "
+                "Pages lacking a title tag are essentially invisible to search engines and cannot compete for competitive commercial keywords."
+            ),
+            "solution_roi": (
+                "Adding strategic, keyword-targeted title tags immediately unlocks baseline ranking eligibility and organic search visibility."
+            )
+        }
+
+    # 8. Page Title Over 60 Characters
+    elif "title over" in name_l or ("title" in name_l and "over" in name_l):
+        return {
+            "what_is_it": (
+                f"There are {count:,} pages with title tags exceeding Google's display limit of 60 characters (~600 pixels)."
+            ),
+            "business_impact": (
+                "Long titles get clipped with ellipses (...), cutting off your brand name, pricing qualifiers, or key product benefits."
+            ),
+            "search_engine_impact": (
+                "Excessively long titles trigger Google's automated title rewrite system, which frequently overwrites your carefully chosen copy "
+                "with suboptimal alternatives. Furthermore, keyword stuffing in titles dilutes topical relevance."
+            ),
+            "solution_roi": (
+                "Refining title tags to 50-60 characters ensures full visibility across all devices and concentrates ranking authority on your primary target keyword."
+            )
+        }
+
+    # 9. Duplicate Page Titles
+    elif "duplicate" in name_l and "title" in name_l:
+        return {
+            "what_is_it": (
+                f"Our crawl flagged {count:,} pages sharing identical title tags."
+            ),
+            "business_impact": (
+                "This causes severe internal keyword cannibalization. Instead of presenting one strong, authoritative page to search engines, "
+                "your own URLs compete against each other, splitting incoming search traffic and confusing buyers."
+            ),
+            "search_engine_impact": (
+                "Search engines cannot determine which URL is the canonical authority for the keyword topic. "
+                "Consequently, Google frequently rotates the ranking URLs or suppresses both, causing ranking volatility."
+            ),
+            "solution_roi": (
+                "Assigning distinct, keyword-focused titles eliminates self-competition and consolidates ranking authority onto the correct landing pages."
+            )
+        }
+
+    # 10. Internal Links Broken (4xx/5xx)
+    elif "broken" in name_l or "4xx" in name_l or "5xx" in name_l:
+        return {
+            "what_is_it": (
+                f"We uncovered {count:,} broken internal hyperlinks pointing to dead (404/410) or server error (500) destinations."
+            ),
+            "business_impact": (
+                "Broken links destroy the customer conversion funnel. When a prospective client clicks an internal link to view a product or case study, "
+                "they hit a dead end. This instantly shatters credibility, increases frustration, and causes immediate bounce to a competitor."
+            ),
+            "search_engine_impact": (
+                "Broken links cause severe link equity (PageRank) leakage. Authority that should flow into high-converting revenue pages "
+                "evaporates into dead ends. Additionally, search engine crawlers waste finite crawl budget repeatedly requesting broken URLs."
+            ),
+            "solution_roi": (
+                "Repairing anchor links and implementing 301 redirects immediately recaptures leaked link equity, protects customer journeys, and preserves crawl efficiency."
+            )
+        }
+
+    # 11. Redirect Chains & Loops
+    elif "redirect" in name_l and ("chain" in name_l or "loop" in name_l):
+        return {
+            "what_is_it": (
+                f"Our crawl identified {count:,} URLs caught in redirect chains (multi-hop redirects) or circular redirect loops."
+            ),
+            "business_impact": (
+                "Each redirect hop adds 200ms to 800ms of latency before content can begin loading, making the site feel slow and clunky. "
+                "Redirect loops result in browser error screens ('Too Many Redirects'), completely blocking visitors from accessing the page."
+            ),
+            "search_engine_impact": (
+                "Googlebot abandons redirect chains after 3-4 hops, causing dropped indexation. Furthermore, each intermediate hop dilutes 10-15% "
+                "of inbound link authority."
+            ),
+            "solution_roi": (
+                "Consolidating redirects into direct, 1-hop 301 destinations recovers lost speed, stops authority leakage, and guarantees search indexation."
+            )
+        }
+
+    # 12. Images Missing Alt Text
+    elif "alt" in name_l or "image" in name_l:
+        return {
+            "what_is_it": (
+                f"There are {count:,} images across the site lacking descriptive 'alt' attributes in their <img> HTML tags."
+            ),
+            "business_impact": (
+                "Millions of shoppers discover products through Google Images. Missing alt text locks your visual assets out of search, "
+                "closing off a major organic acquisition channel. It also exposes the company to ADA accessibility compliance violations."
+            ),
+            "search_engine_impact": (
+                "Search engines cannot perceive images visually; they rely entirely on alt text to understand the subject of the photo. "
+                "Without alt attributes, the image cannot rank in Google Image Search."
+            ),
+            "solution_roi": (
+                "Adding concise, keyword-rich alt text unlocks Google Images search traffic and satisfies international web accessibility standards."
+            )
+        }
+
+    # 13. Canonical Tag Issues
+    elif "canonical" in name_l:
+        return {
+            "what_is_it": (
+                f"We flagged {count:,} pages with missing, conflicting, or broken canonical link tags."
+            ),
+            "business_impact": (
+                "E-commerce filters, tracking parameters, and pagination URLs can create hundreds of duplicate versions of your content, "
+                "diluting brand clarity and confusing buyers."
+            ),
+            "search_engine_impact": (
+                "The canonical tag tells Google which URL is the single master copy. When canonicals are missing or mismatched, "
+                "search engines split backlink authority across multiple URLs or index parameter-bloated pages instead of your main landing page."
+            ),
+            "solution_roi": (
+                "Correct canonical tags guarantee that 100% of organic ranking signals and backlinks remain focused on your primary commercial URL."
+            )
+        }
+
+    # Generic Fallback
+    else:
+        return {
+            "what_is_it": (
+                f"A total of {count:,} instances were flagged under the category '{category_name}' during our technical crawl."
+            ),
+            "business_impact": (
+                "Technical irregularities create friction in the user experience, leading to reduced engagement, higher drop-off rates, and missed revenue opportunities."
+            ),
+            "search_engine_impact": (
+                "Google's indexing algorithms prioritize clean, compliant technical architecture. Departures from Google Search Essentials "
+                "suppress organic visibility and crawl prioritization."
+            ),
+            "solution_roi": (
+                "Remediating these flagged entries cleans up technical debt, improves domain quality scores, and supports sustainable ranking growth."
+            )
+        }
+
+
+# ==============================================================================
 # MAIN WORD DOCUMENT BUILDER
 # ==============================================================================
 
@@ -483,123 +770,82 @@ def generate_technical_seo_audit_docx(
         add_callout_box(doc, title=r_title, text=r_text, border_hex="1E3A8A", bg_hex="F8FAFC")
 
     # =========================================================================
-    # SECTION 6: IN-DEPTH ERROR BREAKDOWN & SUGGESTIONS
+    # SECTION 6: IN-DEPTH ERROR ANALYSIS & STRATEGIC IMPORTANCE
     # =========================================================================
     p_sec6 = doc.add_paragraph()
     p_sec6.paragraph_format.space_before = Pt(16)
-    r = p_sec6.add_run("5. Detailed Category Breakdown, Suggested Fixes & Developer Guides")
+    r = p_sec6.add_run("5. Strategic Analysis of Flagged Vulnerabilities (Why Fixing Is Critical)")
     r.font.bold = True
     r.font.size = Pt(15)
     r.font.color.rgb = COLOR_PRIMARY
 
     doc.add_paragraph(
-        "This section details each identified technical issue from an SEO perspective and provides "
-        "concrete developer guides. Alongside this document, refer to your accompanying "
-        "Excel Workbook for full page-by-page URL inventories."
+        "This section delivers an executive, non-technical breakdown of every technical bottleneck identified during "
+        "our deep crawl. Rather than cluttering this strategic briefing with raw code or repetitive URL lists, each "
+        "section below explains why this error damages your business revenue, how search engine algorithms penalize it, "
+        "and why immediate remediation is critical to unlocking organic growth.\n\n"
+        "Accompanying Technical Excel Workbook Note: The complete, filterable URL inventory, current values, and "
+        "developer implementation rules for each error are provided in the accompanying Technical SEO Excel File."
     )
 
     for sheet_name, df_err in error_dfs.items():
         if df_err.empty:
             continue
 
+        c_count = len(df_err)
+        analysis = get_error_category_analysis(sheet_name, c_count)
+
         p_sh = doc.add_paragraph()
-        p_sh.paragraph_format.space_before = Pt(12)
-        p_sh.paragraph_format.space_after = Pt(3)
-        r_sh = p_sh.add_run(f"📁 Category: {sheet_name} ({len(df_err):,} Flagged Entries)")
+        p_sh.paragraph_format.space_before = Pt(14)
+        p_sh.paragraph_format.space_after = Pt(4)
+        r_sh = p_sh.add_run(f"📁 Issue Category: {sheet_name} ({c_count:,} Flagged Instances)")
         r_sh.font.bold = True
-        r_sh.font.size = Pt(12.5)
+        r_sh.font.size = Pt(13)
         r_sh.font.color.rgb = COLOR_PRIMARY
 
-        # SEO explanation per error type
-        name_l = sheet_name.lower()
-        if "meta description" in name_l or "desc over" in name_l:
-            expl = "Search engines display meta descriptions in SERP snippets. Descriptions must be strictly between 150-160 characters with an engaging CTA to prevent truncation and maximize clicks."
-            dev_guide = "Developer Action: Access template / CMS metadata editor. Insert or replace <meta name='description' content='[Suggested Description]'> inside the <head> section."
-        elif "title" in name_l:
-            expl = "Page titles are the single strongest on-page ranking signal. They must be strictly between 50-60 characters and lead with primary commercial keywords followed by brand branding."
-            dev_guide = "Developer Action: Edit template <head> section. Update <title>[Suggested Title Tag]</title> so it remains unique across all indexable URLs."
-        elif "h1" in name_l:
-            expl = "HTML5 standards and Google SEO guidelines dictate that each indexable page should have exactly one prominent <h1> heading describing the core topic. Multiple H1s fragment heading hierarchy."
-            dev_guide = "Developer Action: Open page template (e.g. liquid / php / jsx). Preserve the primary <h1> and demote all secondary <h1> tags to <h2> or <h3>."
-        elif "alt" in name_l or "image" in name_l:
-            expl = "Alt attributes provide accessibility for screen readers and enable images to rank in Google Images search, driving qualified organic visual traffic."
-            dev_guide = "Developer Action: Add alt='[Suggested Alt Text]' to all corresponding <img> tags in templates and CMS media libraries."
-        elif "redirect" in name_l:
-            expl = "Redirect chains and loops introduce latency hops, degrade Core Web Vitals, and bleed link authority. Redirects must resolve in a single 301 hop directly to destination."
-            dev_guide = "Developer Action: Update server routing config (.htaccess / nginx / next.config.js / Shopify Redirects) to map URL A directly (301) to Final URL."
-        elif "broken" in name_l or "4xx" in name_l:
-            expl = "404 errors prevent search engines from indexing content and deliver poor user experiences. Dead links must be updated on source templates or 301-redirected."
-            dev_guide = "Developer Action: Update source anchor hyperlinks or establish permanent 301 redirects to the nearest live category equivalent."
-        else:
-            expl = "Technical discrepancy flagged during crawl that requires remediation to comply with Google Search Essentials."
-            dev_guide = "Developer Action: Inspect server logs, CMS template settings, and router configurations to resolve flagged error condition."
+        # 1. Technical Context
+        p1 = doc.add_paragraph()
+        p1.paragraph_format.space_after = Pt(3)
+        r_w1 = p1.add_run("• Technical Bottleneck: ")
+        r_w1.font.bold = True
+        p1.add_run(analysis["what_is_it"])
 
-        # Show explanation and dev guide
-        p_expl = doc.add_paragraph()
-        p_expl.paragraph_format.space_after = Pt(2)
-        r1 = p_expl.add_run("• SEO Rationale: ")
-        r1.font.bold = True
-        p_expl.add_run(expl)
+        # 2. Business & Revenue Impact
+        p2 = doc.add_paragraph()
+        p2.paragraph_format.space_after = Pt(3)
+        r_w2 = p2.add_run("• Business & Revenue Impact: ")
+        r_w2.font.bold = True
+        r_w2.font.color.rgb = COLOR_FAIL
+        p2.add_run(analysis["business_impact"])
 
-        p_dev = doc.add_paragraph()
-        p_dev.paragraph_format.space_after = Pt(6)
-        r2 = p_dev.add_run("• ")
-        r2.font.bold = True
-        r2_t = p_dev.add_run(dev_guide)
-        r2_t.font.bold = True
-        r2_t.font.color.rgb = COLOR_SECONDARY
+        # 3. Search Engine & Ranking Penalty
+        p3 = doc.add_paragraph()
+        p3.paragraph_format.space_after = Pt(3)
+        r_w3 = p3.add_run("• Search Engine & Googlebot Penalty: ")
+        r_w3.font.bold = True
+        r_w3.font.color.rgb = COLOR_SECONDARY
+        p3.add_run(analysis["search_engine_impact"])
 
-        # Sample affected rows table (up to 4 rows for clean layout)
-        sample_df = df_err.head(4)
-        cols_to_show = []
-        for c in ["Page URL", "Suggested Meta Description (150-160 Chars)", "Suggested Trimmed Meta Description (150-160 Chars)", "Suggested Title Tag (50-60 Chars)", "Suggested Single Primary H1", "Suggested Alt Text", "Suggested Resolution", "Developer Guide (How to Fix)"]:
-            if c in sample_df.columns and c not in cols_to_show:
-                cols_to_show.append(c)
+        # 4. Value of Fixing (Commercial ROI)
+        p4 = doc.add_paragraph()
+        p4.paragraph_format.space_after = Pt(6)
+        r_w4 = p4.add_run("• Commercial ROI Upon Resolution: ")
+        r_w4.font.bold = True
+        r_w4.font.color.rgb = COLOR_PASS
+        p4.add_run(analysis["solution_roi"])
 
-        # Fallback to basic columns if suggested not present
-        if len(cols_to_show) < 2:
-            cols_to_show = [c for c in sample_df.columns if c not in ["Recommended Action"]][:3]
-
-        if cols_to_show:
-            tbl_s = doc.add_table(rows=len(sample_df) + 1, cols=len(cols_to_show))
-            tbl_s.alignment = WD_TABLE_ALIGNMENT.CENTER
-            tbl_s.autofit = False
-
-            # Header row
-            hdr_row = tbl_s.rows[0]
-            col_w = Inches(6.8 / len(cols_to_show))
-            for c_idx, col_name in enumerate(cols_to_show):
-                cell = hdr_row.cells[c_idx]
-                cell.width = col_w
-                set_cell_background(cell, HEX_HEADER_BG if "Suggested" not in col_name else HEX_SUBHEADER_BG)
-                set_cell_padding(cell, top=60, bottom=60, left=80, right=80)
-                p = cell.paragraphs[0]
-                run = p.add_run(str(col_name))
-                run.font.bold = True
-                run.font.size = Pt(8.5)
-                run.font.color.rgb = RGBColor(255, 255, 255)
-
-            # Data rows
-            for r_idx, (_, row_data) in enumerate(sample_df.iterrows(), 1):
-                d_row = tbl_s.rows[r_idx]
-                bg_c = HEX_LIGHT_BG if r_idx % 2 == 1 else "FFFFFF"
-                for c_idx, col_name in enumerate(cols_to_show):
-                    cell = d_row.cells[c_idx]
-                    cell.width = col_w
-                    set_cell_background(cell, bg_c)
-                    set_cell_padding(cell, top=50, bottom=50, left=80, right=80)
-                    val = str(row_data.get(col_name, ""))
-                    p = cell.paragraphs[0]
-                    # Shorten URL for display
-                    if val.startswith("http"):
-                        val_disp = val.replace("https://", "").replace("http://", "")
-                        if len(val_disp) > 42:
-                            val_disp = val_disp[:40] + "..."
-                        p.add_run(val_disp).font.size = Pt(8)
-                    else:
-                        p.add_run(val).font.size = Pt(8)
-
-        doc.add_paragraph().paragraph_format.space_after = Pt(4)
+        # 5. Callout note referencing Excel file
+        add_callout_box(
+            doc,
+            title=f"Actionable URL Inventory in Excel: Sheet '{sheet_name}'",
+            text=(
+                f"All {c_count:,} affected page URLs, current tags, and developer implementation specifications "
+                f"are cataloged in Sheet '{sheet_name}' of your accompanying Technical SEO Excel File. "
+                "Development teams can directly filter, inspect, and execute fixes using that actionable workbook."
+            ),
+            border_hex="10B981",
+            bg_hex="F0FDF4"
+        )
 
     # =========================================================================
     # SECTION 7: PRIORITIZED ACTION ROADMAP
@@ -632,18 +878,18 @@ def generate_technical_seo_audit_docx(
     phases = [
         (
             "Phase 1: Week 1\n(Critical Architecture)",
-            "• Eliminate redirect loops & chains\n• Fix 4xx broken internal hyperlinks\n• Correct canonical tag mismatches",
+            "• Eliminate redirect loops & chains\n• Fix 4xx/5xx broken internal hyperlinks\n• Correct canonical tag mismatches",
             "Recovers wasted Google crawl budget, halts link equity loss, and eliminates crawler dead ends."
         ),
         (
-            "Phase 2: Week 2\n(On-Page SERP CTR)",
+            "Phase 2: Week 2\n(On-Page SERP CTR & Relevance)",
             "• Deploy 150-160 char meta descriptions with CTAs\n• Implement 50-60 char primary keyword titles\n• Consolidate single primary <h1> headings",
             "Immediate uplift in Google snippet CTR (25-40%), resolves keyword cannibalization, and strengthens relevance."
         ),
         (
             "Phase 3: Week 3\n(Asset & Speed Optimization)",
-            "• Add descriptive alt attributes to images\n• Compress oversized images (>100 KB)\n• Optimize server latency & caching",
-            "Unlocks Google Image Search traffic, improves Core Web Vitals, and lowers mobile bounce rates."
+            "• Minify & bundle JavaScript (.js) and CSS (.css) files\n• Compress oversized images (>100 KB) into WebP/AVIF\n• Add descriptive alt attributes to product & category images\n• Optimize server latency (TTFB) & cache policies",
+            "Significantly boosts Core Web Vitals (LCP/FCP), eliminates render-blocking delay, lowers mobile bounce rates, and unlocks Google Images search traffic."
         )
     ]
 

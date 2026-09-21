@@ -181,6 +181,11 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         "has_js_redirect": False,
         "images_count": 0,
         "images_missing_alt_count": 0,
+        # Performance: Static Assets Minification
+        "unminified_scripts": [],
+        "unminified_styles": [],
+        "unminified_assets": [],
+        "unminified_count": 0,
         # Issues Detected on this page
         "issues": []
     }
@@ -495,11 +500,14 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
                 "recommendation": "Add a self-referential canonical tag (<link rel='canonical' href='...'>) to prevent duplicate content issues."
             })
 
-    # 6. Word Count & Content Quality
-    # Remove script, style, nav, footer for word count estimation
-    for element in soup(["script", "style", "nav", "footer", "header", "noscript"]):
-        element.extract()
-    raw_text = soup.get_text(separator=" ", strip=True)
+    # 6. Word Count & Content Quality (use a cloned soup to keep master soup tags intact)
+    try:
+        soup_text_copy = BeautifulSoup(html, "html.parser")
+        for element in soup_text_copy(["script", "style", "nav", "footer", "header", "noscript"]):
+            element.extract()
+        raw_text = soup_text_copy.get_text(separator=" ", strip=True)
+    except Exception:
+        raw_text = soup.get_text(separator=" ", strip=True)
     words = re.findall(r"\b\w+\b", raw_text)
     seo_info["word_count"] = len(words)
 
@@ -547,6 +555,50 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
             except Exception:
                 pass
         seo_info["schema_types"] = schema_types
+
+    # 9. Performance: Minify JavaScript and CSS files
+    unminified_scripts = []
+    for s in soup.find_all("script", src=True):
+        s_src = s.get("src", "").strip()
+        if s_src:
+            clean_s = s_src.split("?")[0].lower()
+            if clean_s.endswith(".js") and ".min." not in clean_s and not clean_s.endswith(".min.js"):
+                unminified_scripts.append(s_src)
+
+    unminified_styles = []
+    for l in soup.find_all("link"):
+        rel = l.get("rel", [])
+        if isinstance(rel, list):
+            is_sheet = any("stylesheet" in str(r).lower() for r in rel)
+        else:
+            is_sheet = "stylesheet" in str(rel).lower()
+        if is_sheet:
+            h_href = l.get("href", "").strip()
+            if h_href:
+                clean_h = h_href.split("?")[0].lower()
+                if clean_h.endswith(".css") and ".min." not in clean_h and not clean_h.endswith(".min.css"):
+                    unminified_styles.append(h_href)
+
+    unminified_all = list(dict.fromkeys(unminified_scripts + unminified_styles))
+    seo_info["unminified_scripts"] = unminified_scripts
+    seo_info["unminified_styles"] = unminified_styles
+    seo_info["unminified_assets"] = unminified_all
+    seo_info["unminified_count"] = len(unminified_all)
+
+    if not is_noindex and unminified_all:
+        breakdown = []
+        if unminified_scripts:
+            breakdown.append(f"{len(unminified_scripts)} JS")
+        if unminified_styles:
+            breakdown.append(f"{len(unminified_styles)} CSS")
+        detail_str = " & ".join(breakdown)
+
+        seo_info["issues"].append({
+            "type": "Warning",
+            "category": "Performance",
+            "issue": f"Unminified JavaScript and CSS files ({detail_str})",
+            "recommendation": "Minify JavaScript and CSS files by removing comments, formatting, and unused code to reduce network transfer payload and improve First Contentful Paint (FCP) and Largest Contentful Paint (LCP)."
+        })
 
     return seo_info
 

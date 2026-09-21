@@ -330,40 +330,55 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
         })
 
     # -------------------------------------------------------------
-    # 6. Unminified JavaScript and CSS files
+    # 6. Minify JavaScript and CSS files
     # -------------------------------------------------------------
     unminified_list = []
+    # Check evaluated crawled pages for unminified assets
+    if not df_pages.empty:
+        for _, pr in df_pages.iterrows():
+            page_u = pr.get("url", "")
+            assets = pr.get("unminified_assets", [])
+            if isinstance(assets, list) and assets:
+                for asset in assets:
+                    clean_a = str(asset).split("?")[0].lower()
+                    unminified_list.append({
+                        "Page URL (Found On)": page_u,
+                        "Unminified Resource URL": str(asset),
+                        "Resource Type": "JavaScript (.js)" if clean_a.endswith(".js") else "Stylesheet (.css)",
+                        "Recommended Action": "Minify and bundle JS/CSS files using build tools (e.g. Terser, CSSNano, esbuild) or CDN auto-minification to reduce transfer payload and boost Core Web Vitals (FCP, LCP)."
+                    })
+    # Also check df_links as supplementary
     if not df_links.empty:
         for _, lr in df_links.iterrows():
             tgt = str(lr.get("target_url", ""))
             src = str(lr.get("source_url", ""))
             clean_tgt = tgt.split("?")[0].lower()
-            if (clean_tgt.endswith(".js") or clean_tgt.endswith(".css")) and ".min." not in clean_tgt:
+            if (clean_tgt.endswith(".js") or clean_tgt.endswith(".css")) and ".min." not in clean_tgt and not clean_tgt.endswith(".min.js") and not clean_tgt.endswith(".min.css"):
                 unminified_list.append({
-                    "Page URL (Source)": src,
-                    "Unminified Asset URL": tgt,
-                    "Asset Type": "JavaScript (.js)" if clean_tgt.endswith(".js") else "Stylesheet (.css)",
-                    "Recommended Action": "Minify and bundle JS/CSS files to reduce file transfer size and improve PageSpeed."
+                    "Page URL (Found On)": src,
+                    "Unminified Resource URL": tgt,
+                    "Resource Type": "JavaScript (.js)" if clean_tgt.endswith(".js") else "Stylesheet (.css)",
+                    "Recommended Action": "Minify and bundle JS/CSS files using build tools (e.g. Terser, CSSNano, esbuild) or CDN auto-minification to reduce transfer payload and boost Core Web Vitals (FCP, LCP)."
                 })
     
-    unmin_tab = sanitize_sheet_title("Unminified JS & CSS")
+    unmin_tab = sanitize_sheet_title("Minify JS & CSS")
     if unminified_list:
-        unmin_df = pd.DataFrame(unminified_list).drop_duplicates(subset=["Unminified Asset URL"]).head(500)
+        unmin_df = pd.DataFrame(unminified_list).drop_duplicates(subset=["Page URL (Found On)", "Unminified Resource URL"]).head(500)
         unmin_count = len(unmin_df)
         error_dfs[unmin_tab] = unmin_df
         index_rows.append({
-            "error_name": "Unminified JavaScript and CSS files",
+            "error_name": "Minify JavaScript and CSS files",
             "status": f"Attention Needed ({unmin_count})",
-            "comments": f"Found {unmin_count} unminified script and stylesheet resources.",
+            "comments": f"Found {unmin_count} unminified script (.js) and stylesheet (.css) resources that delay page rendering.",
             "sheet_name": unmin_tab,
             "count": unmin_count,
             "is_error": True
         })
     else:
         index_rows.append({
-            "error_name": "Unminified JavaScript and CSS files",
+            "error_name": "Minify JavaScript and CSS files",
             "status": "Passed (0)",
-            "comments": "No unminified static scripts or stylesheet links detected.",
+            "comments": "All detected JavaScript and CSS assets appear minified or optimized.",
             "sheet_name": None,
             "count": 0,
             "is_error": False

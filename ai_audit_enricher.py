@@ -691,6 +691,16 @@ def enrich_audit_report_with_ai(
                 df_err, sheet_name, api_key, provider, model, country=country, business_context=business_context
             )
 
+        # 6. Minify JavaScript and CSS files
+        elif "minify" in sheet_lower or "unminified" in sheet_lower or "javascript" in sheet_lower:
+            df_copy = df_err.copy()
+            df_copy["Suggested Resolution"] = "Minify & Compress Asset (Save 30-70% transfer weight)"
+            df_copy["Developer Guide (How to Fix)"] = (
+                "Developer: Configure build tooling (e.g. Terser, CSSNano, esbuild, Vite) to minify static assets and strip comments. "
+                "Alternatively, toggle auto-minification under Cloudflare/CDN speed settings."
+            )
+            enriched_dfs[sheet_name] = df_copy
+
         else:
             enriched_dfs[sheet_name] = df_err.copy()
 
@@ -708,6 +718,8 @@ def enrich_audit_report_with_ai(
                 row_copy["suggested_action_plan"] = "Semantic primary H1 headings consolidated. Developer: Demote secondary <h1> tags to <h2> in page template."
             elif "alt" in name_lower:
                 row_copy["suggested_action_plan"] = "Descriptive, accessible alt text generated. Developer: Add alt='...' attributes to <img> tags."
+            elif "minify" in name_lower or "javascript" in name_lower or "css" in name_lower:
+                row_copy["suggested_action_plan"] = "Minify JavaScript and CSS files using build bundlers (Terser/CSSNano) or CDN auto-minify to eliminate render-blocking latency and boost Core Web Vitals (LCP/FCP)."
             elif "4xx" in name_lower or "broken" in name_lower:
                 row_copy["suggested_action_plan"] = "301 permanent redirects mapped. Developer: Add 301 redirect rules in server config or update source link hrefs."
             elif "redirect" in name_lower:
