@@ -9,7 +9,10 @@ import re
 from urllib.parse import urlparse
 from collections import Counter
 import pandas as pd
-from seo_analyzer import is_pagination_url, get_base_unpaginated_url
+try:
+    from url_utils import is_pagination_url, get_base_unpaginated_url
+except Exception:
+    from seo_analyzer import is_pagination_url, get_base_unpaginated_url
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter

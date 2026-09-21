@@ -33,7 +33,11 @@ from urllib.parse import urlparse, urljoin
 import xml.etree.ElementTree as ET
 
 from crawler import SEOSpider, USER_AGENTS, normalize_url
-from seo_analyzer import analyze_crawl_results, parse_page_seo, is_pagination_url, get_base_unpaginated_url
+from seo_analyzer import analyze_crawl_results, parse_page_seo
+try:
+    from url_utils import is_pagination_url, get_base_unpaginated_url
+except Exception:
+    from seo_analyzer import is_pagination_url, get_base_unpaginated_url
 from visualizer import (
     create_health_gauge,
     create_status_code_chart,
