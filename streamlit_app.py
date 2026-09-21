@@ -875,7 +875,7 @@ tab_overview, tab_issues, tab_pages, tab_responses, tab_canonicals, tab_titles, 
     "🔗 Link Analysis",
     "🖼️ Images Audit",
     "🧭 Site Structure",
-    "📑 Data Extractor",
+    "📑 Audit Report",
     "🔍 Quick Inspector",
     "🤖 Robots & Sitemap"
 ])
@@ -3100,7 +3100,7 @@ with tab_architecture:
             """, unsafe_allow_html=True)
 
 # ==============================================================================
-# TAB: DATA EXTRACTOR & MULTI-TAB AUDIT EXPORT
+# TAB: AUDIT REPORT & MULTI-TAB AUDIT EXPORT
 # ==============================================================================
 with tab_extractor:
     if not results:
@@ -3110,7 +3110,7 @@ with tab_extractor:
 
         index_rows, error_dfs = extract_all_seo_errors(results)
 
-        st.subheader("📑 SEO Data Extractor & Multi-Tab Audit Export")
+        st.subheader("📑 SEO Audit Report & Multi-Tab Export")
         st.caption("Structured multi-tab client audit spreadsheet. The Index sheet summarizes all technical checks, and separate tabs list all affected URLs for each error.")
 
         total_checks = len(index_rows)
