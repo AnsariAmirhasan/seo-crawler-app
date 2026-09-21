@@ -850,7 +850,7 @@ if btn_start:
         st.rerun()
 
 # Main Application Tabs
-tab_overview, tab_issues, tab_pages, tab_responses, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_inspector, tab_sitemap = st.tabs([
+tab_overview, tab_issues, tab_pages, tab_responses, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_extractor, tab_inspector, tab_sitemap = st.tabs([
     "📊 Overview",
     "❗ Issues & Fixes",
     "📄 Internal Pages",
@@ -862,6 +862,7 @@ tab_overview, tab_issues, tab_pages, tab_responses, tab_canonicals, tab_titles, 
     "🔗 Link Analysis",
     "🖼️ Images Audit",
     "🧭 Site Structure",
+    "📑 Data Extractor",
     "🔍 Quick Inspector",
     "🤖 Robots & Sitemap"
 ])
@@ -2994,7 +2995,130 @@ with tab_architecture:
             """, unsafe_allow_html=True)
 
 # ==============================================================================
-# TAB 10: SINGLE URL QUICK INSPECTOR
+# TAB: DATA EXTRACTOR & MULTI-TAB AUDIT EXPORT
+# ==============================================================================
+with tab_extractor:
+    if not results:
+        st.info("Run a crawl to extract structured SEO errors into an interactive audit spreadsheet.")
+    else:
+        from data_extractor import extract_all_seo_errors, build_error_audit_excel_workbook
+
+        index_rows, error_dfs = extract_all_seo_errors(results)
+
+        st.subheader("📑 SEO Data Extractor & Multi-Tab Audit Export")
+        st.caption("Structured multi-tab client audit spreadsheet. The Index sheet summarizes all technical checks, and separate tabs list all affected URLs for each error.")
+
+        total_checks = len(index_rows)
+        failed_checks = sum(1 for r in index_rows if r.get("is_error", False))
+        passed_checks = total_checks - failed_checks
+        total_affected_urls = sum(r.get("count", 0) for r in index_rows if r.get("is_error", False))
+
+        # Metric Cards
+        em1, em2, em3, em4 = st.columns(4)
+        em1.metric("Audited Checks", f"{total_checks}")
+        em2.metric("Failed / Attention", f"{failed_checks}", delta=f"{failed_checks} categories" if failed_checks else "All Passed", delta_color="inverse" if failed_checks else "normal")
+        em3.metric("Clean / Passed Checks", f"{passed_checks}", delta="100% compliant" if passed_checks == total_checks else None)
+        em4.metric("Flagged Issue Items", f"{total_affected_urls:,}", delta="URLs/Assets" if total_affected_urls else "Clean")
+
+        st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
+
+        # Download Toolbar
+        col_btn1, col_btn2, col_info = st.columns([1.5, 1.2, 3])
+        with col_btn1:
+            excel_bytes = build_error_audit_excel_workbook(index_rows, error_dfs)
+            st.download_button(
+                label="📥 Download Audit Excel (.xlsx)",
+                data=excel_bytes,
+                file_name="seo_error_audit_report.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary",
+                use_container_width=True
+            )
+        with col_btn2:
+            df_index_csv = pd.DataFrame([
+                {"Errors": r["error_name"], "Status": r["status"], "Comments": r["comments"]}
+                for r in index_rows
+            ])
+            csv_index_bytes = df_index_csv.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📄 Download Index CSV",
+                data=csv_index_bytes,
+                file_name="seo_error_index.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with col_info:
+            st.caption("✨ Multi-tab Excel includes **Index sheet** with green header + separate tabs for each error containing affected URLs.")
+
+        st.markdown("<div style='margin: 1rem 0 0.5rem;'></div>", unsafe_allow_html=True)
+
+        # Tabs: 1. Index Sheet Preview, 2. Error Tabs Explorer
+        tab_view_index, tab_view_sheets = st.tabs(["📋 Index Sheet Preview", "🔍 Explore Error Tabs & URLs"])
+
+        with tab_view_index:
+            st.markdown("""
+            <div style="background: #B6D7A8; color: #1B4D1B; font-weight: 800; font-size: 1.15rem; text-align: center; padding: 10px; border-radius: 8px 8px 0 0; border: 1px solid #93C47D; letter-spacing: 0.03em;">
+                Index
+            </div>
+            """, unsafe_allow_html=True)
+
+            df_display_index = pd.DataFrame([
+                {
+                    "Errors": r["error_name"],
+                    "Status": r["status"],
+                    "Comments": r["comments"],
+                    "Excel Sheet Tab": "✅ " + r["sheet_name"] if r.get("sheet_name") in error_dfs else "— (0 issues)"
+                }
+                for r in index_rows
+            ])
+
+            st.dataframe(
+                df_display_index,
+                use_container_width=True,
+                column_config={
+                    "Errors": st.column_config.TextColumn("Errors", width="medium"),
+                    "Status": st.column_config.TextColumn("Status", width="small"),
+                    "Comments": st.column_config.TextColumn("Comments", width="large"),
+                    "Excel Sheet Tab": st.column_config.TextColumn("Excel Worksheet Tab", width="medium"),
+                },
+                hide_index=True
+            )
+
+        with tab_view_sheets:
+            if not error_dfs:
+                st.success("🎉 Great news! No errors or warnings found on this website.")
+            else:
+                active_sheet_names = list(error_dfs.keys())
+                selected_sheet = st.selectbox(
+                    "Select Error Tab to Inspect Affected URLs:",
+                    active_sheet_names,
+                    key="sb_extractor_sheet"
+                )
+
+                selected_df = error_dfs[selected_sheet]
+                st.markdown(f"##### 📄 Tab: **{selected_sheet}** ({len(selected_df)} URLs / entries)")
+
+                col_sd1, col_sd2 = st.columns([1.5, 4])
+                with col_sd1:
+                    csv_sheet_bytes = selected_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label=f"📥 Download {selected_sheet} CSV",
+                        data=csv_sheet_bytes,
+                        file_name=f"{selected_sheet.replace(' ', '_').lower()}.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                with col_sd2:
+                    st.caption(f"Showing all rows for **{selected_sheet}** included in the downloaded workbook.")
+
+                st.dataframe(
+                    selected_df,
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+# ==============================================================================
+# TAB 11: SINGLE URL QUICK INSPECTOR
 # ==============================================================================
 with tab_inspector:
     st.subheader("🔍 Single URL Instant Inspector")
