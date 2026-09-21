@@ -533,7 +533,9 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
         pages_audit.append(audit)
 
     df_pages = pd.DataFrame(pages_audit)
-    df_links = pd.DataFrame(all_links) if all_links else pd.DataFrame(columns=["source_url", "target_url", "anchor_text", "is_internal", "nofollow", "rel"])
+    df_links = pd.DataFrame(all_links) if all_links else pd.DataFrame(columns=["source_url", "target_url", "anchor_text", "link_location", "is_internal", "nofollow", "rel"])
+    if not df_links.empty and "link_location" not in df_links.columns:
+        df_links["link_location"] = "Content"
     df_images = pd.DataFrame(all_images) if all_images else pd.DataFrame(columns=["page_url", "image_url", "alt", "has_alt", "loading"])
     if not df_images.empty:
         df_images = resolve_image_sizes(df_images)

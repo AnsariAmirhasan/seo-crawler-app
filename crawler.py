@@ -67,6 +67,39 @@ def is_internal_url(target_url: str, allowed_domains, allow_subdomains: bool = F
     except Exception:
         return False
 
+def detect_link_location(a_tag) -> str:
+    """Detect whether an anchor tag resides in the Header, Footer, Sidebar, or Main Content."""
+    try:
+        curr = a_tag.parent
+        while curr and getattr(curr, "name", None) and curr.name != "[document]":
+            tag_name = curr.name.lower()
+            if tag_name == "footer":
+                return "Footer"
+            if tag_name in ("header", "nav"):
+                return "Header"
+            if tag_name == "aside":
+                return "Sidebar"
+                
+            raw_classes = curr.get("class", [])
+            classes = " ".join(raw_classes) if isinstance(raw_classes, list) else str(raw_classes)
+            classes = classes.lower()
+            elem_id = str(curr.get("id", "")).lower()
+            role = str(curr.get("role", "")).lower()
+            
+            if "footer" in classes or "footer" in elem_id or "contentinfo" in role or "bottom" in elem_id:
+                return "Footer"
+            if ("header" in classes or "header" in elem_id or "navbar" in classes or 
+                "nav-" in classes or "nav_" in classes or "site-navigation" in classes or
+                "menu" in classes or "banner" in role or "top-bar" in classes or "top-header" in elem_id):
+                return "Header"
+            if "sidebar" in classes or "sidebar" in elem_id:
+                return "Sidebar"
+                
+            curr = curr.parent
+    except Exception:
+        pass
+    return "Content"
+
 def check_robots_allowed(url: str, user_agent_str: str, base_url: str) -> bool:
     """Check if URL is allowed in robots.txt."""
     try:
@@ -463,12 +496,14 @@ class SEOSpider:
                                     else:
                                         anchor_text = "[Empty Anchor]"
                                 anchor_text = anchor_text[:120]
+                                link_loc = detect_link_location(a_tag)
 
                                 if len(self.all_links) < 30000:
                                     self.all_links.append({
                                         "source_url": url,
                                         "target_url": abs_url,
                                         "anchor_text": anchor_text,
+                                        "link_location": link_loc,
                                         "is_internal": is_internal,
                                         "nofollow": is_nofollow,
                                         "rel": str(rel_val)
