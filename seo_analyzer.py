@@ -536,8 +536,18 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
 
     df_pages = pd.DataFrame(pages_audit)
     df_links = pd.DataFrame(all_links) if all_links else pd.DataFrame(columns=["source_url", "target_url", "anchor_text", "link_location", "is_internal", "nofollow", "rel"])
-    if not df_links.empty and "link_location" not in df_links.columns:
-        df_links["link_location"] = "Content"
+    if not df_links.empty:
+        for col_name, default_val in [
+            ("source_url", ""),
+            ("target_url", ""),
+            ("anchor_text", ""),
+            ("link_location", "Content"),
+            ("is_internal", True),
+            ("nofollow", False),
+            ("rel", "")
+        ]:
+            if col_name not in df_links.columns:
+                df_links[col_name] = default_val
     df_images = pd.DataFrame(all_images) if all_images else pd.DataFrame(columns=["page_url", "image_url", "alt", "has_alt", "loading"])
     if not df_images.empty:
         df_images = resolve_image_sizes(df_images)
@@ -773,6 +783,9 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
     # Weighted penalty normalized by total pages
     penalty = (critical_errors * 10 + warnings * 3 + notices * 0.5) / total_pages * 10
     health_score = max(0, min(100, round(100 - penalty)))
+
+    # Count noindex pages
+    c_noindex_pages = len(df_pages[(df_pages.get("is_noindex", False) == True) | (df_pages.get("meta_robots", "").fillna("").str.contains("noindex", case=False))]) if not df_pages.empty else 0
 
     # Extract Semrush-grade link-level redirect chain instances
     df_redirect_chains = extract_redirect_chain_instances(df_pages, df_links)
