@@ -919,11 +919,41 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
     # Count noindex pages
     c_noindex_pages = len(df_pages[(df_pages.get("is_noindex", False) == True) | (df_pages.get("meta_robots", "").fillna("").str.contains("noindex", case=False))]) if not df_pages.empty else 0
 
+    # Aggregate Unminified JavaScript and CSS assets
+    unminified_rows = []
+    if not df_pages.empty:
+        for _, row in df_pages.iterrows():
+            page_u = row.get("url", "")
+            scripts = row.get("unminified_scripts", [])
+            styles = row.get("unminified_styles", [])
+            if isinstance(scripts, list):
+                for s in scripts:
+                    unminified_rows.append({
+                        "page_url": page_u,
+                        "asset_url": str(s),
+                        "asset_type": "JavaScript (.js)",
+                        "minification_status": "Unminified",
+                        "recommended_action": "Minify JavaScript using Terser/esbuild, strip comments/whitespace, and enable Gzip/Brotli."
+                    })
+            if isinstance(styles, list):
+                for c in styles:
+                    unminified_rows.append({
+                        "page_url": page_u,
+                        "asset_url": str(c),
+                        "asset_type": "Stylesheet (.css)",
+                        "minification_status": "Unminified",
+                        "recommended_action": "Minify CSS using CSSNano/clean-css, remove unused styles, and activate CDN minification."
+                    })
+    df_unminified = pd.DataFrame(unminified_rows)
+    if not df_unminified.empty:
+        df_unminified = df_unminified.drop_duplicates(subset=["page_url", "asset_url"])
+
     return {
         "df_pages": df_pages,
         "df_issues": df_issues,
         "df_links": df_links,
         "df_images": df_images,
+        "df_unminified": df_unminified,
         "health_score": health_score,
         "summary": {
             "total_crawled": len(df_pages),
@@ -942,7 +972,10 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
             "total_images": len(df_images),
             "images_missing_alt_count": int(df_pages["images_missing_alt_count"].sum()) if not df_pages.empty and "images_missing_alt_count" in df_pages.columns else 0,
             "missing_titles_count": len(df_pages[(df_pages["title"].fillna("").str.strip() == "") & (df_pages["status_code"] == 200) & (df_pages.get("is_noindex", False) == False) & (df_pages["is_indexable"] == True)]) if not df_pages.empty and "title" in df_pages.columns else 0,
-            "images_over_100kb_count": int(df_images["is_over_100kb"].sum()) if not df_images.empty and "is_over_100kb" in df_images.columns else 0
+            "images_over_100kb_count": int(df_images["is_over_100kb"].sum()) if not df_images.empty and "is_over_100kb" in df_images.columns else 0,
+            "unminified_assets_count": len(df_unminified),
+            "unminified_scripts_count": len(df_unminified[df_unminified["asset_type"] == "JavaScript (.js)"]) if not df_unminified.empty else 0,
+            "unminified_styles_count": len(df_unminified[df_unminified["asset_type"] == "Stylesheet (.css)"]) if not df_unminified.empty else 0
         }
     }
 

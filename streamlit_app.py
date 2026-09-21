@@ -864,9 +864,10 @@ if btn_start:
         st.rerun()
 
 # Main Application Tabs
-tab_overview, tab_issues, tab_pages, tab_responses, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_extractor, tab_inspector, tab_sitemap = st.tabs([
+tab_overview, tab_issues, tab_minify, tab_pages, tab_responses, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_extractor, tab_inspector, tab_sitemap = st.tabs([
     "📊 Overview",
     "❗ Issues & Fixes",
+    "⚡ Minify JS & CSS",
     "📄 Internal Pages",
     "</> Response Codes",
     "🔗 Canonicals",
@@ -1242,7 +1243,155 @@ with tab_issues:
             )
 
 # ==============================================================================
-# TAB 3: ALL INTERNAL PAGES EXPLORER
+# TAB: MINIFY JAVASCRIPT & CSS AUDIT
+# ==============================================================================
+with tab_minify:
+    if not results:
+        st.info("👈 Enter a URL in the sidebar and run a crawl to audit JavaScript and CSS file minification status.")
+    else:
+        df_unmin = results.get("df_unminified", pd.DataFrame())
+        # Fallback if df_unminified empty but df_pages exists
+        if df_unmin.empty and "df_pages" in results:
+            df_pages_tmp = results["df_pages"]
+            rows_tmp = []
+            for _, r in df_pages_tmp.iterrows():
+                p_u = r.get("url", "")
+                for s in r.get("unminified_scripts", []):
+                    rows_tmp.append({
+                        "page_url": p_u,
+                        "asset_url": str(s),
+                        "asset_type": "JavaScript (.js)",
+                        "minification_status": "Unminified",
+                        "recommended_action": "Minify JavaScript using Terser/esbuild, strip comments/whitespace, and enable Gzip/Brotli."
+                    })
+                for c in r.get("unminified_styles", []):
+                    rows_tmp.append({
+                        "page_url": p_u,
+                        "asset_url": str(c),
+                        "asset_type": "Stylesheet (.css)",
+                        "minification_status": "Unminified",
+                        "recommended_action": "Minify CSS using CSSNano/clean-css, remove unused styles, and activate CDN minification."
+                    })
+            if rows_tmp:
+                df_unmin = pd.DataFrame(rows_tmp).drop_duplicates(subset=["page_url", "asset_url"])
+
+        if df_unmin.empty:
+            st.success("🎉 Outstanding! All detected JavaScript and CSS files on crawled pages are properly minified and compressed.")
+        else:
+            total_unmin = len(df_unmin)
+            js_count = len(df_unmin[df_unmin["asset_type"] == "JavaScript (.js)"])
+            css_count = len(df_unmin[df_unmin["asset_type"] == "Stylesheet (.css)"])
+            pages_affected = df_unmin["page_url"].nunique() if "page_url" in df_unmin.columns else 0
+
+            # 4 Summary KPI Metric Cards
+            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+            with col_m1:
+                st.metric("Unminified Assets", f"{total_unmin}", delta=f"{pages_affected} pages affected", delta_color="inverse")
+            with col_m2:
+                st.metric("JavaScript (.js)", f"{js_count}", delta="Requires bundling / Terser", delta_color="inverse" if js_count else "normal")
+            with col_m3:
+                st.metric("Stylesheets (.css)", f"{css_count}", delta="Requires CSSNano / purge", delta_color="inverse" if css_count else "normal")
+            with col_m4:
+                st.metric("Potential Payload Savings", "30% - 70%", delta="Core Web Vitals boost", delta_color="normal")
+
+            st.markdown("""
+            <div style="background: rgba(239, 68, 68, 0.08); border-left: 4px solid #EF4444; border-radius: 8px; padding: 12px 16px; margin: 1rem 0 1.2rem;">
+                <div style="font-weight: 700; color: #F87171; font-size: 0.95rem; margin-bottom: 3px;">
+                    ⚡ High Priority Core Web Vitals & PageSpeed Bottleneck
+                </div>
+                <div style="font-size: 0.85rem; color: #CBD5E1; line-height: 1.5;">
+                    Unminified JavaScript and CSS files act as <b>render-blocking resources</b>. The browser cannot construct the DOM render tree or paint text and images until these heavy files finish downloading and parsing. Minifying static assets removes redundant whitespace, comments, and unused code, significantly accelerating <b>First Contentful Paint (FCP)</b> and <b>Largest Contentful Paint (LCP)</b>.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Filter buttons
+            filter_opts = [
+                f"All Assets ({total_unmin})",
+                f"JavaScript ({js_count})",
+                f"Stylesheets ({css_count})"
+            ]
+            sel_min_type = st.pills(
+                "Filter by Asset Type:",
+                options=filter_opts,
+                default=f"All Assets ({total_unmin})",
+                selection_mode="single",
+                key="pills_minify_filter"
+            )
+
+            df_min_filtered = df_unmin.copy()
+            if sel_min_type and "JavaScript" in sel_min_type:
+                df_min_filtered = df_min_filtered[df_min_filtered["asset_type"] == "JavaScript (.js)"]
+            elif sel_min_type and "Stylesheets" in sel_min_type:
+                df_min_filtered = df_min_filtered[df_min_filtered["asset_type"] == "Stylesheet (.css)"]
+
+            # Search Bar & CSV Download Toolbar
+            col_ms1, col_ms2 = st.columns([3, 1.2])
+            with col_ms1:
+                minify_search = st.text_input("🔍 Search by Asset URL or Page URL:", "", key="minify_search_box")
+            with col_ms2:
+                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                csv_min = generate_csv(df_min_filtered)
+                st.download_button(
+                    label=f"📥 Download Minify CSV ({len(df_min_filtered)})",
+                    data=csv_min,
+                    file_name="unminified_js_css_audit.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+
+            if minify_search:
+                df_min_filtered = df_min_filtered[
+                    df_min_filtered["asset_url"].str.contains(minify_search, case=False, na=False) |
+                    df_min_filtered["page_url"].str.contains(minify_search, case=False, na=False)
+                ]
+
+            st.caption(f"Showing **{len(df_min_filtered)}** unminified asset instances:")
+            st.dataframe(
+                df_min_filtered,
+                use_container_width=True,
+                column_config={
+                    "page_url": st.column_config.LinkColumn("Page URL (Found On)"),
+                    "asset_url": st.column_config.LinkColumn("Unminified Asset URL"),
+                    "asset_type": st.column_config.TextColumn("Asset Type"),
+                    "minification_status": st.column_config.TextColumn("Status"),
+                    "recommended_action": st.column_config.TextColumn("Recommended Action"),
+                },
+                hide_index=True
+            )
+
+            # Developer Implementation Guides in Accordion
+            with st.expander("🛠️ Developer Implementation Guide: How to Minify JS & CSS"):
+                st.markdown("""
+                ### 1. JavaScript Minification
+                - **Modern Bundlers (Vite / Webpack / Rollup / Next.js)**: Ensure production builds have `minify: 'terser'` or `minify: 'esbuild'` enabled.
+                - **Command Line (Terser)**:
+                  ```bash
+                  npx terser app.js -o app.min.js --compress --mangle
+                  ```
+                - **UglifyJS**:
+                  ```bash
+                  npx uglify-js script.js -c -m -o script.min.js
+                  ```
+
+                ### 2. CSS Minification
+                - **PostCSS + CSSNano**:
+                  ```bash
+                  npx postcss styles.css > styles.min.css
+                  ```
+                - **Clean-CSS CLI**:
+                  ```bash
+                  npx clean-css-cli -o styles.min.css styles.css
+                  ```
+
+                ### 3. Cloudflare & CDN 1-Click Auto-Minification
+                If you use Cloudflare, Fastly, AWS CloudFront, or a CMS (WordPress/Shopify):
+                - **Cloudflare**: Navigate to **Speed** → **Optimization** → **Auto Minify** → Check both **JavaScript** and **CSS**.
+                - **WordPress**: Install *WP Rocket*, *LiteSpeed Cache*, or *Autoptimize* and enable file minification & combine assets.
+                """)
+
+# ==============================================================================
+# TAB: ALL INTERNAL PAGES EXPLORER
 # ==============================================================================
 with tab_pages:
     if not results:

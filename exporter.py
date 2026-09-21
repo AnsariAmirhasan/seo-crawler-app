@@ -61,6 +61,9 @@ def generate_excel_report(analysis_result: dict, start_url: str) -> bytes:
                 heavy_imgs = df_images[df_images["is_over_100kb"] == True]
                 if not heavy_imgs.empty:
                     heavy_imgs.sort_values(by="size_kb", ascending=False).to_excel(writer, sheet_name='Images Over 100 KB', index=False)
+        df_unminified = analysis_result.get("df_unminified", pd.DataFrame())
+        if not df_unminified.empty:
+            df_unminified.to_excel(writer, sheet_name='Minify JS & CSS', index=False)
 
     return output.getvalue()
 
