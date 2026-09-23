@@ -62,7 +62,8 @@ def hex_to_hsl(hex_str: str) -> str:
 
 def extract_palette_from_image(image_bytes: bytes) -> Dict[str, Dict[str, str]]:
     """
-    Extracts dominant brand colors from uploaded logo/image using Pillow quantization.
+    Extracts dominant brand colors from uploaded logo/image using Pillow quantization and frequency sorting.
+    Supports PNG, JPG, JPEG, WEBP, and SVG formats.
     Returns Primary, Secondary, Accent, Background, and Text colors with HEX, RGB, HSL.
     """
     default_palette = {
@@ -72,44 +73,109 @@ def extract_palette_from_image(image_bytes: bytes) -> Dict[str, Dict[str, str]]:
         "background": {"hex": "#0F172A", "rgb": "rgb(15, 23, 42)", "hsl": "hsl(222, 47%, 11%)"},
         "text": {"hex": "#F8FAFC", "rgb": "rgb(248, 250, 252)", "hsl": "hsl(210, 40%, 98%)"}
     }
+
+    if not image_bytes:
+        return default_palette
+
+    # 1. Check for SVG Logo format
+    try:
+        sample_header = image_bytes[:300].lower()
+        if b"<svg" in sample_header or b"<?xml" in sample_header:
+            text = image_bytes.decode("utf-8", errors="ignore")
+            found_hexes = re.findall(r"#[0-9a-fA-F]{6}\b", text)
+            if found_hexes:
+                unique_hexes = []
+                for h in found_hexes:
+                    h_upper = h.upper()
+                    if h_upper not in unique_hexes:
+                        unique_hexes.append(h_upper)
+
+                colored = [h for h in unique_hexes if h not in ["#FFFFFF", "#000000", "#0F172A"]]
+                p = colored[0] if colored else unique_hexes[0]
+                s = colored[1] if len(colored) > 1 else ("#F59E0B" if p != "#F59E0B" else "#10B981")
+                a = colored[2] if len(colored) > 2 else ("#FFFFFF" if p != "#FFFFFF" else "#38BDF8")
+
+                pr, pg, pb = hex_to_rgb(p)
+                sr, sg, sb = hex_to_rgb(s)
+                ar, ag, ab = hex_to_rgb(a)
+                return {
+                    "primary": {"hex": p, "rgb": f"rgb({pr}, {pg}, {pb})", "hsl": rgb_to_hsl(pr, pg, pb)},
+                    "secondary": {"hex": s, "rgb": f"rgb({sr}, {sg}, {sb})", "hsl": rgb_to_hsl(sr, sg, sb)},
+                    "accent": {"hex": a, "rgb": f"rgb({ar}, {ag}, {ab})", "hsl": rgb_to_hsl(ar, ag, ab)},
+                    "background": {"hex": "#0F172A", "rgb": "rgb(15, 23, 42)", "hsl": "hsl(222, 47%, 11%)"},
+                    "text": {"hex": "#F8FAFC", "rgb": "rgb(248, 250, 252)", "hsl": "hsl(210, 40%, 98%)"}
+                }
+    except Exception:
+        pass
+
+    # 2. Raster Logo (PNG, JPG, JPEG, WEBP)
     try:
         img = Image.open(io.BytesIO(image_bytes))
-        img = img.convert("RGBA")
-        # Remove transparent background pixels
-        bg = Image.new("RGBA", img.size, (255, 255, 255))
-        img_composite = Image.alpha_composite(bg, img).convert("RGB")
-        img_small = img_composite.resize((150, 150))
-        # Quantize to 8 colors
-        quantized = img_small.quantize(colors=8)
-        palette = quantized.getpalette()[:24]
-        colors = []
-        for i in range(0, len(palette), 3):
-            r, g, b = palette[i], palette[i+1], palette[i+2]
-            colors.append((r, g, b))
 
-        # Filter out extreme whites and blacks for primary/secondary
-        vibrant_colors = [c for c in colors if sum(c) > 60 and sum(c) < 700]
-        if len(vibrant_colors) >= 3:
-            c1 = vibrant_colors[0]
-            c2 = vibrant_colors[1]
-            c3 = vibrant_colors[2]
-            return {
-                "primary": {"hex": rgb_to_hex(*c1), "rgb": f"rgb({c1[0]}, {c1[1]}, {c1[2]})", "hsl": rgb_to_hsl(*c1)},
-                "secondary": {"hex": rgb_to_hex(*c2), "rgb": f"rgb({c2[0]}, {c2[1]}, {c2[2]})", "hsl": rgb_to_hsl(*c2)},
-                "accent": {"hex": rgb_to_hex(*c3), "rgb": f"rgb({c3[0]}, {c3[1]}, {c3[2]})", "hsl": rgb_to_hsl(*c3)},
-                "background": {"hex": "#0F172A", "rgb": "rgb(15, 23, 42)", "hsl": "hsl(222, 47%, 11%)"},
-                "text": {"hex": "#F8FAFC", "rgb": "rgb(248, 250, 252)", "hsl": "hsl(210, 40%, 98%)"}
-            }
-        elif len(vibrant_colors) > 0:
-            c1 = vibrant_colors[0]
-            return {
-                "primary": {"hex": rgb_to_hex(*c1), "rgb": f"rgb({c1[0]}, {c1[1]}, {c1[2]})", "hsl": rgb_to_hsl(*c1)},
-                "secondary": {"hex": "#F59E0B", "rgb": "rgb(245, 158, 11)", "hsl": "hsl(38, 92%, 50%)"},
-                "accent": {"hex": "#38BDF8", "rgb": "rgb(56, 189, 248)", "hsl": "hsl(199, 95%, 74%)"},
-                "background": {"hex": "#0F172A", "rgb": "rgb(15, 23, 42)", "hsl": "hsl(222, 47%, 11%)"},
-                "text": {"hex": "#F8FAFC", "rgb": "rgb(248, 250, 252)", "hsl": "hsl(210, 40%, 98%)"}
-            }
-        return default_palette
+        # Alpha composite transparent pixels onto neutral white canvas
+        if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+            img_rgba = img.convert("RGBA")
+            bg_white = Image.new("RGBA", img_rgba.size, (255, 255, 255, 255))
+            img_composite = Image.alpha_composite(bg_white, img_rgba).convert("RGB")
+        else:
+            img_composite = img.convert("RGB")
+
+        # Resize for responsive color cluster analysis
+        img_small = img_composite.resize((150, 150), Image.Resampling.LANCZOS)
+
+        # Quantize to 16 color clusters
+        quantized = img_small.quantize(colors=16)
+        palette = quantized.getpalette()
+        color_counts = quantized.getcolors(maxcolors=150 * 150)
+        if not color_counts or not palette:
+            return default_palette
+
+        # Sort clusters by pixel frequency
+        sorted_by_freq = sorted(color_counts, key=lambda x: x[0], reverse=True)
+
+        def dist(c1, c2):
+            return ((c1[0] - c2[0])**2 + (c1[1] - c2[1])**2 + (c1[2] - c2[2])**2)**0.5
+
+        distinct_colors = []
+        for count, idx in sorted_by_freq:
+            r = palette[idx * 3]
+            g = palette[idx * 3 + 1]
+            b = palette[idx * 3 + 2]
+            rgb = (r, g, b)
+            # Ensure color is distinctly different from already picked colors
+            if not any(dist(rgb, prev) < 35 for prev in distinct_colors):
+                distinct_colors.append(rgb)
+
+        if not distinct_colors:
+            return default_palette
+
+        # Identify brand colors vs canvas/background neutrals
+        def is_neutral(c):
+            return (max(c) - min(c) < 22) or (sum(c) > 730) or (sum(c) < 35)
+
+        brand_colored = [c for c in distinct_colors if not is_neutral(c)]
+        neutrals = [c for c in distinct_colors if is_neutral(c)]
+
+        if brand_colored:
+            c1 = brand_colored[0]
+            c2 = brand_colored[1] if len(brand_colored) > 1 else (neutrals[0] if neutrals and sum(neutrals[0]) < 650 else (245, 158, 11))
+            c3 = brand_colored[2] if len(brand_colored) > 2 else (neutrals[0] if neutrals else (255, 255, 255))
+        else:
+            c1 = distinct_colors[0]
+            c2 = distinct_colors[1] if len(distinct_colors) > 1 else (245, 158, 11)
+            c3 = distinct_colors[2] if len(distinct_colors) > 2 else (255, 255, 255)
+
+        h1 = rgb_to_hex(*c1).upper()
+        h2 = rgb_to_hex(*c2).upper()
+        h3 = rgb_to_hex(*c3).upper()
+
+        return {
+            "primary": {"hex": h1, "rgb": f"rgb({c1[0]}, {c1[1]}, {c1[2]})", "hsl": rgb_to_hsl(*c1)},
+            "secondary": {"hex": h2, "rgb": f"rgb({c2[0]}, {c2[1]}, {c2[2]})", "hsl": rgb_to_hsl(*c2)},
+            "accent": {"hex": h3, "rgb": f"rgb({c3[0]}, {c3[1]}, {c3[2]})", "hsl": rgb_to_hsl(*c3)},
+            "background": {"hex": "#0F172A", "rgb": "rgb(15, 23, 42)", "hsl": "hsl(222, 47%, 11%)"},
+            "text": {"hex": "#F8FAFC", "rgb": "rgb(248, 250, 252)", "hsl": "hsl(210, 40%, 98%)"}
+        }
     except Exception:
         return default_palette
 
@@ -1244,6 +1310,26 @@ def render_brand_first_content_page():
     # Load defaults from chosen brand
     active_b = saved_brands.get(chosen_brand_key, {}) if chosen_brand_key in saved_brands else {}
 
+    # Synchronize brand colors when switching active brand profile
+    if st.session_state.get("last_selected_brand_key") != chosen_brand_key:
+        st.session_state["last_selected_brand_key"] = chosen_brand_key
+        st.session_state.pop("current_logo_sig", None)
+        st.session_state.pop("extracted_palette", None)
+        st.session_state.pop("logo_extracted_notify", None)
+        if chosen_brand_key in saved_brands and "colors" in saved_brands[chosen_brand_key]:
+            b_colors = saved_brands[chosen_brand_key]["colors"]
+            st.session_state["cp_prim"] = b_colors.get("primary", {}).get("hex", "#123456")
+            st.session_state["cp_sec"] = b_colors.get("secondary", {}).get("hex", "#F58220")
+            st.session_state["cp_acc"] = b_colors.get("accent", {}).get("hex", "#FFFFFF")
+            st.session_state["cp_bg"] = b_colors.get("background", {}).get("hex", "#0F172A")
+            st.session_state["cp_txt"] = b_colors.get("text", {}).get("hex", "#F8FAFC")
+        elif chosen_brand_key == "+ Create New Brand Profile":
+            st.session_state["cp_prim"] = "#1E3A8A"
+            st.session_state["cp_sec"] = "#F59E0B"
+            st.session_state["cp_acc"] = "#10B981"
+            st.session_state["cp_bg"] = "#0F172A"
+            st.session_state["cp_txt"] = "#F8FAFC"
+
     # ==========================================================================
     # STEP 0: WHAT DO YOU WANT TO CREATE? (BEFORE BRAND DNA)
     # ==========================================================================
@@ -1396,13 +1482,53 @@ def render_brand_first_content_page():
 
         # Color Extraction & Brand Color System
         st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 1rem 0;'>", unsafe_allow_html=True)
-        st.markdown("#### Pillar 2: Visual Brand Color System")
-        st.caption("Visual color system displaying color swatches with HEX, RGB, and HSL. Allows manual editing and custom colors.")
+        col_pillar_hdr, col_reextract = st.columns([3, 1.2])
+        with col_pillar_hdr:
+            st.markdown("#### Pillar 2: Visual Brand Color System")
+            st.caption("Visual color system displaying color swatches with HEX, RGB, and HSL. Automatically extracted from uploaded logo or custom set.")
+        with col_reextract:
+            if uploaded_logo is not None:
+                st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
+                if st.button("🔄 Re-Extract from Logo", key="btn_reextract_logo", help="Re-scan the uploaded logo and update color swatches"):
+                    extracted = extract_palette_from_image(uploaded_logo.getvalue())
+                    st.session_state["extracted_palette"] = extracted
+                    st.session_state["current_logo_sig"] = f"{uploaded_logo.name}_{uploaded_logo.size}"
+                    st.session_state["cp_prim"] = extracted["primary"]["hex"]
+                    st.session_state["cp_sec"] = extracted["secondary"]["hex"]
+                    st.session_state["cp_acc"] = extracted["accent"]["hex"]
+                    st.session_state["cp_bg"] = extracted["background"]["hex"]
+                    st.session_state["cp_txt"] = extracted["text"]["hex"]
+                    st.session_state["logo_extracted_notify"] = f"🎨 Re-extracted colors from **{uploaded_logo.name}**!"
+                    st.rerun()
 
-        if uploaded_logo and "extracted_palette" not in st.session_state:
-            with st.spinner("🎨 Analyzing logo and extracting brand palette with Pillow..."):
-                st.session_state["extracted_palette"] = extract_palette_from_image(uploaded_logo.getvalue())
-                st.success("✅ Extracted dominant colors from uploaded logo!")
+        # Automatic Logo Color Extraction on upload / file change
+        if uploaded_logo is not None:
+            logo_sig = f"{uploaded_logo.name}_{uploaded_logo.size}"
+            if st.session_state.get("current_logo_sig") != logo_sig:
+                with st.spinner("🎨 Analyzing logo and extracting brand palette..."):
+                    extracted = extract_palette_from_image(uploaded_logo.getvalue())
+                    st.session_state["extracted_palette"] = extracted
+                    st.session_state["current_logo_sig"] = logo_sig
+                    st.session_state["cp_prim"] = extracted["primary"]["hex"]
+                    st.session_state["cp_sec"] = extracted["secondary"]["hex"]
+                    st.session_state["cp_acc"] = extracted["accent"]["hex"]
+                    st.session_state["cp_bg"] = extracted["background"]["hex"]
+                    st.session_state["cp_txt"] = extracted["text"]["hex"]
+                    st.session_state["logo_extracted_notify"] = f"🎨 Extracted brand colors from **{uploaded_logo.name}**!"
+                    st.rerun()
+        else:
+            if "current_logo_sig" in st.session_state:
+                del st.session_state["current_logo_sig"]
+            if "logo_extracted_notify" in st.session_state:
+                del st.session_state["logo_extracted_notify"]
+
+        if st.session_state.get("logo_extracted_notify") and uploaded_logo is not None:
+            st.success(
+                f"{st.session_state['logo_extracted_notify']} "
+                f"• Primary: `{st.session_state.get('cp_prim')}` "
+                f"• Secondary: `{st.session_state.get('cp_sec')}` "
+                f"• Accent: `{st.session_state.get('cp_acc')}`"
+            )
 
         active_palette = st.session_state.get("extracted_palette", active_b.get("colors", {
             "primary": {"hex": "#123456", "rgb": "rgb(18, 52, 86)", "hsl": "hsl(210, 65%, 20%)"},
@@ -1416,11 +1542,11 @@ def render_brand_first_content_page():
             if isinstance(val, dict): return val.get("hex", default)
             return str(val) if str(val).startswith("#") else default
 
-        p_hex = get_c_hex(active_palette.get("primary"), "#123456")
-        s_hex = get_c_hex(active_palette.get("secondary"), "#F58220")
-        a_hex = get_c_hex(active_palette.get("accent"), "#FFFFFF")
-        b_hex = get_c_hex(active_palette.get("background"), "#0F172A")
-        t_hex = get_c_hex(active_palette.get("text"), "#F8FAFC")
+        p_hex = st.session_state.get("cp_prim", get_c_hex(active_palette.get("primary"), "#123456"))
+        s_hex = st.session_state.get("cp_sec", get_c_hex(active_palette.get("secondary"), "#F58220"))
+        a_hex = st.session_state.get("cp_acc", get_c_hex(active_palette.get("accent"), "#FFFFFF"))
+        b_hex = st.session_state.get("cp_bg", get_c_hex(active_palette.get("background"), "#0F172A"))
+        t_hex = st.session_state.get("cp_txt", get_c_hex(active_palette.get("text"), "#F8FAFC"))
 
         # Visual Color Swatches Display
         col_sw1, col_sw2, col_sw3, col_sw4, col_sw5 = st.columns(5)
