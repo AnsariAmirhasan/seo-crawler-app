@@ -106,7 +106,7 @@ def _call_ai_model(api_key: str, provider: str, model: str, system_prompt: str, 
         from google import genai
         client = genai.Client(api_key=api_key)
         
-        # Try requested model with fallback if 404
+        # Try requested model with multi-model fallback if 404 / preview alias
         try:
             response = client.models.generate_content(
                 model=clean_model,
@@ -116,12 +116,15 @@ def _call_ai_model(api_key: str, provider: str, model: str, system_prompt: str, 
         except Exception as e:
             err = str(e).lower()
             if "404" in err or "not found" in err or "not_found" in err:
-                fallback_model = "gemini-2.5-flash"
-                response = client.models.generate_content(
-                    model=fallback_model,
-                    contents=f"{system_prompt}\n\nUSER REQUEST:\n{user_prompt}"
-                )
-                return response.text or ""
+                for fallback_model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+                    try:
+                        response = client.models.generate_content(
+                            model=fallback_model,
+                            contents=f"{system_prompt}\n\nUSER REQUEST:\n{user_prompt}"
+                        )
+                        return response.text or ""
+                    except Exception:
+                        continue
             raise e
 
     elif provider == "ChatGPT (OpenAI)":
@@ -298,6 +301,11 @@ def render_silo_architect_page():
         if ai_provider == "Google Gemini":
             model_options = [
                 "gemini-3.8-pro-preview",
+                "gemini-3.8-flash",
+                "gemini-3.7-pro",
+                "gemini-3.7-flash",
+                "gemini-3.6-pro",
+                "gemini-3.6-flash",
                 "gemini-3.5-flash",
                 "gemini-3.5-flash-lite",
                 "gemini-3.1-pro-preview",
