@@ -435,6 +435,16 @@ def generate_social_content_studio(
     Brand Consistency QA → Final Content Pack
     """
     brand_name = business.get("brand_name", "Brand")
+    business["campaign_info"] = campaign_info or business.get("campaign_info", "")
+    business["objective"] = objective or business.get("objective", "Lead Generation")
+    business["personality_traits"] = personality_traits or business.get("personality_traits", [])
+    business["visual_style"] = visual_style or business.get("visual_style", "")
+    business["formal_casual"] = formal_casual
+    business["conservative_creative"] = conservative_creative
+    business["product_url"] = product_url or business.get("product_url", "")
+    business["platforms"] = platforms
+    business["typography"] = typography
+    business["brand_palette"] = brand_palette
 
     def extract_hex(color_val):
         if isinstance(color_val, dict):
@@ -536,6 +546,23 @@ Include:
                         clean_json = clean_json[:-3]
                     parsed = json.loads(clean_json.strip())
                     if "creative_concepts" in parsed and len(parsed["creative_concepts"]) >= 4:
+                        for idx_c, c in enumerate(parsed["creative_concepts"]):
+                            prmpt = c.get("image_generation_prompt", "")
+                            if "[TOP-LEFT LOGO FRAME]" not in prmpt:
+                                alt_c = get_alternate_concept(
+                                    idx=idx_c,
+                                    brand_name=brand_name,
+                                    industry_text=business.get("industry", ""),
+                                    visual_style=visual_style,
+                                    prim_hex=prim_hex,
+                                    sec_hex=sec_hex,
+                                    bg_hex=bg_hex,
+                                    typography=typography,
+                                    business=business,
+                                    iteration=0,
+                                    content_format=content_format
+                                )
+                                c["image_generation_prompt"] = alt_c["image_generation_prompt"]
                         return parsed
             except Exception:
                 continue
@@ -553,7 +580,7 @@ Include:
     # ==============================================================================
     combined_context = f"{campaign_info} {website_context.get('summary', '')} {website_context.get('detected_niche', '')}"
     cat = detect_industry_category(business.get("industry", ""), combined_context, brand_name)
-    concepts = build_industry_concepts(brand_name, business.get("industry", ""), visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration=0)
+    concepts = build_industry_concepts(brand_name, business.get("industry", ""), visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration=0, content_format=content_format)
 
     if cat == "events_venues":
         strat_idea = f"The Unforgettable Celebration Standard: Finding Gujarat's Finest Venues with {brand_name}"
@@ -849,6 +876,68 @@ def build_industry_concepts(
     ]
 
 
+
+def format_ad_poster_prompt(
+    brand_name: str,
+    headline: str,
+    sub_headline: str,
+    badges: List[str],
+    tagline: str,
+    hero_scene: str,
+    strip_panels: List[str],
+    web: str,
+    phone: str,
+    email: str,
+    cta: str,
+    f_head: str,
+    f_body: str,
+    prim_hex: str,
+    style_frag: str,
+    extra_details: str = "",
+    aspect_ratio: str = "4:5"
+) -> str:
+    """
+    Constructs a ChatGPT/Midjourney/Flux/SDXL ready Commercial Advertising Poster Prompt
+    honoring EVERY brand parameter: Logo negative space, typography, custom copy, badges,
+    hero visual style, 3-panel strip, and footer contact ribbon.
+    """
+    clean_badges = [b.strip() for b in badges if b.strip()]
+    badges_str = " ".join(f"[{b.strip('[]')}]" for b in clean_badges[:4])
+
+    clean_panels = [p.strip() for p in strip_panels if p.strip()]
+    strip_str = ", ".join(f"({i+1}) {p}" for i, p in enumerate(clean_panels[:3]))
+
+    contact_parts = []
+    if web:
+        contact_parts.append(f"Globe icon 'Website: {web}'")
+    if phone:
+        contact_parts.append(f"Phone icon 'Helpline: {phone}'")
+    if email:
+        contact_parts.append(f"Email icon 'Email: {email}'")
+
+    cta_btn = (cta or "EXPLORE NOW").strip().upper()
+    if not cta_btn.endswith("➔"):
+        cta_btn = f"{cta_btn} ➔"
+    contact_parts.append(f"Right-aligned clickable CTA pill button '{cta_btn}'")
+    footer_str = " | ".join(contact_parts)
+
+    prompt = (
+        f"Commercial advertising poster layout for {brand_name}. "
+        f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular negative space box with subtle thin dashed border clearly labeled '[ YOUR LOGO HERE ]' on a plain clean neutral background (completely clean, zero leaves, zero floral clutter on either side), perfectly reserved for direct brand logo overlay. "
+        f"[LEFT MARKETING CONTENT & COPY]: "
+        f"Large bold primary headline '{headline}' in opulent {f_head} font, "
+        f"sub-headline question '{sub_headline}' in clean legible {f_body} font, "
+        f"4 circular feature badge icons with clean micro-labels: {badges_str}, "
+        f"with elegant cursive script value tagline '{tagline}'. "
+        f"[RIGHT HERO PHOTOGRAPHY]: {hero_scene}, {style_frag}. "
+        f"[LOWER-MIDDLE 3-PANEL STRIP]: Clean horizontal split 3-tile photo strip showing: {strip_str}. "
+        f"[BOTTOM BRAND FOOTER BANNER]: Full-width sleek deep {prim_hex} footer ribbon with {footer_str}. "
+        f"{extra_details} "
+        f"Ultra-sharp 8k resolution, professional graphic design advertising creative, balanced negative space, {aspect_ratio} ratio."
+    )
+    return prompt.strip()
+
+
 def get_alternate_concept(
     idx: int,
     brand_name: str,
@@ -864,49 +953,55 @@ def get_alternate_concept(
 ) -> Dict[str, Any]:
     """
     Generates a targeted concept variation for slot idx (0=Authority, 1=Lifestyle, 2=Infographic, 3=Problem->Solution).
-    Supports endless regeneration iterations without repeating stale content.
-    Incorporates trending photography aesthetics and strict branding negative space guidelines.
+    Fully integrates every user-filled form option: Brand, Industry, Campaign Context, Target Audience,
+    City/Region, Primary CTA, Contact info, Typography, Brand Personality, Visual Style, and Colors.
+    Guarantees clean, leave-free [ YOUR LOGO HERE ] negative space container and full advertising layout.
     """
     cat = detect_industry_category(industry_text, business.get("campaign_info", ""), brand_name)
-    cta = business.get("cta", "Learn More")
-    city = business.get("target_city", "Gujarat")
-    web = business.get("website", "https://www.venueconnect.in/")
-    phone = business.get("phone", "+91 98765 43210")
-    ig_h = business.get("instagram", "@venueconnect.in")
-    f_head = typography.get("heading", "Outfit")
-
+    cta = business.get("cta", "Compare Venues & Get Free Quotes").strip() or "Compare Venues & Get Free Quotes"
+    city = business.get("target_city", "Gujarat").strip() or "Gujarat"
+    country = business.get("target_country", "India").strip() or "India"
+    web = business.get("website", "https://www.venueconnect.in/").strip() or "https://www.venueconnect.in/"
+    phone = business.get("phone", "+91 98765 43210").strip() or "+91 98765 43210"
+    email = business.get("email", "").strip()
+    ig_h = business.get("instagram", "@venueconnect.in").strip()
+    audience = business.get("target_audience", "Engaged couples, families planning weddings, event organizers").strip() or "Engaged couples, families planning weddings, event organizers"
+    campaign_info = business.get("campaign_info", "").strip()
+    objective = business.get("objective", "Lead Generation").strip() or "Lead Generation"
+    traits = business.get("personality_traits", ["Royal", "Trustworthy", "Celebratory"])
+    if isinstance(traits, str):
+        traits = [t.strip() for t in traits.split(",") if t.strip()]
+    traits_tagline = " • ".join(traits) if traits else "Royal • Trustworthy • Celebratory"
+    f_head = typography.get("heading", "Playfair Display").split(" (")[0].strip()
+    f_body = typography.get("body", "Source Sans 3").strip()
     style_frag = get_trending_style_prompt_fragment(visual_style)
-    safe_clause = build_prompt_safe_zone_clause(content_format, web, phone, ig_h, brand_name, cta)
+    ratio = "9:16" if "story" in content_format.lower() or "reel" in content_format.lower() else "4:5"
 
-    # SLOT 0: CORE AUTHORITY HERO
-    if idx == 0:
-        if cat == "events_venues":
+    # =========================================================================
+    # 1. EVENTS, BANQUETS & VENUES (e.g., VenueConnect)
+    # =========================================================================
+    if cat == "events_venues":
+        if idx == 0:
+            # Slot 0: Core Authority Hero
             variants = [
                 {
-                    "name": "Concept 1: Royal Wedding Lawn at Twilight (Infographic Ad Poster)",
+                    "name": "Concept 1: Royal Wedding Lawns & Banquets (Signature Flagship Ad Poster)",
                     "type": "Signature Venue Showcase",
-                    "objective": "Positions the brand as the premier gateway to Gujarat's most breathtaking wedding party plots.",
+                    "objective": "Positions brand as premier verified platform for Gujarat's most breathtaking wedding party plots.",
                     "visual": f"Sprawling illuminated wedding lawn in {city} at twilight, thousands of warm incandescent fairy lights, royal marigold floral archways, glowing gazebo in background, festive Gujarati celebration ambiance.",
                     "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero lawn, lower 3-panel strip, bottom ribbon.",
                     "lighting": "Magical twilight golden hour ambient glow, warm incandescent fairy lights, soft vintage direct flash.",
                     "color_dir": f"Rich twilight indigo sky contrasted with glowing amber {sec_hex} and royal {prim_hex} accents.",
-                    "typo_dir": f"Opulent {f_head} headings with refined subtitle tracking.",
-                    "logo_plc": "Top-left dedicated '[ YOUR LOGO HERE ]' container.",
+                    "typo_dir": f"Opulent {f_head} headings with refined subtitle tracking in {f_body}.",
+                    "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
                     "overlay": "Gujarat's Finest Wedding Lawns & Banquets",
                     "cta": f"{cta} • Visit {web}",
-                    "prompt": (
-                        f"Commercial advertising poster layout for {brand_name}. "
-                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular negative space box with subtle thin dashed border clearly labeled '[ YOUR LOGO HERE ]' on a plain clean neutral background (completely clean, zero leaves, zero floral clutter on either side), perfectly reserved for direct brand logo overlay. "
-                        f"[LEFT MARKETING CONTENT & COPY]: "
-                        f"Large bold primary headline 'Gujarat\\'s Finest Wedding Lawns & Banquets' in opulent {f_head} font, "
-                        f"sub-headline question 'Compare 500+ Verified Party Plots Across Gujarat', "
-                        f"4 circular feature badge icons with clean micro-labels: [🏛️ 500+ Verified Banquets] [💰 Direct Best Prices] [👥 100-5000+ Guests] [⚡ Free Guided Visits], "
-                        f"with elegant cursive script value tagline 'Gujarat\\'s Most Loved Celebrations'. "
-                        f"[RIGHT HERO PHOTOGRAPHY]: Commercial photography of an illuminated royal outdoor wedding venue lawn in {city} at twilight, thousands of warm incandescent fairy lights, royal marigold floral archway, glowing gazebo in background, festive Gujarati celebration ambiance, {style_frag}. "
-                        f"[LOWER-MIDDLE 3-PANEL STRIP]: Clean horizontal split 3-tile photo strip showing: (1) Grand Entrance Archway, (2) Luxurious AC Banquet Ballroom, (3) Twilight Lakeside Mandap. "
-                        f"[BOTTOM BRAND FOOTER BANNER]: Full-width sleek deep {prim_hex} footer ribbon with Globe icon 'Website: {web}' | Phone icon 'Helpline: {phone}' | Right-aligned clickable CTA pill button 'BOOK FREE VENUE TOUR ➔'. "
-                        f"Ultra-sharp 8k resolution, professional graphic design advertising creative, balanced negative space."
-                    )
+                    "headline": "Gujarat's Finest Wedding Lawns, Banquets & Party Plots",
+                    "sub_headline": f"Compare 500+ Verified Venues with Transparent Pricing & Capacity across {city}",
+                    "badges": ["🏛️ 500+ Verified Banquets", "💰 Direct Best Prices", "👥 100-5000+ Guests", "⚡ Free Guided Visits"],
+                    "tagline": f"'{traits_tagline} Standard in Every Celebration'",
+                    "hero_scene": f"Commercial luxury photography of an illuminated royal outdoor wedding venue lawn in {city} at twilight, thousands of warm incandescent fairy lights, royal marigold floral archway, glowing gazebo in background, festive Gujarati celebration ambiance",
+                    "strip": ["Grand Entrance Archway", "Luxurious AC Banquet Ballroom", "Twilight Lakeside Mandap"]
                 },
                 {
                     "name": "Concept 1: The Grand Palatial Banquet (Architectural Splendor Ad Poster)",
@@ -917,639 +1012,520 @@ def get_alternate_concept(
                     "lighting": "High-key warm golden chandelier illumination with deep architectural depth.",
                     "color_dir": f"Warm ivory, champagnes, and deep royal {prim_hex} grounded by {sec_hex} gold.",
                     "typo_dir": f"Classic luxury serif {f_head} overlay.",
-                    "logo_plc": "Top-left dedicated '[ YOUR LOGO HERE ]' container.",
+                    "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
                     "overlay": "Palatial Banquet Halls & Ballrooms",
                     "cta": f"Check Date Availability: {web}",
-                    "prompt": (
-                        f"Commercial advertising infographic poster layout for {brand_name}. "
-                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular negative space box with subtle thin dashed border clearly labeled '[ YOUR LOGO HERE ]' on a plain clean neutral background (completely clean, zero leaves, zero floral clutter on either side), perfectly reserved for direct brand logo overlay. "
-                        f"[LEFT MARKETING CONTENT & COPY]: "
-                        f"Large bold primary headline 'Palatial Banquet Halls & Ballrooms' in opulent {f_head} font, "
-                        f"sub-headline question 'Looking for Luxury Indoor Banquets for 100 to 5,000+ Guests?', "
-                        f"4 circular feature badge icons with clean micro-labels: [🏛️ Grand AC Halls] [💰 Zero Hidden Charges] [🍽️ Verified Pure-Veg Menus] [🚗 Dedicated Valet Parking], "
-                        f"with elegant cursive script value tagline 'Tradition & Luxury in Every Celebration'. "
-                        f"[RIGHT HERO PHOTOGRAPHY]: Architectural luxury photography of an opulent grand banquet hall ballroom in {city}, towering crystal chandeliers casting golden ambient light, royal floral centerpieces on pristine banquet tables, polished marble reflections, {style_frag}. "
-                        f"[LOWER-MIDDLE 3-PANEL STRIP]: Clean horizontal split 3-tile photo strip showing: (1) Crystal Chandelier Ceiling, (2) Royal Dining Setup, (3) Grand Stage Decor. "
-                        f"[BOTTOM BRAND FOOTER BANNER]: Full-width sleek deep {prim_hex} footer bar with Globe icon 'Website: {web}' | Phone icon 'Helpline: {phone}' | Right-aligned clickable CTA pill button 'CHECK DATE AVAILABILITY ➔'. "
-                        f"Ultra-sharp 8k resolution, professional graphic design advertising creative, balanced negative space."
-                    )
-                },
-                {
-                    "name": "Concept 1: Sunset Mandap by the Lake (Scenic Destination Ad Poster)",
-                    "type": "Destination Luxury",
-                    "objective": "Showcases premium destination party plots and lakeside mandap setups.",
-                    "visual": f"Breathtaking destination wedding mandap setup by a tranquil lake in {city} at golden sunset, draped in cascading jasmine and fresh marigolds, antique brass lanterns flickering on water.",
-                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero mandap, lower 3-panel strip, bottom ribbon.",
-                    "lighting": "Warm sunkissed golden hour backlight and flickering oil lamps.",
-                    "color_dir": f"Warm terracotta, sunset amber {sec_hex}, and regal gold.",
-                    "typo_dir": f"Refined serif {f_head}.",
-                    "logo_plc": "Top-left dedicated '[ YOUR LOGO HERE ]' container.",
-                    "overlay": "Unforgettable Destination Wedding Venues",
-                    "cta": f"Explore Destination Venues: {web}",
-                    "prompt": (
-                        f"Commercial advertising infographic poster layout for {brand_name}. "
-                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular negative space box with subtle thin dashed border clearly labeled '[ YOUR LOGO HERE ]' on a plain clean neutral background (completely clean, zero leaves, zero floral clutter on either side), perfectly reserved for direct brand logo overlay. "
-                        f"[LEFT MARKETING CONTENT & COPY]: "
-                        f"Large bold primary headline 'Unforgettable Destination Wedding Venues' in opulent {f_head} font, "
-                        f"sub-headline question 'Explore Scenic Lakeside & Heritage Plots in Gujarat', "
-                        f"4 circular feature badge icons with clean micro-labels: [🌅 Scenic Lakeside Lawns] [🕯️ Ambient Twilight Lighting] [🌺 Custom Mandap Decor] [⚡ 100% Free Visits], "
-                        f"with elegant cursive script value tagline 'Where Dream Weddings Come True'. "
-                        f"[RIGHT HERO PHOTOGRAPHY]: Breathtaking photography of a grand wedding mandap on a lakeside lawn in {city} at golden sunset, adorned with cascading jasmine and golden marigolds, antique brass lanterns reflecting on water, {style_frag}. "
-                        f"[LOWER-MIDDLE 3-PANEL STRIP]: Clean horizontal split 3-tile photo strip showing: (1) Sunset Mandap on Water, (2) Open-air Dining Lawn, (3) Fairy Light Gazebo. "
-                        f"[BOTTOM BRAND FOOTER BANNER]: Full-width sleek deep {prim_hex} footer bar with Globe icon 'Website: {web}' | Phone icon 'Helpline: {phone}' | Right-aligned clickable CTA pill button 'EXPLORE DESTINATION VENUES ➔'. "
-                        f"Ultra-sharp 8k resolution, professional graphic design advertising creative, balanced negative space."
-                    )
-                },
-                {
-                    "name": "Concept 1: Vibrant Sunlit Mehendi Poolside Lawn (Daytime Celebration Poster)",
-                    "type": "Festive Celebration",
-                    "objective": "Captures daytime event perfection for Mehendi, Haldi, and Sangeet celebrations.",
-                    "visual": f"Vibrant sun-drenched daytime poolside party plot lawn in {city}, colorful bohemian drapes in yellow and turquoise, marigold flower umbrellas, luxury cabana seating.",
-                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero poolside, lower 3-panel strip, bottom ribbon.",
-                    "lighting": "Bright cheerful natural morning sun with crisp soft shadows.",
-                    "color_dir": f"Vibrant festive yellows, crisp whites, and lush garden greens.",
-                    "typo_dir": f"Modern celebratory {f_head}.",
-                    "logo_plc": "Top-left dedicated '[ YOUR LOGO HERE ]' container.",
-                    "overlay": "Sunlit Venues for Haldi, Mehendi & Sangeet",
-                    "cta": f"Find Daytime Party Plots: {web}",
-                    "prompt": (
-                        f"Commercial advertising infographic poster layout for {brand_name}. "
-                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular negative space box with subtle thin dashed border clearly labeled '[ YOUR LOGO HERE ]' on a plain clean neutral background (completely clean, zero leaves, zero floral clutter on either side), perfectly reserved for direct brand logo overlay. "
-                        f"[LEFT MARKETING CONTENT & COPY]: "
-                        f"Large bold primary headline 'Sunlit Lawns for Haldi, Mehendi & Sangeet' in vibrant {f_head} font, "
-                        f"sub-headline question 'Planning Colorful Daytime Celebrations in Gujarat?', "
-                        f"4 circular feature badge icons with clean micro-labels: [☀️ Bright Daytime Plots] [🎨 Vibrant Bohemian Decor] [🏊 Poolside Cabanas] [💰 Transparent Package Pricing], "
-                        f"with elegant cursive script value tagline 'Vibrant Memories Under the Sun'. "
-                        f"[RIGHT HERO PHOTOGRAPHY]: Vibrant luxury event photography of an open-air poolside wedding party plot in {city} in bright daylight, colorful festive drapes, marigold flower arrangements, luxury outdoor lounge seating, sparkling pool water reflections, {style_frag}. "
-                        f"[LOWER-MIDDLE 3-PANEL STRIP]: Clean horizontal split 3-tile photo strip showing: (1) Bohemian Floral Canopy, (2) Poolside Lounge Seating, (3) Festive Haldi Setup. "
-                        f"[BOTTOM BRAND FOOTER BANNER]: Full-width sleek deep {prim_hex} footer bar with Globe icon 'Website: {web}' | Phone icon 'Helpline: {phone}' | Right-aligned clickable CTA pill button 'FIND DAYTIME PLOTS ➔'. "
-                        f"Ultra-sharp 8k resolution, professional graphic design advertising creative, balanced negative space."
-                    )
+                    "headline": "Palatial Banquet Halls & Ballrooms in Gujarat",
+                    "sub_headline": f"Looking for Luxury Indoor Banquets for 100 to 5,000+ Guests across {city}?",
+                    "badges": ["🏛️ Grand AC Halls", "💰 Zero Hidden Charges", "🍽️ Verified Pure-Veg Menus", "🚗 Dedicated Valet Parking"],
+                    "tagline": f"'{traits_tagline} • Tradition & Grandeur'",
+                    "hero_scene": f"Architectural luxury photography of an opulent grand banquet hall ballroom in {city}, towering crystal chandeliers casting golden ambient light, royal floral centerpieces on pristine banquet tables, polished marble reflections",
+                    "strip": ["Crystal Chandelier Ceiling", "Royal Dining Setup", "Grand Stage Decor"]
                 }
             ]
-        elif cat == "finance":
+        elif idx == 1:
+            # Slot 1: Emotional & Lifestyle Resonance
             variants = [
                 {
-                    "name": "Concept 1: The Clarity Command (Real-Time Cloud Ledger)",
-                    "type": "Executive Authority",
-                    "objective": "Demonstrates enterprise precision, real-time control, and audit readiness.",
-                    "visual": f"Modern minimalist boardroom workstation with dual displays showing real-time financial metrics in {prim_hex} and {sec_hex}.",
-                    "composition": "Centered vertical hero framing with clean architectural lines.",
-                    "lighting": "Bright architectural studio lighting with soft contrast.",
-                    "color_dir": f"Deep navy base illuminated by {sec_hex} and clean white telemetry lines.",
-                    "typo_dir": f"{f_head} bold modern Swiss numerals and clean sans-serif typography.",
-                    "logo_plc": "Top left header badge.",
-                    "overlay": "Zero Tax Surprises. Total Financial Clarity.",
-                    "cta": f"{cta} • Link in bio",
-                    "prompt": f"Commercial advertising photography of modern cloud accounting ledger dashboard on sleek minimalist workstation, dark mode UI with {prim_hex} and {sec_hex} financial data charts, natural daylight through office glass, Hasselblad 8k, {visual_style} aesthetic, 4:5 aspect ratio."
-                },
-                {
-                    "name": "Concept 1: The Audit-Proof Shield (CRA & Tax Defense)",
-                    "type": "Compliance Authority",
-                    "objective": "Instills total confidence that books and tax filings are 100% penalty-free.",
-                    "visual": f"Executive workstation with tablet displaying certified green audit checkmarks, backed by luminous {sec_hex} rim lighting.",
-                    "composition": "Low-angle dynamic hero framing commanding respect.",
-                    "lighting": "Moody chiaroscuro executive boardroom lighting.",
-                    "color_dir": f"Charcoal slate with emerald green compliance accents and {sec_hex} highlights.",
-                    "typo_dir": f"Authoritative {f_head} headings with precision sub-labels.",
-                    "logo_plc": "Bottom right corner safe area.",
-                    "overlay": "100% Audit-Ready. Zero Penalties.",
-                    "cta": f"Schedule Your Free Tax Review at {web}",
-                    "prompt": f"Commercial photography of modern executive accounting workspace, tablet displaying green audit verified badges and financial reports, sleek dark slate desk, subtle golden rim light, 8k resolution, 4:5 ratio."
-                },
-                {
-                    "name": "Concept 1: Cash Flow Telemetry (Executive Command Center)",
-                    "type": "Growth Architecture",
-                    "objective": "Positions the firm as a high-growth financial partner giving founders daily insight.",
-                    "visual": f"High-tech financial command dashboard showing upward profit curves and live margin analytics.",
-                    "composition": "Centered symmetric framing with clean digital guides.",
-                    "lighting": "Cool corporate ambient light with glowing chart reflections.",
-                    "color_dir": f"Deep {bg_hex} dark mode illuminated by {prim_hex} and vibrant amber {sec_hex}.",
-                    "typo_dir": f"Clean mono-spaced figures paired with {f_head} headings.",
-                    "logo_plc": "Top center badge.",
-                    "overlay": "Know Your Margins. Scale With Confidence.",
-                    "cta": f"{cta} today.",
-                    "prompt": f"Sleek commercial advertising graphic, dark mode financial analytics dashboard on glass desk, glowing cash flow charts in {prim_hex} and {sec_hex}, modern Toronto high-rise office in background, 4:5 ratio."
-                }
-            ]
-        elif cat == "tech":
-            variants = [
-                {
-                    "name": "Concept 1: The Telemetry Command Center (99.99% Uptime)",
-                    "type": "Technical Authority",
-                    "objective": "Establishes bulletproof platform stability and high-availability infrastructure.",
-                    "visual": f"Futuristic dark-mode operations console with glowing node graphs in {prim_hex} and {sec_hex}.",
-                    "composition": "Dynamic 3-point perspective looking across engineering workstations.",
-                    "lighting": "Low ambient blue glow with high-contrast screen telemetry illumination.",
-                    "color_dir": f"Deep obsidian {bg_hex} with electric cyan and amber accents.",
-                    "typo_dir": f"{f_head} bold technical headings with monospaced latency stats.",
-                    "logo_plc": "Top right telemetry badge.",
-                    "overlay": "99.99% Uptime. Sub-10ms Latency.",
-                    "cta": f"{cta} • Start free trial",
-                    "prompt": f"Commercial photography of high-tech cloud infrastructure control center, dual monitors glowing with system telemetry graphs in {prim_hex} and {sec_hex}, cinematic dark office, 8k, 4:5 ratio."
-                }
-            ]
-        elif cat == "health":
-            variants = [
-                {
-                    "name": "Concept 1: Clinical Precision (Board-Certified Care)",
-                    "type": "Clinical Authority",
-                    "objective": "Builds deep patient trust through certified medical protocol and calm aesthetics.",
-                    "visual": "Bright, serene medical consultation suite with modern diagnostic displays and organic greenery.",
-                    "composition": "Harmonious rule-of-thirds framing with calm visual balance.",
-                    "lighting": "Diffused natural morning light with soft clinical clarity.",
-                    "color_dir": f"Pristine whites and slate grays grounded by {prim_hex} and {sec_hex}.",
-                    "typo_dir": f"Gentle, authoritative {f_head} headings.",
-                    "logo_plc": "Discreet top left.",
-                    "overlay": "Certified Excellence. Compassionate Care.",
-                    "cta": f"Book your consultation at {web}",
-                    "prompt": f"High-end architectural medical clinic interior, morning sunlight through floor-to-ceiling windows, modern sterile minimalist aesthetic, Hasselblad 8k, 4:5 ratio."
-                }
-            ]
-        elif cat == "product":
-            variants = [
-                {
-                    "name": "Concept 1: The Product Hero (Macro Craftsmanship)",
-                    "type": "Product Hero",
-                    "objective": "Commands immediate premium brand perception and design appreciation.",
-                    "visual": f"Hyper-detailed macro close-up of {brand_name} showcase resting on slate stone, backlit by luminous {prim_hex} rim glow.",
-                    "composition": "Centered dramatic vertical hero framing with dynamic 30-degree Dutch tilt.",
-                    "lighting": "Dramatic dual-tone chiaroscuro lighting; warm golden amber backlight.",
-                    "color_dir": f"Deep {bg_hex} dark-mode base illuminated by {prim_hex} and vibrant {sec_hex} highlights.",
-                    "typo_dir": f"{f_head} bold minimalist sans-serif overlay.",
-                    "logo_plc": "Bottom right corner with 15% safe padding.",
-                    "overlay": "100% Verifiable Quality Standard",
-                    "cta": f"{cta} • Link in bio",
-                    "prompt": f"Commercial luxury product photography of {brand_name} showcase on dark textured slate, glowing rim light in {sec_hex} and deep {prim_hex} tones, Hasselblad 8k hyperrealistic, clean {visual_style} aesthetic, 4:5 aspect ratio."
-                }
-            ]
-        else:
-            variants = [
-                {
-                    "name": "Concept 1: The Strategic Blueprint (Executive Advisory)",
-                    "type": "Strategic Authority",
-                    "objective": "Positions the firm as the premier advisory partner for enterprise results.",
-                    "visual": f"Architectural executive boardroom table with strategic milestone blueprints and tablet showing {prim_hex} growth vectors.",
-                    "composition": "Centered vertical hero framing with dramatic leading lines.",
-                    "lighting": "Polished high-key architectural studio lighting.",
-                    "color_dir": f"Deep charcoal slate base accented by {prim_hex} and {sec_hex}.",
-                    "typo_dir": f"Authoritative {f_head} typography with clean tracking.",
-                    "logo_plc": "Top center badge.",
-                    "overlay": "Proven Strategy. Verified Execution.",
-                    "cta": f"{cta} • Schedule Briefing",
-                    "prompt": f"Commercial photography of executive corporate conference table, strategic roadmap on modern tablet, panoramic city skyline through high-rise windows, {visual_style} style, 4:5 ratio."
-                }
-            ]
-        v = variants[iteration % len(variants)]
-        return {
-            "concept_name": v["name"],
-            "concept_type": v["type"],
-            "objective_alignment": v["objective"],
-            "visual_direction": v["visual"],
-            "composition": v["composition"],
-            "lighting": v["lighting"],
-            "color_direction": v["color_dir"],
-            "typography_direction": v["typo_dir"],
-            "logo_placement": v["logo_plc"],
-            "text_overlay": v["overlay"],
-            "cta": v["cta"],
-            "image_generation_prompt": v["prompt"]
-        }
-
-    # SLOT 1: LIFESTYLE / EMOTIONAL RESONANCE
-    elif idx == 1:
-        if cat == "events_venues":
-            variants = [
-                {
-                    "name": "Concept 2: The Stress-Free Couple (Dream Venue Locked)",
-                    "type": "Emotional Relief",
-                    "objective": "Connects emotionally with engaged couples who dread chaotic venue negotiations.",
-                    "visual": f"Joyful bride and groom smiling warmly in sunlit Gujarati wedding garden, holding hands under floral pergola, pure happiness having secured their dream venue without hassle.",
-                    "composition": "Intimate medium close-up, 85mm f/1.4 lens with creamy bokeh.",
-                    "lighting": "Golden hour sun flare filtering through floral canopy.",
+                    "name": "Concept 2: Joyful Family Celebrations (Emotional Lifestyle Ad Poster)",
+                    "type": "Emotional Relief & Joy",
+                    "objective": "Connects emotionally with couples and families who dread chaotic venue negotiations.",
+                    "visual": f"Radiant bride, groom, and celebrating family laughing in a sunlit wedding garden & illuminated party plot in {city}, golden hour glow, authentic emotion, traditional attire.",
+                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero lifestyle, lower 3-panel strip, bottom ribbon.",
+                    "lighting": "Golden hour sun flare filtering through floral canopy with warm twilight incandescent glow.",
                     "color_dir": f"Warm terracotta, pastels, and golden amber {sec_hex} accents.",
-                    "typo_dir": f"Emotional {f_head} typography.",
-                    "logo_plc": "Bottom left safe zone.",
-                    "overlay": "Stop Hunting. Start Celebrating.",
-                    "cta": f"Find your match at {web}",
-                    "prompt": f"Candid documentary photography of happy engaged couple laughing in sunlit royal wedding garden in {city}, golden hour rim light, beautiful floral decor in soft focus background, authentic emotion, 85mm f/1.4 lens, natural skin tones, {style_frag}. Negative space composition: {safe_clause}"
+                    "typo_dir": f"Emotional {f_head} headings with {f_body} body.",
+                    "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                    "overlay": "Celebrate Life's Greatest Milestones Without Venue Stress",
+                    "cta": f"{cta} at {web}",
+                    "headline": "Celebrate Life's Greatest Milestones Without Venue Stress",
+                    "sub_headline": f"Dedicated to {audience} planning grand weddings and milestone celebrations in {city}",
+                    "badges": ["💍 Stress-Free Booking", "🤝 Direct Owner Deals", "🍽️ Custom Catering Menus", "🕊️ 100% Date Guarantee"],
+                    "tagline": f"'Memories That Last a Lifetime • {traits_tagline}'",
+                    "hero_scene": f"Candid documentary photography of a radiant bride, groom and celebrating family laughing under an illuminated party plot canopy in {city}, golden hour twilight glow, authentic joyful emotion, vibrant traditional festive attire with intricate mirror work, twinkling fairy lights",
+                    "strip": ["Sangeet Night Stage", "Sunlit Haldi & Mehendi Lawn", "Bride's Royal Entrance Corridor"]
                 },
                 {
-                    "name": "Concept 2: Joyous Sangeet Family Celebration (Authentic Night)",
+                    "name": "Concept 2: Sangeet & Garba Night Rhythm (Festive Energy Ad Poster)",
                     "type": "Cultural Resonance",
-                    "objective": "Taps into the vibrant communal joy of Gujarati wedding celebrations.",
-                    "visual": f"Dynamic candid capture of Gujarati wedding family celebrating with joy and laughter under illuminated party plot canopy in {city}, traditional attire with vibrant mirror work, authentic smiles.",
-                    "composition": "Energetic eye-level medium group composition with festive background depth.",
+                    "objective": "Taps into the vibrant communal joy and high-energy celebrations of Gujarati weddings.",
+                    "visual": f"Indian wedding Sangeet celebration under the open night sky in {city}, energetic families dancing, hanging fairy lights and warm sparklers, festive joy.",
+                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero event visual, lower 3-panel strip, bottom ribbon.",
                     "lighting": "Warm ambient party plot lighting with soft vintage direct flash, twinkling fairy lights.",
                     "color_dir": f"Rich festive jewel tones contrasted with warm amber {sec_hex} lighting.",
                     "typo_dir": f"Bold festive {f_head}.",
-                    "logo_plc": "Top right safe buffer.",
-                    "overlay": "Celebrate With Everyone You Love.",
+                    "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                    "overlay": "Dance, Celebrate & Create Memories Under the Stars",
                     "cta": f"Find 1,000+ Guest Venues: {web}",
-                    "prompt": f"Documentary candid photography of Gujarati wedding family celebrating with laughter under illuminated party plot canopy in {city}, vibrant traditional festive attire, joyful natural smiles, twinkling fairy lights, {style_frag}. Negative space composition: {safe_clause}"
-                },
-                {
-                    "name": "Concept 2: The Royal Bride's Entrance (Palatial Corridor)",
-                    "type": "Luxury Aspiration",
-                    "objective": "Evokes timeless emotional grandeur for brides planning their royal walk.",
-                    "visual": f"Indian bride walking gracefully down a palatial marble colonnade lined with fresh rose petals and flickering brass diyas, sheer veil catching golden ambient glow.",
-                    "composition": "Symmetrical architectural corridor framing with dramatic central perspective.",
-                    "lighting": "Soft warm architectural candle-glow with subtle golden rim light.",
-                    "color_dir": f"Royal crimson, antique ivory, and warm brass {sec_hex} tones.",
-                    "typo_dir": f"Classic luxury serif {f_head}.",
-                    "logo_plc": "Top left safe zone.",
-                    "overlay": "Make Your Grand Entrance Unforgettable.",
-                    "cta": f"Discover Heritage Venues: {web}",
-                    "prompt": f"Editorial bridal photography of an Indian bride walking down a grand palatial banquet corridor lined with glowing brass lamps and fresh rose petals in {city}, sheer veil illuminated by soft warm golden light, {style_frag}. Negative space composition: {safe_clause} Vogue India luxury wedding aesthetic."
+                    "headline": "Dance, Celebrate & Create Memories Under the Stars",
+                    "sub_headline": f"Book 1,000+ guest capacity open-air party plots across {city} with verified acoustics & sound permissions",
+                    "badges": ["🎶 1,000+ Guest Lawns", "💡 High-Tech DJ Lighting", "🍽️ Live Chaat & Sweet Counters", "🛡️ Verified Sound Permissions"],
+                    "tagline": f"'Pure Festive Joy with {traits_tagline}'",
+                    "hero_scene": f"Dynamic documentary event photography of an Indian wedding Sangeet celebration under the open night sky in {city}, energetic families dancing on illuminated dance floor, hanging string lights and warm sparklers, festive joy",
+                    "strip": ["Open-Air Acoustic Stage", "Gourmet Live Food Counters", "Festive Lantern Walkways"]
                 }
             ]
-        elif cat == "finance":
+        elif idx == 2:
+            # Slot 2: Educational Framework / Comparative Matrix / Infographic
             variants = [
                 {
-                    "name": "Concept 2: Founder Peace of Mind (Lifestyle Sanctuary)",
-                    "type": "Lifestyle Resonance",
-                    "objective": "Drives emotional relief by freeing up weekends from stressful receipt reconciliations.",
-                    "visual": f"Confident business owner calmly closing laptop in sunlit {city} office, relaxed posture knowing books and payroll are 100% balanced.",
-                    "composition": "Over-the-shoulder candid perspective with shallow depth of field (f/1.8).",
-                    "lighting": "Soft natural diffused morning window light.",
-                    "color_dir": f"Warm neutrals harmonized with {prim_hex} and {sec_hex} accents.",
-                    "typo_dir": f"Elegant clean typography in {f_head}.",
-                    "logo_plc": "Discreet lower left with safe padding.",
-                    "overlay": "Focus on Growth. We Handle Every Number.",
-                    "cta": f"Explore our bookkeeping solutions at {web}",
-                    "prompt": f"Editorial lifestyle photography of confident founder smiling in sunlit modern loft office, warm morning light, closing laptop with relaxed expression, Kodak Portra 400 grain, {visual_style} style, 4:5 aspect ratio."
-                },
-                {
-                    "name": "Concept 2: Weekend Liberation (Zero Sunday Bookkeeping)",
-                    "type": "Emotional Freedom",
-                    "objective": "Illustrates the priceless value of time saved: spending weekends with family instead of spreadsheets.",
-                    "visual": f"Entrepreneur enjoying peaceful Saturday morning coffee in sunlit café, relaxed atmosphere with zero work guilt.",
-                    "composition": "Warm candid portrait with beautiful natural bokeh.",
-                    "lighting": "Golden hour sunbeam filtering through café window.",
-                    "color_dir": f"Warm espresso and cream tones with subtle {sec_hex} amber highlights.",
-                    "typo_dir": f"Warm editorial typography.",
-                    "logo_plc": "Bottom center.",
-                    "overlay": "Take Back Your Weekends.",
-                    "cta": f"Hand off your bookkeeping today: {web}",
-                    "prompt": f"Editorial lifestyle photography, entrepreneur relaxing at modern café patio, warm golden sunlight, holding coffee with peaceful smile, Kodak Portra 400, 4:5 ratio."
-                }
-            ]
-        elif cat == "tech":
-            variants = [
-                {
-                    "name": "Concept 2: Frictionless Engineering Flow",
-                    "type": "Developer Experience",
-                    "objective": "Evokes the satisfying state of uninterrupted engineering productivity.",
-                    "visual": "Developer at ergonomic dual-monitor setup sipping coffee with zero alert fatigue.",
-                    "composition": "Side-profile dynamic depth of field shot.",
-                    "lighting": "Warm ambient desktop glow combined with soft morning daylight.",
-                    "color_dir": f"Dark matte black with subtle {prim_hex} cyan glow.",
-                    "typo_dir": "Minimalist clean sans-serif.",
-                    "logo_plc": "Bottom left safe zone.",
-                    "overlay": "Ship Code Faster. Zero DevOps Drag.",
-                    "cta": f"Join top engineering teams at {web}",
-                    "prompt": f"Editorial photography of happy software engineer at clean wooden standing desk, modern creative office, warm light, relaxed focus, 4:5 ratio."
-                }
-            ]
-        elif cat == "product":
-            variants = [
-                {
-                    "name": "Concept 2: The Lifestyle Integration (Ritual & Calm)",
-                    "type": "Lifestyle",
-                    "objective": "Drives emotional resonance and daily habit formation.",
-                    "visual": "Peaceful morning sanctuary scene with client experiencing the transformative benefit of the brand.",
-                    "composition": "Over-the-shoulder candid perspective with shallow depth of field (f/1.8).",
-                    "lighting": "Soft natural diffused morning window light.",
-                    "color_dir": f"Earthy neutrals harmonized with {sec_hex} warm sunbeams.",
-                    "typo_dir": f"Elegant {f_head} italic quote.",
-                    "logo_plc": "Discreet lower left with safe padding.",
-                    "overlay": "Make excellence your daily standard.",
-                    "cta": f"Explore the collection at {web}",
-                    "prompt": f"Editorial lifestyle photography, sunlit modern minimalist interior, morning sunlight, soft organic aesthetic, Kodak Portra 400 film grain, cozy calm luxury feel, {visual_style} style, 4:5 aspect ratio."
-                }
-            ]
-        else:
-            variants = [
-                {
-                    "name": "Concept 2: Decisive Leadership (The Confident Founder)",
-                    "type": "Executive Lifestyle",
-                    "objective": "Appeals to the leader's desire for confidence, clarity, and decisive growth.",
-                    "visual": "Business leader walking through modern architectural corridor with calm, forward-looking focus.",
-                    "composition": "Heroic centered leading perspective with wide perspective.",
-                    "lighting": "Clean architectural glass daylight.",
-                    "color_dir": f"Monochromatic slate with vibrant {sec_hex} accents.",
-                    "typo_dir": f"Bold modern {f_head} display text.",
-                    "logo_plc": "Top right safe zone.",
-                    "overlay": "Lead With Clarity. Execute With Speed.",
-                    "cta": f"Partner with {brand_name} today.",
-                    "prompt": f"Cinematic editorial photography of confident business executive walking through sunlit architectural glass corridor, natural lighting, professional and decisive, 4:5 ratio."
-                }
-            ]
-        v = variants[iteration % len(variants)]
-        return {
-            "concept_name": v["name"],
-            "concept_type": v["type"],
-            "objective_alignment": v["objective"],
-            "visual_direction": v["visual"],
-            "composition": v["composition"],
-            "lighting": v["lighting"],
-            "color_direction": v["color_dir"],
-            "typography_direction": v["typo_dir"],
-            "logo_placement": v["logo_plc"],
-            "text_overlay": v["overlay"],
-            "cta": v["cta"],
-            "image_generation_prompt": v["prompt"]
-        }
-
-    # SLOT 2: EDUCATIONAL / INFOGRAPHIC FRAMEWORK
-    elif idx == 2:
-        if cat == "events_venues":
-            variants = [
-                {
-                    "name": "Concept 3: The Smart Venue Comparison Matrix (Capacity & Pricing)",
+                    "name": "Concept 3: Smart Venue Comparison Matrix (Price, Capacity & Catering Infographic)",
                     "type": "Comparison Framework",
                     "objective": "Builds unmatched utility and trust by solving the real pain of price and capacity opacity.",
-                    "visual": f"Clean 3-pillar architectural card in {city}: 01 Banquet Capacity (100–5,000) • 02 In-House Catering Menus • 03 Verified Direct Price Comparison across Ahmedabad, Surat & Vadodara.",
-                    "composition": "Balanced modular 3-tier comparative layout with clear visual hierarchy.",
+                    "visual": f"Architectural luxury photography of grand banquet hall and party plot in {city} showcasing capacity, decor, and pure-veg catering.",
+                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero venue architecture, lower 3-panel strip, bottom ribbon.",
                     "lighting": "Crisp high-contrast commercial studio lighting with warm festive accent glow.",
-                    "color_dir": f"Deep {bg_hex} card with crisp {prim_hex} borders and {sec_hex} badge accents.",
-                    "typo_dir": f"Bold {f_head} numerals and structured feature list.",
-                    "logo_plc": "Top center.",
-                    "overlay": "Compare 500+ Verified Venues in 60 Seconds.",
+                    "color_dir": f"Deep {bg_hex} base with crisp {prim_hex} borders and {sec_hex} badge accents.",
+                    "typo_dir": f"Bold {f_head} numerals and structured feature list in {f_body}.",
+                    "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                    "overlay": "Compare Prices, Capacity & Catering Across Gujarat's Top Venues",
                     "cta": f"Compare Venues Now: {web}",
-                    "prompt": f"Minimalist modern graphic design layout, comparison card for wedding venues in {city}, 3-column structured overview of guest capacity, catering packages, and price transparency, crisp {prim_hex} and {sec_hex} accents, {style_frag}. Negative space composition: {safe_clause}"
+                    "headline": "Compare Prices, Capacity & Catering Across Gujarat's Top Venues",
+                    "sub_headline": f"3-Tier comparison framework for {audience} in Ahmedabad, Surat, Rajkot & Vadodara",
+                    "badges": ["📊 1-Click Comparison", "🍽️ Verified Pure-Veg Menus", "🚗 Dedicated Valet Parking", "📑 Zero Hidden Charges"],
+                    "tagline": f"'Total Price & Capacity Transparency • {traits_tagline}'",
+                    "hero_scene": f"Architectural luxury photography of a grand banquet hall ballroom and outdoor party plot in {city}, showcasing expansive guest seating for 100 to 5,000+ guests, polished marble floor reflections, crystal chandeliers casting golden ambient illumination, pure-veg gourmet catering spread",
+                    "strip": ["Capacity & Guest Seating Layouts", "In-House Gourmet Catering Stations", "AC Power Backup & Valet Parking"]
                 },
                 {
                     "name": "Concept 3: The 4-Step Venue Booking Roadmap (Zero Stress Guide)",
                     "type": "Process Clarity",
                     "objective": "Dismantles wedding planning overwhelm with an effortless 4-step path.",
-                    "visual": "Elegant step-by-step roadmap: 01 Shortlist by Budget ➔ 02 Compare Capacities ➔ 03 Book Free Guided Site Visit ➔ 04 Lock Guaranteed Date.",
-                    "composition": "Vertical progression card with numbered milestone circles and glowing connector lines.",
+                    "visual": f"Modern engaged couple reviewing verified venue blueprints and photos on tablet with event coordinator in elegant banquet lobby in {city}.",
+                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero roadmap scene, lower 3-panel strip, bottom ribbon.",
                     "lighting": "Clean commercial illumination with glowing amber highlight badges.",
                     "color_dir": f"Crisp dark slate with luminous amber {sec_hex} and royal {prim_hex}.",
                     "typo_dir": f"Clean structured {f_head} headings.",
-                    "logo_plc": "Top center badge.",
-                    "overlay": "01 Shortlist ➔ 02 Compare ➔ 03 Visit ➔ 04 Book",
+                    "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                    "overlay": "The 4-Step Roadmap to Locking Your Dream Venue",
                     "cta": f"Start Your Free Search: {web}",
-                    "prompt": f"Swiss minimalist graphic design layout poster, wedding venue selection roadmap in {city}, 4 clear milestones, dark slate background, glowing {prim_hex} and {sec_hex} nodes, clean typography, {style_frag}. Negative space composition: {safe_clause}"
-                },
-                {
-                    "name": "Concept 3: Top 5 Checklist for Banquet Selection in Gujarat",
-                    "type": "Educational Authority",
-                    "objective": "Positions VenueConnect as the indispensable expert guide for family decision-makers.",
-                    "visual": "Editorial checklist card highlighting: Parking capacity, AC power backup, guest room count, sound curfew limits, and catering flexibility.",
-                    "composition": "Grid layout with clean verification icons and badges.",
-                    "lighting": "Soft even studio lighting.",
-                    "color_dir": f"Royal navy {prim_hex} accented by golden amber {sec_hex}.",
-                    "typo_dir": f"Authoritative {f_head} typography.",
-                    "logo_plc": "Bottom right corner.",
-                    "overlay": "5 Questions Every Gujarat Family Must Ask Before Paying Advance.",
-                    "cta": f"Download Complete Checklist at {web}",
-                    "prompt": f"Editorial infographic graphic design, wedding venue booking checklist poster for Gujarat banquets, crisp checklist badges, {prim_hex} and {sec_hex} accents, {style_frag}. Negative space composition: {safe_clause}"
-                }
-            ]
-        elif cat == "finance":
-            variants = [
-                {
-                    "name": "Concept 3: The 3 Pillars of Financial Mastery (Infographic)",
-                    "type": "Educational Authority",
-                    "objective": "Builds deep procedural authority and trust for corporate clients.",
-                    "visual": "Structured 3-column architectural layout: 01 Real-Time Bookkeeping • 02 Tax Minimization • 03 Strategic Forecasting.",
-                    "composition": "Balanced modular layout with generous whitespace.",
-                    "lighting": "Even, bright studio high-key illumination.",
-                    "color_dir": f"Crisp dark slate card layout with {prim_hex} borders and {sec_hex} numerical tags.",
-                    "typo_dir": f"Bold {f_head} numerals with clean body copy.",
-                    "logo_plc": "Top center badge.",
-                    "overlay": "01 Reconcile • 02 Optimize • 03 Scale",
-                    "cta": "Swipe through our client framework →",
-                    "prompt": f"Swiss minimalist graphic design layout poster, dark mode financial architecture card, 3-column comparison, clean {prim_hex} and {sec_hex} accents, crisp typography, 4:5 ratio."
-                },
-                {
-                    "name": "Concept 3: The 4-Step Tax Minimization Roadmap",
-                    "type": "Strategic Infographic",
-                    "objective": "Educates business owners on how proactive bookkeeping saves thousands annually.",
-                    "visual": "Step-by-step roadmap card with numbered milestone badges and glowing connection vectors.",
-                    "composition": "Vertical progression with intuitive hierarchical flow.",
-                    "lighting": "Crisp digital contrast with luminous accent nodes.",
-                    "color_dir": f"Dark slate with vibrant {sec_hex} milestone markers.",
-                    "typo_dir": f"{f_head} section headers with high-legibility numerals.",
-                    "logo_plc": "Bottom footer bar.",
-                    "overlay": "01 Capture ➔ 02 Classify ➔ 03 Deduct ➔ 04 File",
-                    "cta": f"Download the complete checklist at {web}",
-                    "prompt": f"Minimalist Swiss infographic design poster, step-by-step financial milestone roadmap, dark slate background, glowing {prim_hex} and {sec_hex} nodes, crisp clean corporate typography, 4:5 ratio."
-                }
-            ]
-        elif cat == "tech":
-            variants = [
-                {
-                    "name": "Concept 3: The Modern Cloud Stack (Architecture Benchmark)",
-                    "type": "Technical Infographic",
-                    "objective": "Demonstrates architectural superiority and seamless component integration.",
-                    "visual": "Modular architecture diagram showcasing real-time data ingestion, processing, and visualization layers.",
-                    "composition": "Structured 3-tier horizontal modular stack.",
-                    "lighting": "High-contrast vector illumination.",
-                    "color_dir": f"Deep {bg_hex} with neon {sec_hex} data bus lines.",
-                    "typo_dir": "Precision monospace tags.",
-                    "logo_plc": "Top left header.",
-                    "overlay": "Ingest • Transform • Observe",
-                    "cta": "Explore the interactive architecture diagram →",
-                    "prompt": f"Swiss graphic design tech poster, dark mode cloud architecture diagram, glowing pipeline connectors in {prim_hex} and {sec_hex}, sharp vector graphic, 4:5 ratio."
-                }
-            ]
-        elif cat == "product":
-            variants = [
-                {
-                    "name": "Concept 3: The Educational Framework (3 Quality Pillars)",
-                    "type": "Educational",
-                    "objective": f"Builds deep authority and trust for {business.get('target_audience', 'customers')}.",
-                    "visual": "Structured 3-column comparative infographic card with scientific clarity.",
-                    "composition": "Balanced modular layout with generous whitespace.",
-                    "lighting": "Even, bright studio high-key illumination.",
-                    "color_dir": f"Crisp dark slate card layout with {prim_hex} borders and {sec_hex} numerical tags.",
-                    "typo_dir": f"Bold {f_head} numerals with clean body copy.",
-                    "logo_plc": "Top center badge.",
-                    "overlay": "01 Source • 02 Extract • 03 Verify",
-                    "cta": "Swipe through our verified results →",
-                    "prompt": f"Minimalist Swiss-style graphic design layout mockup, dark mode UI card, crisp typography, clean data architecture with {prim_hex} and {sec_hex} accents, high resolution graphic poster, {visual_style} aesthetic, 4:5 ratio."
+                    "headline": "The 4-Step Roadmap to Locking Your Dream Venue",
+                    "sub_headline": f"How {brand_name} simplifies wedding venue selection in {city}: Filter Budget ➔ Compare ➔ Free Guided Visit ➔ Book Direct",
+                    "badges": ["🔍 1-Click Shortlist", "💰 Direct Negotiated Rates", "🚗 Free Guided Site Visits", "🔒 Guaranteed Booking Advance"],
+                    "tagline": f"'From Search to Celebration in 4 Simple Steps • {traits_tagline}'",
+                    "hero_scene": f"Commercial lifestyle photography of modern engaged couple reviewing verified venue plans on tablet with event coordinator in an elegant banquet lobby in {city}, warm ambient light, serene smiling faces",
+                    "strip": ["01 Online Filter by Capacity", "02 Free Guided Site Visit", "03 Direct Contract Lock"]
                 }
             ]
         else:
+            # Slot 3: Problem -> Solution / Direct Response / Urgency
             variants = [
                 {
-                    "name": "Concept 3: The 3-Phase Execution Roadmap",
-                    "type": "Methodology Framework",
-                    "objective": "Builds unmatched client confidence through a transparent, disciplined delivery process.",
-                    "visual": "Clean architectural infographic with 3 phases: Diagnostic Audit, Strategic Implementation, Measured Growth.",
-                    "composition": "Horizontal progression card with clean milestone dividers.",
-                    "lighting": "High-key studio contrast.",
-                    "color_dir": f"Dark slate with {prim_hex} borders and {sec_hex} milestone icons.",
-                    "typo_dir": f"Bold {f_head} typography.",
-                    "logo_plc": "Top center badge.",
-                    "overlay": "01 Audit • 02 Execute • 03 Scale",
-                    "cta": "Review the full client roadmap →",
-                    "prompt": f"Swiss minimalist business infographic poster, dark slate background, 3 execution stages, clean {prim_hex} and {sec_hex} line accents, 4:5 ratio."
-                }
-            ]
-        v = variants[iteration % len(variants)]
-        return {
-            "concept_name": v["name"],
-            "concept_type": v["type"],
-            "objective_alignment": v["objective"],
-            "visual_direction": v["visual"],
-            "composition": v["composition"],
-            "lighting": v["lighting"],
-            "color_direction": v["color_dir"],
-            "typography_direction": v["typo_dir"],
-            "logo_placement": v["logo_plc"],
-            "text_overlay": v["overlay"],
-            "cta": v["cta"],
-            "image_generation_prompt": v["prompt"]
-        }
-
-    # SLOT 3: PROBLEM -> SOLUTION / PARADIGM SHIFT
-    else:
-        if cat == "events_venues":
-            variants = [
-                {
-                    "name": "Concept 4: 20 Venue Visits ➔ 1-Click Comparison (Problem ➔ Solution)",
+                    "name": "Concept 4: 20 Venue Visits ➔ 1-Click Booking (Problem to Solution Poster)",
                     "type": "Direct Response Ad",
                     "objective": "High-converting split comparison showing the exhausting old way vs the smart VenueConnect way.",
-                    "visual": f"Split screen visual: On left, tired couple in traffic with messy venue brochures in {city}; on right, stunning glowing evening party plot with families dancing and verified booking badge in {sec_hex}.",
-                    "composition": "50/50 vertical division with high visual contrast.",
+                    "visual": f"High-impact side-by-side contrast: Left side desaturated venue hunting traffic in {city}; right side illuminated evening party plot with families dancing.",
+                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero contrast visual, lower 3-panel strip, bottom ribbon.",
                     "lighting": "Desaturated flat tones on left resolving into luminous golden celebration on right.",
                     "color_dir": f"Neutral charcoal fading to vibrant royal {prim_hex} and festive amber {sec_hex}.",
-                    "typo_dir": "Punchy comparison labels ('Old Way' vs 'VenueConnect Way').",
-                    "logo_plc": "Bottom center bridge.",
-                    "overlay": "Wedding Dates Fill Up Fast. Lock Yours Today.",
-                    "cta": f"Get Free Quotes: {web}",
-                    "prompt": f"High-converting split screen advertising photography, left side chaotic venue paperwork and stressful traffic in {city}, right side breathtaking illuminated wedding lawn with fairy lights and joyous celebration, {style_frag}. Negative space composition: {safe_clause}"
+                    "typo_dir": f"Punchy contrasting labels in {f_head}.",
+                    "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                    "overlay": "Stop Running Between 20 Venues. Compare & Book from Home in Minutes.",
+                    "cta": f"{cta} at {web}",
+                    "headline": "Stop Running Between 20 Venues. Compare & Book from Home in Minutes.",
+                    "sub_headline": f"Peak wedding dates fill up fast across {city} - Check live date availability & get free quotes today",
+                    "badges": ["⚡ Instant Free Quotes", "📅 Live Date Availability", "🚫 Zero Brokerage Fee", "⭐ 4.9/5 Star Verified"],
+                    "tagline": f"'The Smartest Way to Book Venues in Gujarat • {traits_tagline}'",
+                    "hero_scene": f"Side-by-side high-impact commercial contrast: subtle desaturated tone on left capturing chaotic venue hunting paperwork and traffic in {city}, resolving seamlessly on right into a breathtaking illuminated evening wedding party plot with glowing fairy lights and joyous dancing families",
+                    "strip": ["Instant Online Shortlisting", "Free Guided Site Visits", "Guaranteed Date Confirmation"]
                 },
                 {
-                    "name": "Concept 4: Wedding Season Date Rush (Auspicious Dates Alert)",
-                    "type": "Urgency & Availability",
-                    "objective": "Triggers rapid action for prime wedding dates (Sayas) before premium banquets sell out.",
-                    "visual": f"Glowing luxury calendar marking peak auspicious wedding months in Gujarat, framed beside an opulent illuminated banquet hall in {city}.",
-                    "composition": "Hero visual with prominent date milestone badges.",
-                    "lighting": "Warm ambient twilight glow with sparkling chandelier reflections.",
-                    "color_dir": f"Deep celebratory red and golden amber {sec_hex}.",
-                    "typo_dir": f"High-contrast urgency typography in {f_head}.",
-                    "logo_plc": "Top right header buffer.",
-                    "overlay": "Prime Sayas Booking 8 Months in Advance. Secure Your Venue Today.",
-                    "cta": f"Check Real-Time Availability: {web}",
-                    "prompt": f"Urgent high-converting commercial advertising creative, glowing calendar highlighting auspicious wedding dates in Gujarat, backdrop of illuminated grand banquet ballroom in {city}, warm amber lighting, {style_frag}. Negative space composition: {safe_clause}"
-                },
-                {
-                    "name": "Concept 4: Hidden Cost Opacity ➔ Guaranteed Price Transparency",
+                    "name": "Concept 4: Zero Hidden Charges Guarantee (Price Clarity Poster)",
                     "type": "Trust & Price Defense",
                     "objective": "Eliminates fear of surprise catering, electricity, and generator charges.",
-                    "visual": "Split visual contrasting fine-print hidden fee bills on left with a crystal-clear, all-inclusive VenueConnect verified quote on right.",
-                    "composition": "Side-by-side high-contrast clarity layout.",
+                    "visual": f"Verified transparent booking agreement with green guarantee seal on polished conference table in {city}, background of an illuminated lavish banquet hall.",
+                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero visual, lower 3-panel strip, bottom ribbon.",
                     "lighting": "Dim shadowed tones resolving into crisp daylight clarity.",
                     "color_dir": f"Warning grey to verified emerald green and royal {prim_hex}.",
-                    "typo_dir": "Clean sans-serif trust badges.",
-                    "logo_plc": "Bottom center.",
-                    "overlay": "Zero Hidden Charges. Direct Venue Rates.",
+                    "typo_dir": f"Clean {f_head} trust badges.",
+                    "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                    "overlay": "Zero Hidden Fees. 100% All-Inclusive Venue Quotes.",
                     "cta": f"Get Instant Transparent Quotes: {web}",
-                    "prompt": f"High impact commercial advertising split photography, fine print hidden fee bills on left transitioning into verified transparent booking contract with green guarantee seal on right, modern studio layout, {style_frag}. Negative space composition: {safe_clause}"
+                    "headline": "Zero Hidden Fees. 100% All-Inclusive Venue Quotes.",
+                    "sub_headline": f"Say goodbye to surprise catering, electricity & generator bills across {city} banquets",
+                    "badges": ["📜 All-Inclusive Packages", "💵 Fixed Transparent Pricing", "🛡️ Written Price Guarantee", "🤝 Zero Surprise Charges"],
+                    "tagline": f"'Honest Pricing Built on Trust • {traits_tagline}'",
+                    "hero_scene": f"High-contrast commercial advertising photograph, a clear transparent booking seal and verified agreement on polished conference table in {city}, background of an illuminated lavish banquet dining hall, warm golden lighting",
+                    "strip": ["Itemized Catering Breakdown", "Electricity & Backup Included", "Written Security Guarantee"]
                 }
             ]
-        elif cat == "finance":
-            variants = [
-                {
-                    "name": "Concept 4: Spreadsheet Chaos ➔ Automated Mastery (Problem ➔ Solution)",
-                    "type": "Conversion Paradigm",
-                    "objective": "High-converting split comparison dismantling manual procrastination.",
-                    "visual": "Split comparison: Messy crumpled receipts, tangled Excel spreadsheets on left resolving into glowing, automated, audit-ready cloud accounting on right.",
-                    "composition": "50/50 vertical division with high visual contrast.",
-                    "lighting": "Dim flat lighting on left transitioning to golden clarity on right.",
-                    "color_dir": f"Muted desaturated grey on left resolving into vibrant {prim_hex} and {sec_hex} on right.",
-                    "typo_dir": "Punchy contrasting labels ('Manual Spreadsheets' vs 'Cloud Automation').",
-                    "logo_plc": "Bottom center bridge.",
-                    "overlay": "Stop Losing Weekends to Bookkeeping.",
-                    "cta": f"{cta} today.",
-                    "prompt": f"Conceptual split-screen advertising photography, left side chaotic paper receipts and error warning stamps, right side sleek glowing cloud accounting dashboard in {prim_hex} and {sec_hex}, dramatic commercial advertising, 4:5 ratio."
-                },
-                {
-                    "name": "Concept 4: Tax Season Panic ➔ Year-Round Calm",
-                    "type": "Pain Point Elimination",
-                    "objective": "Triggers immediate action by contrasting last-minute March panic with effortless monthly reconciliation.",
-                    "visual": "Side-by-side comparison: Stressed desk with overdue sticky notes on left vs serene high-rise desk with clean green filings on right.",
-                    "composition": "Split-view with central gold divider line.",
-                    "lighting": "Harsh fluorescent shadow on left vs warm morning sunlight on right.",
-                    "color_dir": "Desaturated charcoal transitioning to rich warm amber.",
-                    "typo_dir": f"Bold contrasting {f_head} headlines.",
-                    "logo_plc": "Bottom right corner.",
-                    "overlay": "Tax Time Shouldn't Feel Like An Emergency.",
-                    "cta": f"Switch to proactive bookkeeping: {web}",
-                    "prompt": f"High-contrast split screen commercial advertisement, left side dark messy desk with disorganized receipts, right side bright clean modern boardroom desk with tablet showing 100% tax compliance, 4:5 ratio."
-                }
-            ]
-        elif cat == "tech":
-            variants = [
-                {
-                    "name": "Concept 4: Legacy Bottlenecks ➔ Cloud Velocity",
-                    "type": "Paradigm Shift",
-                    "objective": "Drives immediate software trial by exposing the painful drag of outdated infrastructure.",
-                    "visual": "Split view: Tangled server wires and error logs on left resolving into clean, automated cloud pipelines on right.",
-                    "composition": "Diagonal split comparison with high energy.",
-                    "lighting": "Red warning glow on left vs crisp cyan illumination on right.",
-                    "color_dir": f"Warning red fading to {prim_hex} electric blue and {sec_hex} amber.",
-                    "typo_dir": "Punchy technical comparison labels.",
-                    "logo_plc": "Bottom center.",
-                    "overlay": "Modernize Your Stack in Days, Not Quarters.",
-                    "cta": f"Start free migration at {web}",
-                    "prompt": f"Side-by-side conceptual technology advertisement, left side chaotic legacy server rack, right side modern glowing minimalist cloud architecture with telemetry charts, 4:5 ratio."
-                }
-            ]
-        elif cat == "product":
-            variants = [
-                {
-                    "name": "Concept 4: Problem to Solution (The Paradigm Shift)",
-                    "type": "Problem -> Solution",
-                    "objective": "Converts fence-sitters into buyers by dismantling market objections.",
-                    "visual": "Dynamic side-by-side split comparison of outdated alternatives vs pure modern batch.",
-                    "composition": "50/50 vertical division with high visual contrast.",
-                    "lighting": "Dim flat lighting on left transitioning to luminous golden clarity on right.",
-                    "color_dir": f"Muted desaturated grey on left resolving into vibrant {prim_hex} and {sec_hex} on right.",
-                    "typo_dir": "Punchy contrasting labels ('Standard Options' vs 'Our Standard').",
-                    "logo_plc": "Bottom center bridge.",
-                    "overlay": "Stop settling for diluted solutions.",
-                    "cta": f"{cta} today.",
-                    "prompt": f"Side-by-side conceptual comparison photography, dramatic lighting transition from cloudy dull backdrop to crystal clear glowing clarity, commercial advertising layout, {visual_style} style, 4:5 aspect ratio."
-                }
-            ]
+
+    # =========================================================================
+    # 2. FINANCE & ACCOUNTING
+    # =========================================================================
+    elif cat == "finance":
+        if idx == 0:
+            variants = [{
+                "name": "Concept 1: The Clarity Command (Audit-Ready Financials Poster)",
+                "type": "Executive Authority",
+                "objective": "Demonstrates precision, real-time control, and audit readiness.",
+                "visual": f"Modern minimalist workstation in {city} with dual displays showing real-time financial metrics in {prim_hex} and {sec_hex}.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero workstation, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Bright architectural studio lighting with soft contrast.",
+                "color_dir": f"Deep navy base illuminated by {sec_hex} and clean white lines.",
+                "typo_dir": f"{f_head} bold headings with clean {f_body} copy.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "Zero Tax Surprises. Total Financial Clarity.",
+                "cta": f"{cta} • Visit {web}",
+                "headline": "Zero Tax Surprises. Total Financial Clarity.",
+                "sub_headline": f"Proactive Bookkeeping & Tax Strategy designed for {audience} in {city}",
+                "badges": ["📊 Real-Time Books", "🛡️ 100% Audit Ready", "💰 Tax Optimization", "⚡ Dedicated CPA Support"],
+                "tagline": f"'{traits_tagline} Standard in Every Balance Sheet'",
+                "hero_scene": f"Commercial photography of modern cloud accounting ledger dashboard on sleek minimalist workstation, dark mode UI with {prim_hex} and {sec_hex} financial data charts, natural daylight through office glass in {city}",
+                "strip": ["Real-Time P&L Dashboard", "Tax Deduction Audit", "Cash Flow Forecasting"]
+            }]
+        elif idx == 1:
+            variants = [{
+                "name": "Concept 2: Founder Peace of Mind (Weekend Freedom Poster)",
+                "type": "Emotional Relief",
+                "objective": "Frees business owners from stressful weekend receipt reconciliations.",
+                "visual": f"Confident founder calmly closing laptop in sunlit {city} office, relaxed expression knowing books are balanced.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero founder scene, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Soft natural diffused morning window light.",
+                "color_dir": f"Warm neutrals harmonized with {prim_hex} and {sec_hex} accents.",
+                "typo_dir": f"Elegant {f_head} headings.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "Focus on Growth. We Handle Every Receipt.",
+                "cta": f"{cta} at {web}",
+                "headline": "Focus on Growth. We Handle Every Receipt.",
+                "sub_headline": f"Reclaim your weekends with automated, error-free bookkeeping in {city}",
+                "badges": ["☕ Weekend Freedom", "📑 Zero Paperwork Drag", "🤝 Year-Round Advisory", "🔒 Bank-Grade Security"],
+                "tagline": f"'Financial Peace of Mind • {traits_tagline}'",
+                "hero_scene": f"Editorial lifestyle photography of confident founder smiling in sunlit modern loft office in {city}, warm morning light, closing laptop with relaxed expression",
+                "strip": ["Automated Expense Sync", "Monthly Financial Review", "Direct CPA Helpline"]
+            }]
+        elif idx == 2:
+            variants = [{
+                "name": "Concept 3: 3 Pillars of Financial Mastery (Tax Optimization Infographic)",
+                "type": "Educational Authority",
+                "objective": "Builds procedural trust for corporate clients.",
+                "visual": "Structured comparative matrix displaying Bookkeeping, Tax Minimization, and Cash Flow Forecasting.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero matrix, lower 3-panel strip, bottom ribbon.",
+                "lighting": "High-contrast clean architectural lighting.",
+                "color_dir": f"Dark slate with {prim_hex} borders and {sec_hex} numerical tags.",
+                "typo_dir": f"Bold {f_head} numerals.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "01 Reconcile • 02 Optimize • 03 Scale",
+                "cta": f"{cta} at {web}",
+                "headline": "The 3 Pillars of Tax Minimization & Cash Flow Mastery",
+                "sub_headline": f"How {brand_name} saves {audience} thousands annually through proactive tax planning",
+                "badges": ["01 Reconcile Books", "02 Optimize Deductions", "03 Real-Time Forecast", "04 100% Tax Defense"],
+                "tagline": f"'Strategic Financial Precision • {traits_tagline}'",
+                "hero_scene": f"Clean architectural business graphics and financial analytics dashboard on modern glass desk in {city}, glowing cash flow charts in {prim_hex} and {sec_hex}",
+                "strip": ["Step 1: Clean Ledger", "Step 2: Tax Deductions", "Step 3: Growth Roadmap"]
+            }]
         else:
-            variants = [
-                {
-                    "name": "Concept 4: DIY Guesswork ➔ Strategic Certainty",
-                    "type": "Transformation Paradigm",
-                    "objective": "Converts prospective clients by demonstrating the costly hidden toll of trial-and-error.",
-                    "visual": "Split screen comparing fragmented sticky notes and disjointed plans on left with clear structured milestone timeline on right.",
-                    "composition": "50/50 vertical split with high contrast.",
-                    "lighting": "Shadowed monochrome on left resolving into bright warm clarity on right.",
-                    "color_dir": f"Dull gray to vibrant {sec_hex} gold.",
-                    "typo_dir": f"Contrasting {f_head} bold typography.",
-                    "logo_plc": "Bottom center bridge.",
-                    "overlay": "Stop Guessing. Start Scaling.",
-                    "cta": f"{cta} • Link in bio",
-                    "prompt": f"High impact split-screen commercial advertising visual, left side chaotic paper sketches and red error marks, right side luminous structured execution roadmap with {prim_hex} and {sec_hex} milestones, 4:5 ratio."
-                }
-            ]
-        v = variants[iteration % len(variants)]
-        return {
-            "concept_name": v["name"],
-            "concept_type": v["type"],
-            "objective_alignment": v["objective"],
-            "visual_direction": v["visual"],
-            "composition": v["composition"],
-            "lighting": v["lighting"],
-            "color_direction": v["color_dir"],
-            "typography_direction": v["typo_dir"],
-            "logo_placement": v["logo_plc"],
-            "text_overlay": v["overlay"],
-            "cta": v["cta"],
-            "image_generation_prompt": v["prompt"]
-        }
+            variants = [{
+                "name": "Concept 4: Spreadsheet Chaos ➔ Automated Cloud Mastery (Problem to Solution)",
+                "type": "Conversion Paradigm",
+                "objective": "High-converting comparison dismantling manual spreadsheet friction.",
+                "visual": "Side-by-side contrast of messy receipts on left vs glowing audit-ready dashboard on right.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero contrast, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Dim flat lighting on left transitioning to golden clarity on right.",
+                "color_dir": f"Dull grey transitioning to vibrant {prim_hex} and {sec_hex}.",
+                "typo_dir": f"Punchy contrasting {f_head} labels.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "Stop Losing Hours to Manual Spreadsheets.",
+                "cta": f"{cta} at {web}",
+                "headline": "Spreadsheet Chaos ➔ Automated Cloud Accounting",
+                "sub_headline": f"Switch {audience} from manual bookkeeping to automated precision in minutes",
+                "badges": ["⚡ 1-Click Migration", "🚫 Zero Error Tolerance", "📈 Live Margin Visibility", "⭐ 99.9% Audit Accuracy"],
+                "tagline": f"'The Modern Way to Manage Money • {traits_tagline}'",
+                "hero_scene": f"High-contrast commercial advertising photograph, left side disorganized paper receipts, right side sleek glowing cloud accounting dashboard in {prim_hex} and {sec_hex}",
+                "strip": ["Legacy Spreadsheets (Old)", "Instant Cloud Sync", "Audit-Ready Reports"]
+            }]
+
+    # =========================================================================
+    # 3. TECH, SAAS & SOFTWARE
+    # =========================================================================
+    elif cat == "tech":
+        if idx == 0:
+            variants = [{
+                "name": "Concept 1: High-Availability Telemetry Control (Flagship Poster)",
+                "type": "Technical Authority",
+                "objective": "Establishes bulletproof platform stability and high-availability infrastructure.",
+                "visual": f"Futuristic dark-mode operations console in {city} with glowing node graphs in {prim_hex} and {sec_hex}.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero console, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Low ambient blue glow with high-contrast screen telemetry illumination.",
+                "color_dir": f"Deep obsidian {bg_hex} with electric cyan and amber accents.",
+                "typo_dir": f"{f_head} bold technical headings with clean {f_body}.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "99.99% Uptime. Sub-10ms Latency.",
+                "cta": f"{cta} • Visit {web}",
+                "headline": "High-Availability Cloud Architecture & Real-Time Telemetry",
+                "sub_headline": f"Sub-10ms latency & 99.99% uptime engineered for {audience} in {city}",
+                "badges": ["⚡ 99.99% Uptime", "🔒 Enterprise SOC-2", "🚀 Auto-Scaling Mesh", "🛠️ 24/7 DevOps Support"],
+                "tagline": f"'{traits_tagline} Infrastructure'",
+                "hero_scene": f"Commercial photography of high-tech cloud infrastructure control center in {city}, dual monitors glowing with system telemetry graphs in {prim_hex} and {sec_hex}, cinematic dark office",
+                "strip": ["Kubernetes Cluster Health", "Real-Time Telemetry Graphs", "Global CDN Latency Map"]
+            }]
+        elif idx == 1:
+            variants = [{
+                "name": "Concept 2: Developer Flow State (Frictionless Engineering Poster)",
+                "type": "Developer Experience",
+                "objective": "Evokes the satisfying state of uninterrupted engineering productivity.",
+                "visual": f"Software engineer at modern wooden desk in {city} sipping coffee, enjoying zero alert fatigue.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero workspace, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Warm ambient desktop glow combined with soft morning daylight.",
+                "color_dir": f"Dark matte black with subtle {prim_hex} cyan glow.",
+                "typo_dir": f"Clean {f_head} headings.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "Ship Code Faster. Zero DevOps Drag.",
+                "cta": f"{cta} at {web}",
+                "headline": "Ship Code 10x Faster With Zero DevOps Drag",
+                "sub_headline": f"Empowering {audience} to deploy with confidence without breaking production",
+                "badges": ["🚀 1-Click CI/CD", "🛡️ Automated Rollbacks", "⚡ Instant Staging Envs", "📦 Container Native"],
+                "tagline": f"'Frictionless Developer Experience • {traits_tagline}'",
+                "hero_scene": f"Editorial lifestyle photography of happy software engineer at clean wooden standing desk in creative office in {city}, relaxed focus, warm screen glow",
+                "strip": ["Git Push to Production", "Instant Preview Builds", "Zero-Downtime Deploys"]
+            }]
+        elif idx == 2:
+            variants = [{
+                "name": "Concept 3: The Unified Stack Architecture (Benchmark Infographic)",
+                "type": "Technical Infographic",
+                "objective": "Demonstrates architectural superiority and seamless component integration.",
+                "visual": "Modular architecture diagram showcasing real-time data ingestion, processing, and visualization layers.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero architecture, lower 3-panel strip, bottom ribbon.",
+                "lighting": "High-contrast vector illumination.",
+                "color_dir": f"Deep {bg_hex} with neon {sec_hex} data bus lines.",
+                "typo_dir": "Precision typography.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "Ingest • Transform • Observe",
+                "cta": f"{cta} at {web}",
+                "headline": "Modular Data Pipelines & Unified Microservices Architecture",
+                "sub_headline": f"How modern engineering teams architect for high scale with {brand_name}",
+                "badges": ["🔌 100+ Prebuilt Connectors", "⚡ In-Memory Cache Layer", "📊 Real-Time Observability", "🔒 End-to-End Encryption"],
+                "tagline": f"'Scalability Without Complexity • {traits_tagline}'",
+                "hero_scene": f"Swiss graphic design tech poster, dark mode cloud architecture diagram, glowing pipeline connectors in {prim_hex} and {sec_hex}, sharp vector graphic",
+                "strip": ["Event Streaming Pipeline", "Distributed Database Cluster", "Unified Analytics Gateway"]
+            }]
+        else:
+            variants = [{
+                "name": "Concept 4: Legacy Bottlenecks ➔ Cloud Velocity (Problem to Solution)",
+                "type": "Paradigm Shift",
+                "objective": "Drives immediate trial by exposing the painful drag of outdated infrastructure.",
+                "visual": "Split view: Tangled server wires and error logs on left resolving into clean, automated cloud pipelines on right.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero contrast, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Red warning glow on left vs crisp cyan illumination on right.",
+                "color_dir": f"Warning red fading to {prim_hex} electric blue and {sec_hex} amber.",
+                "typo_dir": f"Punchy technical comparison labels in {f_head}.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "Modernize Your Stack in Days, Not Quarters.",
+                "cta": f"{cta} at {web}",
+                "headline": "Modernize Your Infrastructure in Days, Not Quarters",
+                "sub_headline": f"Tired of fragile legacy servers? Switch {audience} to reliable cloud orchestration",
+                "badges": ["⚡ Zero Migration Downtime", "🚫 No Vendor Lock-In", "💰 40% Infrastructure Savings", "🛡️ 99.99% SLA"],
+                "tagline": f"'Future-Proof Your Technology • {traits_tagline}'",
+                "hero_scene": f"Side-by-side conceptual technology advertisement, left side chaotic legacy server rack, right side modern glowing minimalist cloud architecture with telemetry charts",
+                "strip": ["Legacy Monolith (Old)", "Automated Cloud Migration", "High-Speed Microservices"]
+            }]
+
+    # =========================================================================
+    # 4. PHYSICAL PRODUCTS & E-COMMERCE
+    # =========================================================================
+    elif cat == "product":
+        if idx == 0:
+            variants = [{
+                "name": "Concept 1: The Product Hero (Macro Craftsmanship Poster)",
+                "type": "Product Hero",
+                "objective": "Commands immediate premium brand perception and design appreciation.",
+                "visual": f"Hyper-detailed macro close-up of {brand_name} showcase resting on slate stone, backlit by luminous {prim_hex} rim glow.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero product, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Dramatic dual-tone chiaroscuro lighting; warm golden amber backlight.",
+                "color_dir": f"Deep {bg_hex} dark-mode base illuminated by {prim_hex} and vibrant {sec_hex} highlights.",
+                "typo_dir": f"{f_head} bold minimalist overlay.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "100% Verifiable Quality Standard",
+                "cta": f"{cta} • Visit {web}",
+                "headline": "Uncompromising Craftsmanship & Pure Ingredients",
+                "sub_headline": f"Handcrafted excellence designed for {audience} seeking superior quality",
+                "badges": ["⭐ 100% Verifiable Quality", "🌿 Pure Natural Formula", "📦 Express Delivery", "💎 30-Day Guarantee"],
+                "tagline": f"'{traits_tagline} in Every Detail'",
+                "hero_scene": f"Commercial luxury product photography of {brand_name} showcase on dark textured slate, glowing rim light in {sec_hex} and deep {prim_hex} tones, Hasselblad 8k detail",
+                "strip": ["Artisan Small-Batch Source", "Precision Quality Testing", "Luxury Unboxing Experience"]
+            }]
+        elif idx == 1:
+            variants = [{
+                "name": "Concept 2: The Lifestyle Integration (Ritual & Calm Poster)",
+                "type": "Lifestyle",
+                "objective": "Drives emotional resonance and daily habit formation.",
+                "visual": f"Peaceful sunlit sanctuary scene in {city} with customer experiencing the transformative benefit of {brand_name}.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero lifestyle, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Soft natural diffused morning window light.",
+                "color_dir": f"Earthy neutrals harmonized with {sec_hex} warm sunbeams.",
+                "typo_dir": f"Elegant {f_head} italic quote.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "Make Excellence Your Daily Ritual.",
+                "cta": f"{cta} at {web}",
+                "headline": "Make Excellence Your Daily Ritual",
+                "sub_headline": f"Discover how {brand_name} elevates the daily lifestyle of {audience}",
+                "badges": ["🌿 100% Certified Organic", "🕊️ Calming Daily Ritual", "💧 Deep Nutrient Absorption", "⭐ 50,000+ Happy Customers"],
+                "tagline": f"'Pure Daily Transformation • {traits_tagline}'",
+                "hero_scene": f"Editorial lifestyle photography, sunlit modern minimalist interior in {city}, morning sunlight, soft organic aesthetic, Kodak Portra 400 film grain, cozy calm luxury feel",
+                "strip": ["Morning Ritual Practice", "Gentle Daily Nourishment", "All-Day Radiant Glow"]
+            }]
+        elif idx == 2:
+            variants = [{
+                "name": "Concept 3: 3 Quality Pillars (Educational Framework Infographic)",
+                "type": "Educational",
+                "objective": f"Builds deep authority and trust for {audience}.",
+                "visual": "Structured 3-column comparative infographic card with scientific clarity.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero infographic, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Even, bright studio high-key illumination.",
+                "color_dir": f"Crisp dark slate card layout with {prim_hex} borders and {sec_hex} numerical tags.",
+                "typo_dir": f"Bold {f_head} numerals.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "01 Source • 02 Extract • 03 Verify",
+                "cta": f"{cta} at {web}",
+                "headline": "The 3 Pillars of Verifiable Purity & Potency",
+                "sub_headline": f"Why {brand_name} sets the gold benchmark for quality across {country}",
+                "badges": ["01 Cold-Pressed Sourcing", "02 Zero Artificial Additives", "03 Third-Party Lab Certified", "04 Eco-Friendly Glass Jar"],
+                "tagline": f"'Verifiable Excellence • {traits_tagline}'",
+                "hero_scene": f"Minimalist Swiss-style graphic design layout mockup, dark mode UI card, crisp typography, clean data architecture with {prim_hex} and {sec_hex} accents",
+                "strip": ["Ethical Wild Harvest", "Supercritical Extraction", "Certificate of Analysis"]
+            }]
+        else:
+            variants = [{
+                "name": "Concept 4: Diluted Alternatives ➔ Pure Potency (Problem to Solution)",
+                "type": "Problem -> Solution",
+                "objective": "Converts fence-sitters into buyers by dismantling market objections.",
+                "visual": "Side-by-side split comparison of outdated alternatives vs pure modern batch.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero contrast, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Dim flat lighting on left transitioning to luminous golden clarity on right.",
+                "color_dir": f"Muted desaturated grey on left resolving into vibrant {prim_hex} and {sec_hex} on right.",
+                "typo_dir": f"Punchy contrasting labels in {f_head}.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "Stop Settling for Diluted Alternatives.",
+                "cta": f"{cta} at {web}",
+                "headline": "Stop Settling for Diluted Formulas & Fillers",
+                "sub_headline": f"Experience the 100% active, bio-available difference engineered for {audience}",
+                "badges": ["⚡ 100% Active Potency", "🚫 Zero Mineral Oils", "🔬 Clinically Proven Results", "📦 Money-Back Guarantee"],
+                "tagline": f"'Pure Potency • {traits_tagline}'",
+                "hero_scene": f"Side-by-side conceptual comparison photography, dramatic lighting transition from cloudy dull backdrop on left to crystal clear glowing clarity on right",
+                "strip": ["Synthetic Fillers (Old)", "Pure Cold-Pressed Batch", "Verified Clinical Results"]
+            }]
+
+    # =========================================================================
+    # 5. GENERAL BUSINESS & PROFESSIONAL SERVICES (DEFAULT FALLBACK)
+    # =========================================================================
+    else:
+        if idx == 0:
+            variants = [{
+                "name": "Concept 1: Strategic Blueprint (Executive Authority Poster)",
+                "type": "Strategic Authority",
+                "objective": "Positions the firm as the premier advisory partner for enterprise results.",
+                "visual": f"Architectural executive boardroom table in {city} with strategic roadmap and tablet showing {prim_hex} growth vectors.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero boardroom, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Polished high-key architectural studio lighting.",
+                "color_dir": f"Deep charcoal slate base accented by {prim_hex} and {sec_hex}.",
+                "typo_dir": f"Authoritative {f_head} typography.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "Proven Strategy. Verified Execution.",
+                "cta": f"{cta} • Visit {web}",
+                "headline": "Proven Strategy. Verifiable Execution.",
+                "sub_headline": f"Enterprise advisory and growth architecture designed for {audience} in {city}",
+                "badges": ["⭐ Proven Track Record", "🎯 Tailored Strategy", "📈 Measurable ROI", "⚡ Rapid Onboarding"],
+                "tagline": f"'{traits_tagline} Excellence'",
+                "hero_scene": f"Commercial photography of executive corporate conference table in {city}, strategic roadmap on modern tablet, panoramic city skyline through high-rise windows",
+                "strip": ["Diagnostic Audit", "Execution Framework", "Performance Review"]
+            }]
+        elif idx == 1:
+            variants = [{
+                "name": "Concept 2: Decisive Leadership (Confident Growth Poster)",
+                "type": "Executive Lifestyle",
+                "objective": "Appeals to the leader's desire for confidence, clarity, and decisive growth.",
+                "visual": f"Business leader walking through sunlit architectural corridor in {city} with calm, forward-looking focus.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero corridor, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Clean architectural glass daylight.",
+                "color_dir": f"Monochromatic slate with vibrant {sec_hex} accents.",
+                "typo_dir": f"Bold modern {f_head} display text.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "Lead With Clarity. Execute With Speed.",
+                "cta": f"{cta} at {web}",
+                "headline": "Lead With Clarity. Execute With Speed.",
+                "sub_headline": f"Freeing {audience} from operational friction so you can focus on core vision",
+                "badges": ["🤝 Trusted Partner", "📊 Clear Milestones", "💡 Expert Advisory", "🕊️ Operational Peace"],
+                "tagline": f"'Empowering Leaders • {traits_tagline}'",
+                "hero_scene": f"Cinematic editorial photography of confident business executive walking through sunlit architectural glass corridor in {city}, natural lighting, professional and decisive",
+                "strip": ["Streamlined Operations", "Cross-Functional Alignment", "Sustainable Scale"]
+            }]
+        elif idx == 2:
+            variants = [{
+                "name": "Concept 3: The 3-Phase Execution Roadmap (Framework Infographic)",
+                "type": "Methodology Framework",
+                "objective": "Builds unmatched client confidence through a transparent, disciplined delivery process.",
+                "visual": "Clean architectural infographic with 3 phases: Diagnostic Audit, Strategic Implementation, Measured Growth.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero framework, lower 3-panel strip, bottom ribbon.",
+                "lighting": "High-key studio contrast.",
+                "color_dir": f"Dark slate with {prim_hex} borders and {sec_hex} milestone icons.",
+                "typo_dir": f"Bold {f_head} typography.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "01 Audit • 02 Execute • 03 Scale",
+                "cta": f"{cta} at {web}",
+                "headline": "The 3-Phase Roadmap to Predictable Execution",
+                "sub_headline": f"How {brand_name} delivers measurable transformation for {audience}",
+                "badges": ["01 Deep Diagnostic", "02 Agile Execution", "03 KPI Optimization", "04 Continuous Scale"],
+                "tagline": f"'Disciplined Delivery • {traits_tagline}'",
+                "hero_scene": f"Swiss minimalist business infographic poster, dark slate background in {city}, 3 execution stages, clean {prim_hex} and {sec_hex} line accents",
+                "strip": ["Phase 1: Gap Analysis", "Phase 2: Core Sprint", "Phase 3: ROI Validation"]
+            }]
+        else:
+            variants = [{
+                "name": "Concept 4: DIY Guesswork ➔ Strategic Certainty (Problem to Solution)",
+                "type": "Transformation Paradigm",
+                "objective": "Converts prospective clients by demonstrating the costly hidden toll of trial-and-error.",
+                "visual": "Split screen comparing fragmented sticky notes and disjointed plans on left with clear structured milestone timeline on right.",
+                "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero split visual, lower 3-panel strip, bottom ribbon.",
+                "lighting": "Shadowed monochrome on left resolving into bright warm clarity on right.",
+                "color_dir": f"Dull gray to vibrant {sec_hex} gold.",
+                "typo_dir": f"Contrasting {f_head} bold typography.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": "Stop Guessing. Start Scaling.",
+                "cta": f"{cta} at {web}",
+                "headline": "Stop Guessing. Start Scaling With Confidence.",
+                "sub_headline": f"Why {audience} choose {brand_name} over fragmented DIY approaches",
+                "badges": ["⚡ Fast-Track Results", "🚫 Zero Costly Rework", "📈 Guaranteed Milestones", "⭐ 98% Client Satisfaction"],
+                "tagline": f"'Clarity Over Chaos • {traits_tagline}'",
+                "hero_scene": f"High impact split-screen commercial advertising visual, left side chaotic paper sketches and red error marks, right side luminous structured execution roadmap with {prim_hex} and {sec_hex} milestones",
+                "strip": ["Fragmented Trial & Error (Old)", "Structured Advisory Sprint", "Proven Measurable Growth"]
+            }]
+
+    v = variants[iteration % len(variants)]
+
+    # Generate the pristine commercial advertising prompt incorporating EVERY user option
+    image_prompt = format_ad_poster_prompt(
+        brand_name=brand_name,
+        headline=v["headline"],
+        sub_headline=v["sub_headline"],
+        badges=v["badges"],
+        tagline=v["tagline"],
+        hero_scene=v["hero_scene"],
+        strip_panels=v["strip"],
+        web=web,
+        phone=phone,
+        email=email,
+        cta=cta,
+        f_head=f_head,
+        f_body=f_body,
+        prim_hex=prim_hex,
+        style_frag=style_frag,
+        aspect_ratio=ratio
+    )
+
+    return {
+        "concept_name": v["name"],
+        "concept_type": v["type"],
+        "objective_alignment": v["objective"],
+        "visual_direction": v["visual"],
+        "composition": v["composition"],
+        "lighting": v["lighting"],
+        "color_direction": v["color_dir"],
+        "typography_direction": v["typo_dir"],
+        "logo_placement": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' negative space box (plain clean neutral background, zero leaves, zero floral motifs, zero clutter).",
+        "text_overlay": v["overlay"],
+        "cta": v["cta"],
+        "image_generation_prompt": image_prompt
+    }
 
 
 def build_platform_captions_fresh(brand_name: str, industry: str, objective: str, business: Dict[str, Any], iteration: int = 0) -> Dict[str, Any]:
@@ -2537,7 +2513,21 @@ def render_brand_first_content_page():
         "phone": contact_phone,
         "email": contact_email,
         "cta": primary_cta,
-        "campaign_info": custom_campaign_info
+        "campaign_info": custom_campaign_info,
+        "objective": chosen_objective,
+        "personality_traits": selected_traits,
+        "formal_casual": slider_formal,
+        "conservative_creative": slider_creative,
+        "visual_style": chosen_visual_style,
+        "heading_font": f_head.split(" (")[0],
+        "body_font": f_body,
+        "product_url": product_page_url,
+        "platforms": selected_platforms,
+        "c_prim": c_prim,
+        "c_sec": c_sec,
+        "c_acc": c_acc,
+        "c_bg": c_bg,
+        "c_txt": c_txt,
     }
 
     color_pack = {
@@ -2564,6 +2554,14 @@ def render_brand_first_content_page():
         st.session_state["studio_content_pack"] = None
 
     if generate_btn:
+        # Reset generation trackers so fresh pack values show in text areas
+        for i in range(4):
+            st.session_state[f"prompt_regen_ver_{i}"] = 0
+            st.session_state[f"caption_regen_ver_{i}"] = 0
+            for it_v in range(15):
+                st.session_state.pop(f"txt_prompt_area_{i}_{it_v}", None)
+                st.session_state.pop(f"txt_caption_area_{i}_{it_v}", None)
+
         progress_placeholder = st.empty()
         with progress_placeholder.container():
             st.markdown("""
@@ -2602,6 +2600,7 @@ def render_brand_first_content_page():
         )
 
         st.session_state["studio_content_pack"] = generated_pack
+        st.session_state["social_content_pack"] = generated_pack
         progress_placeholder.empty()
         st.success("🎉 Complete Brand-First Content Pack Generated Successfully!")
 
