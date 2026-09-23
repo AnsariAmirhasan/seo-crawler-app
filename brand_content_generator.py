@@ -2325,7 +2325,7 @@ def render_brand_first_content_page():
     # ⚙️ AI PROVIDER & MODEL SETTINGS
     # ==========================================================================
     with st.expander("⚙️ AI Provider & Model Architecture Settings", expanded=False):
-        prov_col1, prov_col2, prov_col3 = st.columns(3)
+        prov_col1, prov_col2 = st.columns(2)
         with prov_col1:
             ai_provider = st.selectbox("AI Provider:", ["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"])
         with prov_col2:
@@ -2351,19 +2351,6 @@ def render_brand_first_content_page():
 
             if strategy_model == "Custom Model":
                 strategy_model = st.text_input("Custom Model Identifier:", value="gemini-3.8-flash")
-
-        with prov_col3:
-            image_model = st.selectbox(
-                "Target Image Prompt Syntax:",
-                [
-                    "Midjourney v6.1 (Photorealism & Cinematic Lighting)",
-                    "Flux.1 Schnell / Dev (Natural Skin & Atmosphere)",
-                    "Ideogram v2 (Clean Typography & Negative Space)",
-                    "Stable Diffusion XL / SD 3.5",
-                    "Universal Photography Prompt"
-                ],
-                help="Select your target image generator tool. CrawlPilot generates production-ready prompts with negative space for logos and website tagging."
-            )
 
         gemini_api_key = st.text_input("AI Provider API Key (Optional — Studio uses verified fallback if blank):", type="password", value="", help="Enter your Google Gemini or OpenAI API key.")
 
@@ -2442,8 +2429,7 @@ def render_brand_first_content_page():
             product_url=product_page_url,
             api_key=gemini_api_key,
             provider=ai_provider,
-            strategy_model=strategy_model,
-            image_model=image_model
+            strategy_model=strategy_model
         )
 
         st.session_state["studio_content_pack"] = generated_pack
