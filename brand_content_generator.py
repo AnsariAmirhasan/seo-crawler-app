@@ -1537,43 +1537,90 @@ def get_alternate_concept(
 
 
 def build_platform_captions_fresh(brand_name: str, industry: str, objective: str, business: Dict[str, Any], iteration: int = 0) -> Dict[str, Any]:
-    """Generates fresh platform-specific captions with rotating hooks and niche resonance."""
+    """Generates fresh platform-specific captions with rotating hooks, body copy, and tone resonance."""
     cat = detect_industry_category(industry, business.get("campaign_info", ""), brand_name)
     web = business.get("website", "https://www.venueconnect.in/")
-    phone = business.get("phone", "[Direct Booking Helpline]")
+    phone = business.get("phone", "+91 98765 43210")
     city = business.get("target_city", "Gujarat")
 
     if cat == "events_venues":
-        hooks = [
-            f"Planning a dream wedding or grand celebration in {city}? Stop spending weeks visiting 20 banquets in the heat. 🌸✨",
-            f"Wedding dates in {city} are booking 6-12 months ahead! Have you secured your venue yet? 📅🏛️",
-            f"The smart way to find Gujarat's finest party plots & royal banquet halls at verified direct prices 💎✨",
-            f"Before you pay a venue advance in Ahmedabad, Surat, or Vadodara, read this! 🚨"
+        rotations = [
+            {
+                "ig_pro": f"Planning a dream wedding or grand celebration in {city}? Stop spending weeks visiting 20 banquets in the heat. 🌸✨\n\nWith {brand_name}, browse and compare verified wedding lawns, party plots, and luxury banquet halls across Gujarat in one place.\n\nWhy Gujarat families trust {brand_name}:\n🏛️ 500+ Verified Banquets & Party Plots\n💰 Transparent price comparisons & catering packages\n👥 Capacities from 100 to 5,000+ guests\n⚡ Free instant quotes & site visit coordination\n\nMake your celebration unforgettable. Book smarter today.\n\n🌐 Visit: {web}\n📲 Call / WhatsApp: {phone}\n📍 Ahmedabad • Surat • Vadodara • Rajkot\n\nTag someone getting married this season! 👇",
+                "ig_cre": f"Imagine walking into an illuminated open-air lawn at golden twilight, fairy lights dancing overhead, and the fragrance of fresh marigolds welcoming your guests... 💍✨\n\nYour once-in-a-lifetime day deserves an extraordinary venue. At {brand_name}, we hand-curate Gujarat's most enchanting wedding venues, heritage lawns, and grand banquets so you can create memories that last forever.\n\n✨ Find the backdrop to your love story:\n🔗 Explore curated venues: {web}\n📞 Speak to our wedding venue concierges: {phone}",
+                "ig_sho": f"500+ Verified Wedding Venues across {city} at direct verified rates. 🏛️💍\n\nZero brokerage. Real photos. Instant availability checks.\n\n👉 Book your free venue tour: {web}",
+                "fb_pro": f"Your dream celebration deserves the perfect setting. 💍✨ Discover Gujarat's most loved wedding lawns, royal banquet halls, and party plots on {brand_name}. Compare prices, guest capacities, and catering options with zero hassle!\n\n👉 Book your free site visit today: {web}\n📞 WhatsApp: {phone}",
+                "fb_cre": f"A celebration should feel like magic, not stressful logistics. 🌸💫 From royal palatial banquets to serene open-air lawns, discover Gujarat's dreamiest celebration spaces with {brand_name}.\n\nExplore availability & direct pricing: {web}",
+                "fb_sho": f"Scouting wedding venues in {city}? Compare 500+ verified party plots and banquets in 2 minutes on {brand_name}: {web}",
+                "x_pro": f"Securing a wedding banquet or party plot in Gujarat shouldn't take weeks of exhausting visits.\n\nCompare 500+ verified venues, price ranges & catering packages in 2 minutes on {brand_name} 🧵👇\n\n{web}",
+                "x_cre": f"From twilight mandap setups to royal palatial banquets across Ahmedabad, Surat & Vadodara 🌸✨ Discover Gujarat's finest wedding spaces on {brand_name}: {web}",
+                "x_sho": f"Wedding venue shopping in Gujarat made effortless. 500+ verified party plots & banquets: {web}",
+                "li_pro": f"Corporate summits, product launches, or grand annual galas in {city}?\n\n{brand_name} simplifies enterprise venue scouting with verified AC banquet halls, luxury resort lawns, and transparent catering options across Ahmedabad, Surat, and Vadodara.\n\n✔ Zero brokerage or hidden fees\n✔ Verified venue photos & real customer ratings\n\nExplore corporate event spaces: {web}"
+            },
+            {
+                "ig_pro": f"Wedding dates in {city} are booking 6-12 months ahead! Have you secured your venue yet? 📅🏛️\n\nTop wedding party plots and prime Saturday/Sunday dates across Ahmedabad, Surat, and Vadodara get locked in fast. Don't compromise on your auspicious date.\n\nHow {brand_name} helps you lock your venue in 24 hours:\n⚡ Live date availability checks\n📸 360° virtual venue walkthroughs & layout maps\n🤝 Direct pricing with banquet owners (No middleman markups)\n🍽️ Curated pure-veg catering packages & amenities\n\nSecure your preferred date before someone else does!\n\n🌐 Check date availability: {web}\n📲 Direct helpline: {phone}",
+                "ig_cre": f"Every bride and groom envisions the moment they step into their reception. The lights, the music, the smiles of 1,000 loved ones... ✨💫\n\nDon't let venue hunting stress take away the joy of wedding prep. With {brand_name}, Gujarat's most sought-after party plots and banquets are right at your fingertips.\n\n🌸 Explore availability today: {web}",
+                "ig_sho": f"Prime wedding dates in {city} are filling fast! ⏳🏛️ Check instant availability for Gujarat's top banquets on {brand_name}: {web}",
+                "fb_pro": f"Auspicious wedding dates for the upcoming season are booking fast in Gujarat! ⏳💍 Find and reserve verified wedding lawns and luxury AC banquets on {brand_name} before slots close.\n\nCheck live availability: {web}",
+                "fb_cre": f"Your special date is finalized. Now find the venue that will take everyone's breath away! ✨ From heritage banquets to grand lawns in {city}, discover them all on {brand_name}: {web}",
+                "fb_sho": f"Don't lose your lucky wedding date. Compare & book top Gujarat venues online: {web}",
+                "x_pro": f"Wedding dates in Gujarat sell out 6-12 months in advance. How {brand_name} helps families lock premier party plots & banquets without middleman markups: {web}",
+                "x_cre": f"Step into the wedding venue you've always dreamed of. Verified plots across Gujarat on {brand_name} 🌸✨: {web}",
+                "x_sho": f"Book your wedding lawn before the best dates are gone: {web}",
+                "li_pro": f"High-capacity conference and banquet planning in Gujarat? Lock in premier corporate event spaces ahead of peak business season with {brand_name}: {web}"
+            },
+            {
+                "ig_pro": f"The smart way to find Gujarat's finest party plots & royal banquet halls at verified direct prices 💎✨\n\nWhy settle for inflated quotes or undisclosed broker fees? At {brand_name}, our mission is absolute transparency for families and event organizers.\n\nWhat you get with {brand_name}:\n✅ 100% Verified venue credentials & legal licenses\n✅ Real photos with true guest capacity benchmarks\n✅ Direct connection to venue management\n✅ Complimentary consultation & visit booking\n\nCelebrate grandly. Book smartly.\n\n🔗 Browse venues: {web}\n📞 Inquiries: {phone}",
+                "ig_cre": f"From grand Garba nights to royal wedding pheras under the stars, Gujarat's celebrations are unmatched in warmth and grandeur. 🌟🎶\n\nLet {brand_name} help you find a venue as grand as your traditions. Explore Gujarat's most iconic wedding plots and luxury halls.\n\n✨ Discover your venue: {web}",
+                "ig_sho": f"Verified pricing. Zero hidden fees. 500+ party plots in {city}. Book with {brand_name}: {web}",
+                "fb_pro": f"Stop paying broker fees for venue scouting! {brand_name} connects you directly with top wedding party plots & banquet halls across Gujarat with verified pricing.\n\nFind your venue now: {web}",
+                "fb_cre": f"Tradition, elegance, and celebration come together at Gujarat's finest party plots. Discover verified wedding spaces on {brand_name}: {web}",
+                "fb_sho": f"Compare Gujarat banquets directly at verified rates: {web}",
+                "x_pro": f"Why do wedding venue prices vary so wildly? {brand_name} brings transparent pricing and verified capacities to Gujarat's event venues: {web}",
+                "x_cre": f"A venue as grand as your Gujarati celebration 💎✨ Discover party plots on {brand_name}: {web}",
+                "x_sho": f"Transparent party plot bookings across Gujarat: {web}",
+                "li_pro": f"Transparent enterprise procurement for venue spaces in {city}. Zero brokerage, verified capacity, seamless booking via {brand_name}: {web}"
+            },
+            {
+                "ig_pro": f"Before you pay a venue advance in Ahmedabad, Surat, or Vadodara, read this! 🚨\n\nHere are 4 critical things to verify before signing a venue contract in Gujarat:\n1️⃣ Generator & power backup capacity for high-wattage lighting & AC\n2️⃣ Valet & guest parking space (crucial for 500+ guests)\n3️⃣ Noise curfew rules & lawn clearance timings\n4️⃣ Catering kitchen hygiene & pure-veg certification\n\nEvery venue listed on {brand_name} is pre-audited across these exact parameters!\n\n💡 Save time and avoid costly surprises:\n🌐 Visit: {web}\n📲 Talk to an expert: {phone}",
+                "ig_cre": f"Your wedding day should be filled with laughter and love, not last-minute venue hiccups. 💖✨ That's why thousands of couples trust {brand_name} to find vetted, flawless party plots across Gujarat.\n\nExplore trusted venues: {web}",
+                "ig_sho": f"4 things to verify before booking a venue in {city}. Protect your celebration with {brand_name}: {web}",
+                "fb_pro": f"Planning a wedding in Gujarat? Don't pay a token advance before checking parking, generator backup, and catering licenses. Browse pre-verified venues on {brand_name}: {web}",
+                "fb_cre": f"Peace of mind is the best wedding gift. Book audited wedding lawns across Gujarat on {brand_name}: {web}",
+                "fb_sho": f"Vetted party plots with zero hidden surprises in {city}: {web}",
+                "x_pro": f"The ultimate Gujarat wedding venue checklist: parking, power backup, catering rules, curfew. {brand_name} audits them all: {web}",
+                "x_cre": f"Don't leave your wedding day to chance. Discover vetted Gujarat wedding venues on {brand_name}: {web}",
+                "x_sho": f"Audited party plots across Ahmedabad, Surat, Vadodara: {web}",
+                "li_pro": f"Event risk management: How corporate event planners in Gujarat ensure venue reliability with {brand_name}: {web}"
+            }
         ]
-        hook = hooks[iteration % len(hooks)]
-        ig = f"{hook}\n\nWith {brand_name}, browse and compare verified wedding lawns, party plots, and luxury banquet halls across Gujarat in one place.\n\nWhy Gujarat families trust {brand_name}:\n🏛️ 500+ Verified Banquets & Party Plots\n💰 Transparent price comparisons & catering packages\n👥 Capacities from 100 to 5,000+ guests\n⚡ Free instant quotes & site visit coordination\n\nMake your celebration unforgettable. Book smarter today.\n\n🌐 Visit: {web}\n📲 Call / WhatsApp: {phone}\n📍 Venues across Ahmedabad, Surat, Vadodara, Rajkot & Gujarat\n\nTag someone getting married this season! 👇"
-        fb = f"{hook}\n\nYour dream wedding deserves the perfect setting. 💍✨ Discover Gujarat's most loved wedding lawns, royal banquet halls, and party plots on {brand_name}. Compare prices, guest capacities, and catering options with zero hassle!\n\n👉 Book your free site visit today: {web}\n📞 WhatsApp: {phone}"
-        x = f"{hook}\n\nCompare 500+ verified banquet halls & party plots across Gujarat in under 2 minutes 🧵👇\n\n{web}"
-        li = f"Corporate summits, product launches, or grand annual galas in Gujarat?\n\n{brand_name} simplifies enterprise venue scouting with verified AC banquet halls, luxury resort lawns, and transparent catering options across Ahmedabad, Surat, and Vadodara.\n\n✔ Zero brokerage or hidden fees\n✔ Verified venue photos & real customer ratings\n\nExplore corporate event spaces: {web}"
+        r = rotations[iteration % len(rotations)]
+        return {
+            "instagram": {"professional": r["ig_pro"], "creative": r["ig_cre"], "short": r["ig_sho"]},
+            "facebook": {"professional": r["fb_pro"], "creative": r["fb_cre"], "short": r["fb_sho"]},
+            "x": {"professional": r["x_pro"], "creative": r["x_cre"], "short": r["x_sho"]},
+            "linkedin": {"professional": r["li_pro"], "creative": r["li_pro"], "short": r["ig_sho"]}
+        }
     else:
-        hooks = [
-            f"When it comes to verified quality, clarity is your biggest growth lever at {brand_name}.",
-            f"Stop relying on guesswork. Here is the modern standard from {brand_name}.",
-            f"Why industry leaders in {city} trust {brand_name} for consistent results.",
-            f"Transforming operational friction into measurable velocity with {brand_name}."
+        rotations = [
+            {
+                "ig_pro": f"When it comes to verified quality, clarity is your biggest growth lever at {brand_name}.\n\n✔ Dedicated Specialists\n✔ Proven Execution Framework\n✔ 100% Transparency\n\nExplore our solutions: {web}\n📲 Contact: {phone}",
+                "ig_cre": f"Behind every successful milestone is a partner committed to excellence. At {brand_name}, we help our clients turn ambition into measurable impact.\n\nDiscover the difference: {web}",
+                "ig_sho": f"Reliable solutions tailored for {city}. Partner with {brand_name}: {web}"
+            },
+            {
+                "ig_pro": f"Stop relying on guesswork. Here is the modern standard from {brand_name}.\n\nWe provide verified, high-performance frameworks designed for measurable results.\n\nExplore: {web}",
+                "ig_cre": f"What if your daily operations felt seamless and completely predictable? That's what we build every day at {brand_name}.\n\nLearn more: {web}",
+                "ig_sho": f"High performance. Total clarity. Choose {brand_name}: {web}"
+            }
         ]
-        hook = hooks[iteration % len(hooks)]
-        ig = f"{hook}\n\nAt {brand_name}, we partner with clients seeking verified standards, senior expertise, and proven outcomes.\n\n✔ Dedicated Specialists\n✔ Proven Execution Framework\n✔ 100% Transparency\n\nExplore our solutions: {web}\n📲 Contact: {phone}"
-        fb = f"{hook}\n\nEmpowering businesses and clients across {city} with verified solutions. Partner with {brand_name} today:\n\n👉 {web}"
-        x = f"{hook}\n\nDiscover how {brand_name} simplifies execution 🧵👇\n\n{web}"
-        li = f"{hook}\n\nConnect with our team to discuss your objectives for this quarter: {web}"
-
-    return {
-        "instagram": {"professional": ig, "creative": ig.replace("When it comes to", "Here is the honest truth about"), "short": f"Discover {brand_name}: {web}"},
-        "facebook": {"professional": fb, "creative": fb, "short": f"Learn more: {web}"},
-        "x": {"professional": x, "creative": x, "short": f"Explore: {web}"},
-        "linkedin": {"professional": li, "creative": li, "short": f"Connect with {brand_name}: {web}"}
-    }
+        r = rotations[iteration % len(rotations)]
+        return {
+            "instagram": {"professional": r["ig_pro"], "creative": r["ig_cre"], "short": r["ig_sho"]},
+            "facebook": {"professional": r["ig_pro"], "creative": r["ig_cre"], "short": r["ig_sho"]},
+            "x": {"professional": r["ig_sho"], "creative": r["ig_sho"], "short": r["ig_sho"]},
+            "linkedin": {"professional": r["ig_pro"], "creative": r["ig_cre"], "short": r["ig_sho"]}
+        }
 
 
 # ==============================================================================
@@ -2605,6 +2652,8 @@ def render_brand_first_content_page():
             key="studio_active_concept_idx"
         )
         cur_concept = concepts[active_c_idx]
+        cur_it = st.session_state.get(f"prompt_regen_ver_{active_c_idx}", 0)
+        cur_cap_it = st.session_state.get(f"caption_regen_ver_{active_c_idx}", 0)
 
         col_left_prmpt, col_right_capt = st.columns([1.1, 1.1])
 
@@ -2637,21 +2686,23 @@ def render_brand_first_content_page():
             """, unsafe_allow_html=True)
 
             prompt_text = cur_concept.get("image_generation_prompt", "")
+            prompt_key = f"txt_prompt_area_{active_c_idx}_{cur_it}"
+            st.session_state[prompt_key] = prompt_text
             st.text_area(
                 "Image Generation Prompt (Ready for Midjourney / Flux / SDXL / Ideogram):",
                 value=prompt_text,
                 height=230,
-                key=f"txt_prompt_area_{active_c_idx}"
+                key=prompt_key
             )
 
             # Left Action Buttons: Copy Prompt & Regenerate Prompt
             lp_col1, lp_col2 = st.columns(2)
             with lp_col1:
-                render_instant_copy_button(prompt_text, "Copy Image Prompt", f"btn_cp_prompt_{active_c_idx}")
+                render_instant_copy_button(prompt_text, "Copy Image Prompt", f"btn_cp_prompt_{active_c_idx}_{cur_it}")
             with lp_col2:
                 if st.button("🔄 Regenerate Prompt", key=f"btn_regen_prompt_{active_c_idx}", use_container_width=True):
-                    cur_it = st.session_state.get(f"prompt_regen_ver_{active_c_idx}", 0) + 1
-                    st.session_state[f"prompt_regen_ver_{active_c_idx}"] = cur_it
+                    next_it = cur_it + 1
+                    st.session_state[f"prompt_regen_ver_{active_c_idx}"] = next_it
                     with st.spinner("🔄 Generating fresh trending prompt variation..."):
                         fresh_c = get_alternate_concept(
                             idx=active_c_idx,
@@ -2663,12 +2714,13 @@ def render_brand_first_content_page():
                             bg_hex=c_bg,
                             typography=typo_pack,
                             business=biz_data,
-                            iteration=cur_it,
+                            iteration=next_it,
                             content_format=chosen_format
                         )
                         pack["creative_concepts"][active_c_idx] = fresh_c
                         st.session_state["studio_content_pack"] = pack
                         st.session_state["social_content_pack"] = pack
+                        st.toast("✅ Fresh image prompt variation generated!")
                         st.rerun()
 
         # ----------------------------------------------------------------------
@@ -2721,32 +2773,35 @@ def render_brand_first_content_page():
             )
             full_caption_text = f"{body_caption}\n\n---\n{combined_tags}" if combined_tags else body_caption
 
+            caption_key = f"txt_caption_area_{active_c_idx}_{plat_key}_{tone_key}_{cur_cap_it}"
+            st.session_state[caption_key] = full_caption_text
             st.text_area(
                 f"{sel_plat} Caption ({sel_tone}):",
                 value=full_caption_text,
                 height=230,
-                key=f"txt_caption_area_{active_c_idx}_{plat_key}_{tone_key}"
+                key=caption_key
             )
 
             # Right Action Buttons: Copy Caption & Regenerate Caption
             rc_col1, rc_col2 = st.columns(2)
             with rc_col1:
-                render_instant_copy_button(full_caption_text, "Copy Caption & Tags", f"btn_cp_cap_{active_c_idx}")
+                render_instant_copy_button(full_caption_text, "Copy Caption & Tags", f"btn_cp_cap_{active_c_idx}_{cur_cap_it}")
             with rc_col2:
                 if st.button("🔄 Regenerate Caption", key=f"btn_regen_cap_{active_c_idx}", use_container_width=True):
-                    cur_cap_it = st.session_state.get(f"caption_regen_ver_{active_c_idx}", 0) + 1
-                    st.session_state[f"caption_regen_ver_{active_c_idx}"] = cur_cap_it
+                    next_cap_it = cur_cap_it + 1
+                    st.session_state[f"caption_regen_ver_{active_c_idx}"] = next_cap_it
                     with st.spinner("🔄 Generating fresh caption and hook..."):
                         fresh_caps = build_platform_captions_fresh(
                             brand_name=brand_name,
                             industry=industry_input,
                             objective=chosen_objective,
                             business=biz_data,
-                            iteration=cur_cap_it
+                            iteration=next_cap_it
                         )
                         pack["platform_captions"] = fresh_caps
                         st.session_state["studio_content_pack"] = pack
                         st.session_state["social_content_pack"] = pack
+                        st.toast("✅ Fresh caption generated!")
                         st.rerun()
 
         st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 1.2rem 0;'>", unsafe_allow_html=True)
