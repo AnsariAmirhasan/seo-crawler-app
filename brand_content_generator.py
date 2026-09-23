@@ -766,55 +766,23 @@ def get_trending_style_prompt_fragment(visual_style: str) -> str:
         return f"{visual_style} commercial photography, balanced studio lighting, professional 8k clarity"
 
 
-def build_prompt_safe_zone_clause(content_format: str, web: str, phone: str, instagram: str) -> str:
-    """Generates precise negative space rules for logo, website, phone, and social handle tagging."""
+def build_prompt_safe_zone_clause(content_format: str, web: str, phone: str, instagram: str, brand_name: str = "", cta: str = "") -> str:
+    """Generates precise advertising layout specifications with dedicated [ YOUR LOGO HERE ] frame, marketing typography, 3-panel split strip, and bottom branding banner."""
     web_str = web if web else "www.venueconnect.in"
     phone_str = phone if phone else "+91 98765 43210"
     handle_str = instagram if instagram else "@venueconnect.in"
+    b_name = brand_name if brand_name else "Brand"
+    c_btn = cta if cta else "EXPLORE NOW"
 
-    if "Carousel" in content_format:
-        return (
-            f"Layout & Safe Zone Rules for Multi-Slide Carousel: "
-            f"Upper 20% clear negative space reserved for brand logo and slide indicator. "
-            f"Lower-third 15% subtle gradient buffer reserved for website URL ({web_str}), booking phone ({phone_str}), and social handle ({handle_str}). "
-            f"Side margins kept clear of critical action for carousel swipe arrows. Aspect Ratio: 4:5 vertical cards."
-        )
-    elif "Reel" in content_format or "Video" in content_format:
-        return (
-            f"Safe Zone Rules for 9:16 Vertical Reel/Video Cover: "
-            f"Hero subject framed in central 70% vertical action zone. "
-            f"Top 15% clear margin for username/story bar. "
-            f"Bottom 20% clear margin for audio title, caption preview, and platform engagement buttons. "
-            f"Top-center logo buffer, lower-middle clean banner for website ({web_str}) and WhatsApp ({phone_str}). Aspect Ratio: 9:16 vertical."
-        )
-    elif "Grid" in content_format:
-        return (
-            f"Safe Zone Rules for 1:1 Instagram Profile Grid: "
-            f"Subject centered with 1:1 square crop safety, ensuring visual balance inside a 3x3 profile feed. "
-            f"Upper quadrant reserved for clean brand badge; lower edge reserved for website ({web_str}) and handle ({handle_str}) without clipping adjacent tiles. Aspect Ratio: 1:1 square."
-        )
-    elif "Story" in content_format:
-        return (
-            f"Safe Zone Rules for 9:16 Story: "
-            f"Top 15% clear margin for story header; bottom 20% clear margin for 'Send Message' / sticker reply bar; "
-            f"center reserved for interactive poll/link sticker and headline. Top-left logo placement, bottom link buffer for {web_str}. Aspect Ratio: 9:16 vertical."
-        )
-    elif "Ad" in content_format:
-        return (
-            f"Safe Zone Rules for High-Converting Ad Creative: "
-            f"Thumb-stopping high-contrast focal subject commanding attention in social feed. "
-            f"Top 15% header zone for brand logo and trust rating badge; bottom 20% CTA safe area for 'Book Venue' button buffer and website URL ({web_str}). "
-            f"Direct call/WhatsApp tagging buffer ({phone_str}). Aspect Ratio: 4:5 portrait."
-        )
-    else:
-        # Default Single Post
-        return (
-            f"Composition & Safe Zone Rules for Single Post: "
-            f"Upper 20% clear negative space reserved for brand logo and title badge. "
-            f"Lower-third 15% subtle gradient buffer reserved for website URL ({web_str}), "
-            f"booking phone ({phone_str}), and social handle tagging ({handle_str}). "
-            f"Clean uncluttered background leaves central focus crisp for maximum social engagement. Aspect Ratio: 4:5 vertical portrait."
-        )
+    return (
+        f"Commercial Advertising Poster Layout Architecture for {b_name}: "
+        f"[TOP-LEFT BRANDING SAFE ZONE]: Dedicated clean rectangular negative space box with subtle dashed border clearly labeled '[ YOUR LOGO HERE ]' flanked by delicate decorative botanical leaves, perfectly reserved for direct brand logo overlay. "
+        f"[LEFT-SIDE MARKETING COPY & BADGES]: Left 40% section structured for bold high-contrast marketing typography: eye-catching primary headline, engaging sub-headline question ('What's the Difference & How to Choose?'), 4 circular feature badge icons with clean micro-labels [🏛️ Verified Quality] [💰 Direct Best Rates] [👥 Flexible Capacity] [⚡ Free Coordination], and an elegant cursive script value tagline. "
+        f"[RIGHT HERO VISUAL]: Commercial high-end photography in right 60% area with beautiful depth of field, warm ambient illumination, and realistic textures. "
+        f"[LOWER-MIDDLE 3-PANEL STRIP]: A horizontal 3-panel split photo strip showcasing 3 key amenities/benefits with small clean title tabs. "
+        f"[BOTTOM BRAND FOOTER BANNER]: Full-width sleek dark footer bar across the bottom edge featuring: Globe icon + Website: {web_str} | Phone icon + Booking Helpline: {phone_str} | Right-aligned clickable CTA pill button '{c_btn} ➔'. "
+        f"Clean commercial graphic design poster composition, balanced negative space, high-contrast typography, ultra-sharp 8k advertising creative."
+    )
 
 
 def detect_industry_category(industry_text: str, campaign_info: str = "", brand_name: str = "") -> str:
@@ -908,67 +876,115 @@ def get_alternate_concept(
     f_head = typography.get("heading", "Outfit")
 
     style_frag = get_trending_style_prompt_fragment(visual_style)
-    safe_clause = build_prompt_safe_zone_clause(content_format, web, phone, ig_h)
+    safe_clause = build_prompt_safe_zone_clause(content_format, web, phone, ig_h, brand_name, cta)
 
     # SLOT 0: CORE AUTHORITY HERO
     if idx == 0:
         if cat == "events_venues":
             variants = [
                 {
-                    "name": "Concept 1: Royal Wedding Lawn at Twilight (Warm Nostalgic Film)",
+                    "name": "Concept 1: Royal Wedding Lawn at Twilight (Infographic Ad Poster)",
                     "type": "Signature Venue Showcase",
                     "objective": "Positions the brand as the premier gateway to Gujarat's most breathtaking wedding party plots.",
                     "visual": f"Sprawling illuminated wedding lawn in {city} at twilight, thousands of warm incandescent fairy lights, royal marigold floral archways, glowing gazebo in background, festive Gujarati celebration ambiance.",
-                    "composition": "Centered wide-angle hero framing with grand symmetrical leading lines.",
+                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero lawn, lower 3-panel strip, bottom ribbon.",
                     "lighting": "Magical twilight golden hour ambient glow, warm incandescent fairy lights, soft vintage direct flash.",
                     "color_dir": f"Rich twilight indigo sky contrasted with glowing amber {sec_hex} and royal {prim_hex} accents.",
                     "typo_dir": f"Opulent {f_head} headings with refined subtitle tracking.",
-                    "logo_plc": "Top left header safe area (20% buffer).",
-                    "overlay": "Gujarat's Most Loved Wedding Venues & Party Plots.",
+                    "logo_plc": "Top-left dedicated '[ YOUR LOGO HERE ]' container.",
+                    "overlay": "Gujarat's Finest Wedding Lawns & Banquets",
                     "cta": f"{cta} • Visit {web}",
-                    "prompt": f"Commercial editorial photography of a breathtaking royal outdoor wedding venue lawn in {city} at twilight, illuminated by thousands of warm fairy lights, grand floral archway with roses and marigolds, festive evening celebration ambiance, {style_frag}. Negative space composition: {safe_clause} No intrusive text artifacts, hyperrealistic, 8k resolution."
+                    "prompt": (
+                        f"Commercial advertising poster layout for {brand_name}. "
+                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean rectangular negative space box with subtle dashed border clearly labeled '[ YOUR LOGO HERE ]' flanked by delicate decorative botanical leaf accents, perfectly reserved for direct brand logo overlay. "
+                        f"[LEFT MARKETING CONTENT & COPY]: "
+                        f"Large bold primary headline 'Gujarat\\'s Finest Wedding Lawns & Banquets' in opulent {f_head} font, "
+                        f"sub-headline question 'Compare 500+ Verified Party Plots Across Gujarat', "
+                        f"4 circular feature badge icons with clean micro-labels: [🏛️ 500+ Verified Banquets] [💰 Direct Best Prices] [👥 100-5000+ Guests] [⚡ Free Guided Visits], "
+                        f"with elegant cursive script value tagline 'Gujarat\\'s Most Loved Celebrations'. "
+                        f"[RIGHT HERO PHOTOGRAPHY]: Commercial photography of an illuminated royal outdoor wedding venue lawn in {city} at twilight, thousands of warm incandescent fairy lights, royal marigold floral archway, glowing gazebo in background, festive Gujarati celebration ambiance, {style_frag}. "
+                        f"[LOWER-MIDDLE 3-PANEL STRIP]: Clean horizontal split 3-tile photo strip showing: (1) Grand Entrance Archway, (2) Luxurious AC Banquet Ballroom, (3) Twilight Lakeside Mandap. "
+                        f"[BOTTOM BRAND FOOTER BANNER]: Full-width sleek deep {prim_hex} footer ribbon with Globe icon 'Website: {web}' | Phone icon 'Helpline: {phone}' | Right-aligned clickable CTA pill button 'BOOK FREE VENUE TOUR ➔'. "
+                        f"Ultra-sharp 8k resolution, professional graphic design advertising creative, balanced negative space."
+                    )
                 },
                 {
-                    "name": "Concept 1: The Grand Palatial Banquet (Architectural Splendor)",
+                    "name": "Concept 1: The Grand Palatial Banquet (Architectural Splendor Ad Poster)",
                     "type": "Grand Authority",
                     "objective": "Captures the awe-inspiring scale and luxury of Gujarat's verified indoor banquets.",
                     "visual": f"Towering crystal chandeliers reflecting on polished marble ballroom floor in {city}, round banquet seating with royal centerpieces, glowing {sec_hex} ambient lighting.",
-                    "composition": "Dramatic eye-level 24mm wide-angle interior perspective.",
+                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero ballroom, lower 3-panel strip, bottom ribbon.",
                     "lighting": "High-key warm golden chandelier illumination with deep architectural depth.",
                     "color_dir": f"Warm ivory, champagnes, and deep royal {prim_hex} grounded by {sec_hex} gold.",
                     "typo_dir": f"Classic luxury serif {f_head} overlay.",
-                    "logo_plc": "Top center badge with 20% safe padding.",
-                    "overlay": "Grand Banquets for 100 to 5,000+ Guests.",
+                    "logo_plc": "Top-left dedicated '[ YOUR LOGO HERE ]' container.",
+                    "overlay": "Palatial Banquet Halls & Ballrooms",
                     "cta": f"Check Date Availability: {web}",
-                    "prompt": f"Architectural luxury photography of an opulent grand banquet hall ballroom in {city}, towering crystal chandeliers casting golden ambient light, royal floral centerpieces on pristine banquet tables, polished marble floor reflections, symmetrical wide-angle 24mm framing, {style_frag}. Negative space composition: {safe_clause} High-end Architectural Digest luxury hospitality aesthetic."
+                    "prompt": (
+                        f"Commercial advertising infographic poster layout for {brand_name}. "
+                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean rectangular negative space box with subtle dashed border clearly labeled '[ YOUR LOGO HERE ]' flanked by delicate decorative botanical leaf accents, perfectly reserved for direct brand logo overlay. "
+                        f"[LEFT MARKETING CONTENT & COPY]: "
+                        f"Large bold primary headline 'Palatial Banquet Halls & Ballrooms' in opulent {f_head} font, "
+                        f"sub-headline question 'Looking for Luxury Indoor Banquets for 100 to 5,000+ Guests?', "
+                        f"4 circular feature badge icons with clean micro-labels: [🏛️ Grand AC Halls] [💰 Zero Hidden Charges] [🍽️ Verified Pure-Veg Menus] [🚗 Dedicated Valet Parking], "
+                        f"with elegant cursive script value tagline 'Tradition & Luxury in Every Celebration'. "
+                        f"[RIGHT HERO PHOTOGRAPHY]: Architectural luxury photography of an opulent grand banquet hall ballroom in {city}, towering crystal chandeliers casting golden ambient light, royal floral centerpieces on pristine banquet tables, polished marble reflections, {style_frag}. "
+                        f"[LOWER-MIDDLE 3-PANEL STRIP]: Clean horizontal split 3-tile photo strip showing: (1) Crystal Chandelier Ceiling, (2) Royal Dining Setup, (3) Grand Stage Decor. "
+                        f"[BOTTOM BRAND FOOTER BANNER]: Full-width sleek deep {prim_hex} footer bar with Globe icon 'Website: {web}' | Phone icon 'Helpline: {phone}' | Right-aligned clickable CTA pill button 'CHECK DATE AVAILABILITY ➔'. "
+                        f"Ultra-sharp 8k resolution, professional graphic design advertising creative, balanced negative space."
+                    )
                 },
                 {
-                    "name": "Concept 1: Sunset Mandap by the Lake (Cinematic Grandeur)",
+                    "name": "Concept 1: Sunset Mandap by the Lake (Scenic Destination Ad Poster)",
                     "type": "Destination Luxury",
                     "objective": "Showcases premium destination party plots and lakeside mandap setups.",
                     "visual": f"Breathtaking destination wedding mandap setup by a tranquil lake in {city} at golden sunset, draped in cascading jasmine and fresh marigolds, antique brass lanterns flickering on water.",
-                    "composition": "Low-angle heroic mandap perspective with tranquil water reflections.",
+                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero mandap, lower 3-panel strip, bottom ribbon.",
                     "lighting": "Warm sunkissed golden hour backlight and flickering oil lamps.",
                     "color_dir": f"Warm terracotta, sunset amber {sec_hex}, and regal gold.",
                     "typo_dir": f"Refined serif {f_head}.",
-                    "logo_plc": "Top right safe buffer.",
-                    "overlay": "Unforgettable Destination Venues Across Gujarat.",
+                    "logo_plc": "Top-left dedicated '[ YOUR LOGO HERE ]' container.",
+                    "overlay": "Unforgettable Destination Wedding Venues",
                     "cta": f"Explore Destination Venues: {web}",
-                    "prompt": f"Cinematic luxury travel photography of a grand wedding mandap on a lakeside lawn in {city} at sunset, adorned with cascading jasmine and golden marigolds, antique brass lanterns reflecting on water, {style_frag}. Negative space composition: {safe_clause} Timeless royal Gujarati celebration aesthetic, 8k."
+                    "prompt": (
+                        f"Commercial advertising infographic poster layout for {brand_name}. "
+                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean rectangular negative space box with subtle dashed border clearly labeled '[ YOUR LOGO HERE ]' flanked by delicate decorative botanical leaf accents, perfectly reserved for direct brand logo overlay. "
+                        f"[LEFT MARKETING CONTENT & COPY]: "
+                        f"Large bold primary headline 'Unforgettable Destination Wedding Venues' in opulent {f_head} font, "
+                        f"sub-headline question 'Explore Scenic Lakeside & Heritage Plots in Gujarat', "
+                        f"4 circular feature badge icons with clean micro-labels: [🌅 Scenic Lakeside Lawns] [🕯️ Ambient Twilight Lighting] [🌺 Custom Mandap Decor] [⚡ 100% Free Visits], "
+                        f"with elegant cursive script value tagline 'Where Dream Weddings Come True'. "
+                        f"[RIGHT HERO PHOTOGRAPHY]: Breathtaking photography of a grand wedding mandap on a lakeside lawn in {city} at golden sunset, adorned with cascading jasmine and golden marigolds, antique brass lanterns reflecting on water, {style_frag}. "
+                        f"[LOWER-MIDDLE 3-PANEL STRIP]: Clean horizontal split 3-tile photo strip showing: (1) Sunset Mandap on Water, (2) Open-air Dining Lawn, (3) Fairy Light Gazebo. "
+                        f"[BOTTOM BRAND FOOTER BANNER]: Full-width sleek deep {prim_hex} footer bar with Globe icon 'Website: {web}' | Phone icon 'Helpline: {phone}' | Right-aligned clickable CTA pill button 'EXPLORE DESTINATION VENUES ➔'. "
+                        f"Ultra-sharp 8k resolution, professional graphic design advertising creative, balanced negative space."
+                    )
                 },
                 {
-                    "name": "Concept 1: Vibrant Sunlit Mehendi Poolside Lawn",
+                    "name": "Concept 1: Vibrant Sunlit Mehendi Poolside Lawn (Daytime Celebration Poster)",
                     "type": "Festive Celebration",
                     "objective": "Captures daytime event perfection for Mehendi, Haldi, and Sangeet celebrations.",
                     "visual": f"Vibrant sun-drenched daytime poolside party plot lawn in {city}, colorful bohemian drapes in yellow and turquoise, marigold flower umbrellas, luxury cabana seating.",
-                    "composition": "Dynamic diagonal perspective capturing lush manicured lawn and crystal pool.",
+                    "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero poolside, lower 3-panel strip, bottom ribbon.",
                     "lighting": "Bright cheerful natural morning sun with crisp soft shadows.",
                     "color_dir": f"Vibrant festive yellows, crisp whites, and lush garden greens.",
                     "typo_dir": f"Modern celebratory {f_head}.",
-                    "logo_plc": "Top left quadrant.",
-                    "overlay": "Sunlit Venues for Haldi, Mehendi & Sangeet.",
+                    "logo_plc": "Top-left dedicated '[ YOUR LOGO HERE ]' container.",
+                    "overlay": "Sunlit Venues for Haldi, Mehendi & Sangeet",
                     "cta": f"Find Daytime Party Plots: {web}",
-                    "prompt": f"Vibrant luxury event photography of an open-air poolside wedding party plot in {city} in bright daylight, colorful festive drapes, marigold flower arrangements, luxury outdoor lounge seating, sparkling pool water reflections, {style_frag}. Negative space composition: {safe_clause} High-energy celebration realism."
+                    "prompt": (
+                        f"Commercial advertising infographic poster layout for {brand_name}. "
+                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean rectangular negative space box with subtle dashed border clearly labeled '[ YOUR LOGO HERE ]' flanked by delicate decorative botanical leaf accents, perfectly reserved for direct brand logo overlay. "
+                        f"[LEFT MARKETING CONTENT & COPY]: "
+                        f"Large bold primary headline 'Sunlit Lawns for Haldi, Mehendi & Sangeet' in vibrant {f_head} font, "
+                        f"sub-headline question 'Planning Colorful Daytime Celebrations in Gujarat?', "
+                        f"4 circular feature badge icons with clean micro-labels: [☀️ Bright Daytime Plots] [🎨 Vibrant Bohemian Decor] [🏊 Poolside Cabanas] [💰 Transparent Package Pricing], "
+                        f"with elegant cursive script value tagline 'Vibrant Memories Under the Sun'. "
+                        f"[RIGHT HERO PHOTOGRAPHY]: Vibrant luxury event photography of an open-air poolside wedding party plot in {city} in bright daylight, colorful festive drapes, marigold flower arrangements, luxury outdoor lounge seating, sparkling pool water reflections, {style_frag}. "
+                        f"[LOWER-MIDDLE 3-PANEL STRIP]: Clean horizontal split 3-tile photo strip showing: (1) Bohemian Floral Canopy, (2) Poolside Lounge Seating, (3) Festive Haldi Setup. "
+                        f"[BOTTOM BRAND FOOTER BANNER]: Full-width sleek deep {prim_hex} footer bar with Globe icon 'Website: {web}' | Phone icon 'Helpline: {phone}' | Right-aligned clickable CTA pill button 'FIND DAYTIME PLOTS ➔'. "
+                        f"Ultra-sharp 8k resolution, professional graphic design advertising creative, balanced negative space."
+                    )
                 }
             ]
         elif cat == "finance":
@@ -2675,13 +2691,15 @@ def render_brand_first_content_page():
             </div>
             """, unsafe_allow_html=True)
 
-            # Safe Zone Specs Callout Box
+            # Safe Zone Specs Callout Box (Ad Poster Architecture)
             st.markdown(f"""
-            <div style="background: rgba(15, 23, 42, 0.85); border: 1px dashed rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 8px 12px; font-size: 0.76rem; color: #CBD5E1; margin-bottom: 8px; line-height: 1.5;">
-                🛡️ <b>Negative Space & Branding Safe Zones:</b><br>
-                • <b>Logo Buffer:</b> Upper 20% clear negative space reserved for brand logo.<br>
-                • <b>Website & Contacts:</b> Lower-third subtle gradient reserved for <code>{website_url or 'venueconnect.in'}</code>, Phone & Social tagging.<br>
-                • <b>Aesthetic:</b> {chosen_visual_style}
+            <div style="background: rgba(15, 23, 42, 0.9); border: 1px dashed rgba(245, 158, 11, 0.45); border-radius: 10px; padding: 10px 14px; font-size: 0.77rem; color: #CBD5E1; margin-bottom: 10px; line-height: 1.6;">
+                🎯 <b>Commercial Ad Poster Architecture (ChatGPT-Grade Creative Layout):</b><br>
+                • <b>[ YOUR LOGO HERE ]:</b> Top-left dedicated negative space frame with decorative leaves for direct logo overlay.<br>
+                • <b>Left Marketing Copy:</b> High-contrast headline, sub-headline question, 4 feature badge icons & cursive tagline.<br>
+                • <b>Right Hero Scene:</b> Realistic commercial photography with <b>{chosen_visual_style}</b>.<br>
+                • <b>Lower 3-Panel Strip:</b> Split photo tiles highlighting 3 key amenities & venue features.<br>
+                • <b>Bottom Footer Ribbon:</b> Branded bar with Website (<code>{website_url or 'www.venueconnect.in'}</code>), Phone & Action CTA pill.
             </div>
             """, unsafe_allow_html=True)
 
