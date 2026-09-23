@@ -739,13 +739,7 @@ Include:
                 {"story_num": 3, "hook": f"Ready to take control of your growth?", "interactive_element": "Link Sticker: Book Consultation", "visual": f"Hero branded calendar card with {sec_hex} badge", "cta": f"{business.get('cta')}"}
             ]
         },
-        "platform_captions": {
-            "instagram": {"professional": ig_prof, "creative": ig_prof.replace("When it comes to", "Here is the honest truth about"), "short": f"Total clarity. Zero guesswork. Discover the {brand_name} difference.\n\n👉 {business.get('cta')} at {business.get('website')}"},
-            "linkedin": {"professional": li_prof, "creative": li_prof, "short": f"Why we built {brand_name}:\n• Verified accuracy\n• Proactive strategy\n• Built for scaling companies\n\nVisit {business.get('website')}"},
-            "x": {"professional": x_prof, "creative": x_prof, "short": f"Precision and peace of mind for modern business. Discover {brand_name}: {business.get('website')}"},
-            "facebook": {"professional": fb_prof, "creative": fb_prof, "short": f"Ready for better results? Partner with {brand_name} today: {business.get('website')}"},
-            "pinterest": {"professional": f"Executive Business Architecture & Strategy Guide • {brand_name}", "creative": f"Modern Workplace Aesthetics & Productivity • {brand_name}", "short": f"Business Clarity • {brand_name} • Pin to Save"}
-        },
+        "platform_captions": build_platform_captions_fresh(brand_name, business.get("industry", ""), objective, business, iteration=0),
         "hashtag_engine": h_tags,
         "alt_text": f"A dark, elegant commercial photograph representing {brand_name} with crisp typography, glowing interface elements in brand colors {prim_hex} and {sec_hex}.",
         "brand_consistency_qa": {
@@ -936,6 +930,347 @@ def format_ad_poster_prompt(
         f"Ultra-sharp 8k resolution, professional graphic design advertising creative, balanced negative space, {aspect_ratio} ratio."
     )
     return prompt.strip()
+
+
+def get_objective_messaging(
+    objective: str,
+    cat: str,
+    brand_name: str,
+    city: str,
+    audience: str,
+    web: str,
+    cta_input: str,
+    traits_tagline: str,
+    idx: int,
+    iteration: int,
+    base_v: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Dynamically maps the selected Content Objective (Goal) into tailored headline, sub-headline,
+    badge micro-labels, cursive tagline, hero visual description, 3-panel strip, and CTA pill.
+    Ensures every objective (e.g. Seasonal Campaign, Website Traffic, Lead Generation, etc.)
+    produces distinct, highly targeted marketing copy.
+    """
+    obj_clean = (objective or "Lead Generation").strip()
+    obj_lower = obj_clean.lower()
+
+    # Check if custom CTA is provided by user (and not just empty/default placeholder)
+    has_custom_cta = bool(cta_input and cta_input.strip() and cta_input.strip() != "Compare Venues & Get Free Quotes")
+    custom_cta_pill = f"{cta_input.strip().upper()} ➔" if has_custom_cta else ""
+
+    if cat == "events_venues":
+        # -------------------------------------------------------------
+        # 1. SEASONAL CAMPAIGN (Peak wedding season, Shubh Muhurat rush)
+        # -------------------------------------------------------------
+        if "season" in obj_lower:
+            if idx == 0:
+                return {
+                    "concept_badge": "Seasonal Peak Rush Ad",
+                    "objective_desc": "Capitalizes on upcoming wedding season urgency and auspicious dates booking rush.",
+                    "headline": "Gujarat's Wedding Season is Here: Reserve Your Dream Lawn Early",
+                    "sub_headline": f"Peak Shubh Muhurat Dates Book 8-12 Months Ahead Across {city}. Lock Your Date Today!",
+                    "badges": ["📅 Shubh Muhurat Booking Open", "❄️ Winter & Summer Lawns", "🔒 Price Lock Guarantee", "⚡ Live Date Check"],
+                    "tagline": f"Gujarat's Peak Wedding Season Made Effortless • {traits_tagline}",
+                    "hero_scene": f"Commercial photography of an illuminated royal outdoor wedding venue lawn in {city} (Ahmedabad, Surat, Vadodara, Rajkot) at twilight during festive winter wedding season, thousands of warm incandescent fairy lights, royal marigold floral archway, glowing gazebo in background, festive Gujarati celebration ambiance",
+                    "strip": ["Winter Lawn & Mandap Setup", "Peak Date Availability Tracker", "Grand Twilight Stage Decor"],
+                    "cta": custom_cta_pill or "LOCK WEDDING DATE ➔",
+                    "overlay": "Gujarat's Wedding Season: Reserve Your Dream Lawn Early",
+                    "visual": f"Sprawling illuminated wedding lawn in {city} at twilight during festive wedding season, fairy lights, royal floral archways, glowing gazebo."
+                }
+            elif idx == 1:
+                return {
+                    "concept_badge": "Seasonal Family Joy",
+                    "objective_desc": "Emotional resonance for families securing peak season dates without stress.",
+                    "headline": "Celebrate Peak Wedding Season Without The Venue Rush",
+                    "sub_headline": f"Why smart families in {city} lock their auspicious dates 8 months ahead on {brand_name}",
+                    "badges": ["💍 Prime Date Guarantee", "🕊️ Zero Booking Stress", "🤝 Direct Owner Rates", "🍽️ Custom Festive Menus"],
+                    "tagline": f"Cherished Celebrations in Every Season • {traits_tagline}",
+                    "hero_scene": f"Candid documentary photography of bride, groom and celebrating family laughing under an illuminated party plot canopy in {city}, glowing fairy lights, crisp evening air, vibrant traditional Gujarati wedding attire",
+                    "strip": ["Sangeet Night Stage", "Sunlit Haldi & Mehendi Lawn", "Royal Phera Mandap"],
+                    "cta": custom_cta_pill or "CHECK SEASON DATES ➔",
+                    "overlay": "Celebrate Peak Season Without The Venue Rush",
+                    "visual": f"Radiant bride, groom, and celebrating family laughing in a sunlit wedding garden & illuminated party plot in {city}."
+                }
+            elif idx == 2:
+                return {
+                    "concept_badge": "Season Planning Matrix",
+                    "objective_desc": "Comprehensive seasonal comparison of winter vs summer lawns and AC banquet backup.",
+                    "headline": "The Gujarat Wedding Season Venue Planner & Availability Guide",
+                    "sub_headline": f"Compare winter lawn capacity, weather backup & seasonal catering across {city} banquets",
+                    "badges": ["📊 Season Price Matrix", "❄️ AC Ballroom Backup", "🚗 Valet Capacity Guide", "📝 Advance Date Hold"],
+                    "tagline": f"Smart Seasonal Planning • {traits_tagline}",
+                    "hero_scene": f"Architectural luxury photography of grand banquet hall and outdoor party plot in {city}, showcasing seasonal layouts for 100 to 5,000+ guests, polished marble floor reflections, crystal chandeliers casting golden ambient illumination",
+                    "strip": ["Winter Lawn Seating", "AC Pre-Function Ballroom", "Weather-Proof Mandap Setup"],
+                    "cta": custom_cta_pill or "PLAN SEASON DATES ➔",
+                    "overlay": "Gujarat Wedding Season Venue Planner & Guide",
+                    "visual": f"Architectural luxury photography of grand banquet hall and party plot in {city} showcasing seasonal venue features."
+                }
+            else:
+                return {
+                    "concept_badge": "Seasonal Urgency Solution",
+                    "objective_desc": "Drives immediate date booking before prime Saturday/Sunday auspicious slots sell out.",
+                    "headline": "Don't Miss Your Auspicious Date: Lock In Gujarat's Top Lawns Now",
+                    "sub_headline": f"Peak wedding dates are selling out fast across {city} - Check live date availability in 60 seconds",
+                    "badges": ["⏳ Selling Out Fast", "⚡ 1-Click Date Hold", "💰 Direct Price Lock", "🛡️ 100% Date Guarantee"],
+                    "tagline": f"Secure Your Date Today • {traits_tagline}",
+                    "hero_scene": f"High-impact commercial photography, illuminated royal wedding venue lawn in {city} with glowing fairy lights, celebratory sparklers, and clear date-reservation badge",
+                    "strip": ["Live Date Calendar", "Instant Price Lock", "Guaranteed Booking Confirmation"],
+                    "cta": custom_cta_pill or "HOLD YOUR DATE NOW ➔",
+                    "overlay": "Don't Miss Your Auspicious Date: Lock It In Today",
+                    "visual": f"High-impact commercial contrast resolving into luminous golden wedding celebration on party plot lawn in {city}."
+                }
+
+        # -------------------------------------------------------------
+        # 2. WEBSITE TRAFFIC (Online exploration, 360 virtual tours)
+        # -------------------------------------------------------------
+        elif "traffic" in obj_lower or "web" in obj_lower:
+            if idx == 0:
+                return {
+                    "concept_badge": "Digital Directory Ad",
+                    "objective_desc": f"Drives high-intent web visits to explore 500+ venues directly on {web}.",
+                    "headline": "Browse & Compare 500+ Verified Wedding Lawns Online",
+                    "sub_headline": f"Filter By Guest Capacity, Budget, Catering & Location Across {city} on {web}",
+                    "badges": ["🌐 360° Virtual Walkthroughs", "📸 10,000+ Real Photos", "🔍 Filter 500+ Venues", "⚡ Instant Price Estimates"],
+                    "tagline": f"Gujarat's Largest Online Venue Directory • {traits_tagline}",
+                    "hero_scene": f"Commercial photography of an illuminated royal outdoor wedding venue lawn in {city} at twilight with interactive digital UI elements showing 360 virtual tour, crystalline swimming pool reflection, warm incandescent fairy lights, glowing gazebo",
+                    "strip": ["Interactive 360° Virtual Tour", "Transparent Pricing & Capacity Filter", "Verified Photo & Video Galleries"],
+                    "cta": custom_cta_pill or "EXPLORE 500+ VENUES ONLINE ➔",
+                    "overlay": "Browse & Compare 500+ Verified Wedding Lawns Online",
+                    "visual": f"Sprawling illuminated wedding lawn in {city} at twilight with modern split digital overlay showcasing 360 virtual tour."
+                }
+            elif idx == 1:
+                return {
+                    "concept_badge": "Virtual Scouting Experience",
+                    "objective_desc": "Demonstrates the joy of scouting dream venues online together from home.",
+                    "headline": "Take a Virtual Walkthrough of Gujarat's Dreamiest Wedding Lawns",
+                    "sub_headline": f"Experience 360-degree immersive views of party plots and banquet halls from the comfort of home",
+                    "badges": ["👓 360° VR Tours", "🎥 Drone Video Overviews", "📱 Explore from Home", "⭐ Real Couple Ratings"],
+                    "tagline": f"Explore Every Corner Online • {traits_tagline}",
+                    "hero_scene": f"Split commercial lifestyle photograph showing an engaged couple exploring wedding venues on tablet from home, alongside a glowing twilight drone view of an illuminated Ahmedabad party plot",
+                    "strip": ["360° Mandap View", "Ballroom Walkthrough", "Lawn Drone Panorama"],
+                    "cta": custom_cta_pill or "START VIRTUAL TOUR ➔",
+                    "overlay": "Take a Virtual Walkthrough of Gujarat's Top Lawns",
+                    "visual": f"Modern couple reviewing 360 venue tours on tablet with glowing twilight lawn in background."
+                }
+            elif idx == 2:
+                return {
+                    "concept_badge": "Online Filter Engine Matrix",
+                    "objective_desc": "Educates users on how fast and easy it is to filter venues by capacity and budget online.",
+                    "headline": "The 60-Second Online Venue Comparison Engine",
+                    "sub_headline": f"Filter 500+ party plots in {city} by guest count (100 to 5,000+), catering type & rental budget",
+                    "badges": ["⚡ 60-Second Shortlist", "🔍 Smart Budget Filter", "🍽️ Catering Breakdown", "📍 Location Heatmap"],
+                    "tagline": f"Search Smarter, Not Harder • {traits_tagline}",
+                    "hero_scene": f"High-tech commercial photography blending illuminated royal banquet ballroom architecture in {city} with sleek digital filter icons and comparison matrices",
+                    "strip": ["Capacity Filter: 100-5000+", "Budget Comparison Tool", "Instant Verified Shortlist"],
+                    "cta": custom_cta_pill or "COMPARE VENUES ONLINE ➔",
+                    "overlay": "60-Second Online Venue Comparison Engine",
+                    "visual": f"Architectural luxury photography of grand banquet hall with clean comparison interface elements."
+                }
+            else:
+                return {
+                    "concept_badge": "Direct Web Traffic Push",
+                    "objective_desc": "Drives immediate clicks to the website by eliminating the exhausting toll of offline visits.",
+                    "headline": "Stop Driving to 20 Banquets. Scout Them All Online in Minutes.",
+                    "sub_headline": f"Save 40+ hours of exhausting site visits across {city} by comparing verified lawns on {web}",
+                    "badges": ["⏱️ Save 40+ Hours", "🚗 Zero Wasted Visits", "💰 Direct Price View", "📲 Instant Online Access"],
+                    "tagline": f"The Modern Way to Scout Venues • {traits_tagline}",
+                    "hero_scene": f"Side-by-side high-impact commercial contrast: Left side desaturated traffic and exhausted venue hunting in {city}; right side serene couple comfortably browsing illuminated lawns on laptop",
+                    "strip": ["Browse 500+ Venues", "Compare Transparent Costs", "Book Only The Best In Person"],
+                    "cta": custom_cta_pill or "EXPLORE ONLINE NOW ➔",
+                    "overlay": "Stop Driving to 20 Banquets: Scout Online",
+                    "visual": f"High-contrast commercial scene showing easy online venue browsing vs traffic."
+                }
+
+        # -------------------------------------------------------------
+        # 3. BRAND AWARENESS (Prestige, market leadership, grandeur)
+        # -------------------------------------------------------------
+        elif "aware" in obj_lower or "brand" in obj_lower:
+            return {
+                "concept_badge": "Brand Prestige Showcase",
+                "objective_desc": "Builds unmatched brand authority as Gujarat's premier wedding venue network.",
+                "headline": "Where Gujarat Celebrates: 500+ Iconic Wedding Lawns & Banquets",
+                "sub_headline": f"The Most Prestigious Party Plots & Luxury Venues Across {city} in One Destination",
+                "badges": ["👑 #1 Venue Network", "🏛️ 500+ Iconic Venues", "⭐ 50,000+ Happy Families", "✨ 100% Verified Quality"],
+                "tagline": f"Royal Grandeur in Every Milestone • {traits_tagline}",
+                "hero_scene": f"Breathtaking panoramic commercial photography of an expansive illuminated palatial wedding venue and party plot in {city} at dusk, grand royal entrance, glowing fountains, thousands of fairy lights, majestic Gujarati heritage architecture",
+                "strip": ["Palatial Heritage Architecture", "Illuminated Royal Party Lawn", "Luxury Glasshouse Banquet"],
+                "cta": custom_cta_pill or f"DISCOVER {brand_name.upper()} ➔",
+                "overlay": "Where Gujarat Celebrates: 500+ Iconic Wedding Lawns",
+                "visual": f"Palatial illuminated wedding lawn in {city} at dusk, glowing fountains and fairy lights."
+            }
+
+        # -------------------------------------------------------------
+        # 4. SALES & CONVERSIONS (Direct rates, zero broker fee)
+        # -------------------------------------------------------------
+        elif "sale" in obj_lower or "conver" in obj_lower:
+            return {
+                "concept_badge": "Direct Price Conversion",
+                "objective_desc": "Converts prospective buyers with pre-negotiated direct owner rates.",
+                "headline": "Book Your Dream Wedding Lawn at Guaranteed Lowest Rates",
+                "sub_headline": f"Zero Middleman Commissions & Pre-Negotiated Direct Owner Pricing Across {city}",
+                "badges": ["🏷️ Zero Broker Fee", "💵 Guaranteed Lowest Rates", "📝 100% Contract Protection", "⚡ Instant Date Hold"],
+                "tagline": f"Transparent Value, Royal Experience • {traits_tagline}",
+                "hero_scene": f"Opulent commercial photograph of an illuminated royal wedding mandap set against manicured green lawn in {city} at twilight, golden incandescent lights, crystal chandeliers, floral backdrop, pristine luxury celebration setting",
+                "strip": ["Pre-Negotiated Direct Pricing", "Instant Booking Confirmation", "Written Price-Match Guarantee"],
+                "cta": custom_cta_pill or "CLAIM DIRECT OWNER PRICE ➔",
+                "overlay": "Guaranteed Lowest Rates on Gujarat's Top Venues",
+                "visual": f"Illuminated royal wedding mandap set against manicured green lawn in {city} at twilight."
+            }
+
+        # -------------------------------------------------------------
+        # 5. PRODUCT PROMOTION (All-inclusive packages)
+        # -------------------------------------------------------------
+        elif "promo" in obj_lower:
+            return {
+                "concept_badge": "Turnkey Package Promotion",
+                "objective_desc": "Promotes turnkey all-inclusive venue, decor, and catering bundles.",
+                "headline": "All-Inclusive Luxury Wedding Lawn & Banquet Packages",
+                "sub_headline": f"Venue + Designer Decor + AC Banquet + Valet Parking Bundled Across {city}",
+                "badges": ["📦 All-Inclusive Packages", "🍽️ Pure-Veg Gourmet Catering", "❄️ Grand AC Pre-Function Area", "🚗 200+ Car Valet Parking"],
+                "tagline": f"Complete Luxury, Zero Coordination Chaos • {traits_tagline}",
+                "hero_scene": f"Commercial luxury photograph of an all-inclusive royal wedding setup in {city} at golden hour, featuring designer floral mandap, grand banquet seating, live culinary stations with warm ambient lights",
+                "strip": ["Designer Mandap & Floral Decor", "Pure-Veg Gourmet Catering Setup", "Full Power Backup & Valet"],
+                "cta": custom_cta_pill or "VIEW ALL-INCLUSIVE PACKAGES ➔",
+                "overlay": "All-Inclusive Luxury Wedding Lawn & Banquet Packages",
+                "visual": f"All-inclusive royal wedding setup in {city} featuring designer mandap and banquet seating."
+            }
+
+        # -------------------------------------------------------------
+        # 6. EDUCATIONAL / AUTHORITY (Checklist, how-to, transparency)
+        # -------------------------------------------------------------
+        elif "educat" in obj_lower or "author" in obj_lower:
+            return {
+                "concept_badge": "Authority & Checklist Guide",
+                "objective_desc": "Establishes definitive authority by educating couples on hidden venue costs.",
+                "headline": "How to Choose the Perfect Wedding Venue in Gujarat Without Hidden Fees",
+                "sub_headline": f"The Complete Guide to Comparing Capacities, Generator Backup & Catering Policies Across {city}",
+                "badges": ["📋 20-Point Venue Checklist", "🔍 100% Transparent Costs", "⚡ Generator & Power Backup", "📜 Verified Municipal Approvals"],
+                "tagline": f"Informed Decisions, Flawless Celebrations • {traits_tagline}",
+                "hero_scene": f"Commercial architectural photography of a luxury banquet ballroom and outdoor lawn in {city}, crisp high-contrast lighting showcasing venue layout, technical power consoles, and seating capacity indicators",
+                "strip": ["Capacity & Seating Benchmarks", "Generator & Sound Permissions", "Catering & Kitchen Audit Checklist"],
+                "cta": custom_cta_pill or "READ FREE VENUE GUIDE ➔",
+                "overlay": "How to Choose the Perfect Wedding Venue in Gujarat",
+                "visual": f"Architectural photography of luxury banquet ballroom showcasing venue layout and checklist benchmarks."
+            }
+
+        # -------------------------------------------------------------
+        # 7. ENGAGEMENT & COMMUNITY BUILDING (Reviews, voting, stories)
+        # -------------------------------------------------------------
+        elif "engag" in obj_lower or "communit" in obj_lower:
+            return {
+                "concept_badge": "Community & Reviews Showcase",
+                "objective_desc": "Sparks social interaction, user reviews, and couple community discussions.",
+                "headline": "Dream Lawn or Royal Banquet? Plan Gujarat's Next Iconic Wedding",
+                "sub_headline": f"Join 50,000+ Couples Sharing Authentic Reviews & Real Wedding Photos Across {city}",
+                "badges": ["💬 15,000+ Real Reviews", "📸 Real Wedding Albums", "🏆 Community Choice 2026", "💡 Expert Planning Tips"],
+                "tagline": f"Built by Couples, Loved by Gujarat • {traits_tagline}",
+                "hero_scene": f"Candid documentary photography of an engaged couple and celebrating family laughing under fairy-lit party plot trees in {city}, authentic joy, vibrant traditional Gujarati attire, warm twilight atmosphere",
+                "strip": ["Real Couple Wedding Stories", "Lawn vs Banquet Community Poll", "Top 10 Rated Party Plots in Gujarat"],
+                "cta": custom_cta_pill or "JOIN COUPLES COMMUNITY ➔",
+                "overlay": "Dream Lawn or Royal Banquet? Vote & Plan with Gujarat's Couple Community",
+                "visual": f"Candid documentary capture of couple and celebrating family laughing under fairy-lit trees."
+            }
+
+        # -------------------------------------------------------------
+        # 8. PRODUCT LAUNCH ANNOUNCEMENT (New venues, premiere plots)
+        # -------------------------------------------------------------
+        elif "launch" in obj_lower:
+            return {
+                "concept_badge": "New Venue Launch Premiere",
+                "objective_desc": "Announces newly onboarded premium wedding lawns and lakeside venues.",
+                "headline": "Now Live: Gujarat's 50 Newest Luxury Lawns & Waterfront Banquets",
+                "sub_headline": f"Be the First to Host Your Milestone Celebration at Gujarat's Brand New Venues in {city}",
+                "badges": ["✨ 50 Brand New Lawns", "🌊 Waterfront & Resort Plots", "🆕 First-Mover Booking Rates", "🥂 Grand Launch Specials"],
+                "tagline": f"Fresh Horizons, Grand Beginnings • {traits_tagline}",
+                "hero_scene": f"Commercial photography of a newly opened ultra-luxury waterfront wedding lawn in {city} at twilight, infinity reflection pool, modern architectural pavilion, thousands of fairy lights, pristine manicured lawn",
+                "strip": ["New Waterfront & Resort Venues", "Modern Glasshouse Banquets", "Inaugural Booking Discounts"],
+                "cta": custom_cta_pill or "EXPLORE NEWLY LAUNCHED VENUES ➔",
+                "overlay": "Now Live: Gujarat's 50 Newest Luxury Lawns & Banquets",
+                "visual": f"Newly opened ultra-luxury waterfront wedding lawn in {city} at twilight with infinity reflection pool."
+            }
+
+        # -------------------------------------------------------------
+        # 9. BRAND TRUST & PROOF (100% verified, legal NOCs, guarantee)
+        # -------------------------------------------------------------
+        elif "trust" in obj_lower or "proof" in obj_lower:
+            return {
+                "concept_badge": "Trust & Verification Defense",
+                "objective_desc": "Dismantles risk through verified certifications, zero double-booking, and audit seals.",
+                "headline": "100% Verified Wedding Venues with Guaranteed Date Protection",
+                "sub_headline": f"Never Worry About Double Bookings or Unverified Properties Across {city}",
+                "badges": ["🛡️ 100% Verified Lawns", "🔒 Double-Booking Protection", "⭐ 4.9/5 Star Rating", "📜 Full Fire & Police NOC"],
+                "tagline": f"Your Trust, Our Sacred Commitment • {traits_tagline}",
+                "hero_scene": f"Commercial high-contrast luxury photography of a prestigious wedding banquet hall in {city}, golden lighting reflecting on polished marble, prominent verified quality emblem and legal accreditation seals",
+                "strip": ["On-Site Physical Inspection Seal", "Double-Booking Legal Guarantee", "4.9-Star Verified Host Ratings"],
+                "cta": custom_cta_pill or "VIEW 100% VERIFIED VENUES ➔",
+                "overlay": "100% Verified Wedding Venues with Guaranteed Date Protection",
+                "visual": f"Prestigious banquet hall in {city} with verified quality and legal clearance seals."
+            }
+
+        # -------------------------------------------------------------
+        # 10. LEAD GENERATION (Default for events & venues)
+        # -------------------------------------------------------------
+        else:
+            return {
+                "concept_badge": "Direct Inquiry & Quotes",
+                "objective_desc": "Drives qualified leads and immediate quote inquiries.",
+                "headline": "Gujarat's Finest Wedding Lawns & Banquets at Direct Best Prices",
+                "sub_headline": f"Get Instant Free Quotes & Compare 500+ Verified Party Plots Across {city}",
+                "badges": ["🏛️ 500+ Verified Banquets", "💰 Direct Best Prices", "👥 100-5000+ Guests", "⚡ Free Guided Visits"],
+                "tagline": f"Gujarat's Most Loved Celebrations • {traits_tagline}",
+                "hero_scene": base_v.get("hero_scene", f"Commercial photography of an illuminated royal outdoor wedding venue lawn in {city} at twilight, thousands of fairy lights, royal marigold floral archway, glowing gazebo in background"),
+                "strip": base_v.get("strip", ["Grand Entrance Archway", "Luxurious AC Banquet Ballroom", "Twilight Lakeside Mandap"]),
+                "cta": custom_cta_pill or "GET FREE VENUE QUOTE ➔",
+                "overlay": base_v.get("overlay", "Gujarat's Finest Wedding Lawns & Banquets"),
+                "visual": base_v.get("visual", f"Sprawling illuminated wedding lawn in {city} at twilight.")
+            }
+
+    # =========================================================================
+    # GENERAL / OTHER INDUSTRIES (Finance, Tech, Healthcare, Consulting, etc.)
+    # =========================================================================
+    else:
+        if "season" in obj_lower:
+            return {
+                "concept_badge": "Seasonal Campaign Ad",
+                "objective_desc": f"Captures seasonal urgency and exclusive limited-time value for {brand_name}.",
+                "headline": f"Seasonal Solutions for {audience} in {city}",
+                "sub_headline": f"Unlock limited-time benefits and priority scheduling with {brand_name}",
+                "badges": ["⏳ Seasonal Access", "🎁 Special Privileges", "⚡ Priority Onboarding", "🔒 Price Lock Guarantee"],
+                "tagline": f"Excellence in Every Season • {traits_tagline}",
+                "hero_scene": base_v.get("hero_scene", f"High impact commercial scene for {brand_name}"),
+                "strip": ["Limited-Time Strategy", "Priority Implementation", "Guaranteed Outcomes"],
+                "cta": custom_cta_pill or "CLAIM SEASONAL OFFER ➔",
+                "overlay": f"Seasonal Solutions for {audience}",
+                "visual": base_v.get("visual", "Modern commercial visual")
+            }
+        elif "traffic" in obj_lower or "web" in obj_lower:
+            return {
+                "concept_badge": "Digital Portal Traffic",
+                "objective_desc": f"Drives high-intent traffic to explore the new digital portal at {web}.",
+                "headline": f"Explore the All-New Online Experience at {brand_name}",
+                "sub_headline": f"Instant tools, interactive calculators, and transparent resources live on {web}",
+                "badges": ["🌐 24/7 Digital Access", "🔍 Interactive Tools", "⚡ Instant Online Quotes", "📱 Mobile Optimized"],
+                "tagline": f"Frictionless Digital Innovation • {traits_tagline}",
+                "hero_scene": base_v.get("hero_scene", f"Commercial visual with modern interactive digital overlay for {brand_name}"),
+                "strip": ["Interactive Resource Hub", "Instant Online Calculator", "Live Consultation Booking"],
+                "cta": custom_cta_pill or "EXPLORE ONLINE NOW ➔",
+                "overlay": f"Explore the All-New Online Portal at {brand_name}",
+                "visual": base_v.get("visual", "Modern digital platform visual")
+            }
+        else:
+            return {
+                "concept_badge": base_v.get("type", "Standard Showcase"),
+                "objective_desc": base_v.get("objective", f"Engineered for {objective}"),
+                "headline": base_v.get("headline", f"The Standard of Excellence with {brand_name}"),
+                "sub_headline": base_v.get("sub_headline", f"Trusted by {audience} in {city}"),
+                "badges": base_v.get("badges", ["⚡ Verified Quality", "💰 Direct Value", "👥 Dedicated Team", "⭐ 5-Star Service"]),
+                "tagline": base_v.get("tagline", f"Excellence Driven • {traits_tagline}"),
+                "hero_scene": base_v.get("hero_scene", f"Commercial photography for {brand_name}"),
+                "strip": base_v.get("strip", ["Proven Methodology", "Client Milestones", "Guaranteed Growth"]),
+                "cta": custom_cta_pill or base_v.get("cta", "EXPLORE NOW ➔"),
+                "overlay": base_v.get("overlay", f"The Standard of Excellence with {brand_name}"),
+                "visual": base_v.get("visual", "High-contrast commercial advertising visual")
+            }
 
 
 def get_alternate_concept(
@@ -1491,20 +1826,33 @@ def get_alternate_concept(
             }]
 
     v = variants[iteration % len(variants)]
+    obj_msg = get_objective_messaging(
+        objective=objective,
+        cat=cat,
+        brand_name=brand_name,
+        city=city,
+        audience=audience,
+        web=web,
+        cta_input=business.get("cta", ""),
+        traits_tagline=traits_tagline,
+        idx=idx,
+        iteration=iteration,
+        base_v=v
+    )
 
-    # Generate the pristine commercial advertising prompt incorporating EVERY user option
+    # Generate the pristine commercial advertising prompt incorporating EVERY user option & objective
     image_prompt = format_ad_poster_prompt(
         brand_name=brand_name,
-        headline=v["headline"],
-        sub_headline=v["sub_headline"],
-        badges=v["badges"],
-        tagline=v["tagline"],
-        hero_scene=v["hero_scene"],
-        strip_panels=v["strip"],
+        headline=obj_msg["headline"],
+        sub_headline=obj_msg["sub_headline"],
+        badges=obj_msg["badges"],
+        tagline=obj_msg["tagline"],
+        hero_scene=obj_msg["hero_scene"],
+        strip_panels=obj_msg["strip"],
         web=web,
         phone=phone,
         email=email,
-        cta=cta,
+        cta=obj_msg["cta"],
         f_head=f_head,
         f_body=f_body,
         prim_hex=prim_hex,
@@ -1513,17 +1861,17 @@ def get_alternate_concept(
     )
 
     return {
-        "concept_name": v["name"],
+        "concept_name": f"{v['name'].split(' (')[0]} ({obj_msg['concept_badge']})",
         "concept_type": v["type"],
-        "objective_alignment": v["objective"],
-        "visual_direction": v["visual"],
+        "objective_alignment": f"Engineered for '{objective}': {obj_msg['objective_desc']}",
+        "visual_direction": obj_msg.get("visual", v["visual"]),
         "composition": v["composition"],
         "lighting": v["lighting"],
         "color_direction": v["color_dir"],
         "typography_direction": v["typo_dir"],
         "logo_placement": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' negative space box (plain clean neutral background, zero leaves, zero floral motifs, zero clutter).",
-        "text_overlay": v["overlay"],
-        "cta": v["cta"],
+        "text_overlay": obj_msg["overlay"],
+        "cta": f"{obj_msg['cta']} • {web}",
         "image_generation_prompt": image_prompt
     }
 
@@ -1584,9 +1932,34 @@ def build_platform_captions_fresh(brand_name: str, industry: str, objective: str
                 "x_cre": f"Don't leave your wedding day to chance. Discover vetted Gujarat wedding venues on {brand_name}: {web}",
                 "x_sho": f"Audited party plots across Ahmedabad, Surat, Vadodara: {web}",
                 "li_pro": f"Event risk management: How corporate event planners in Gujarat ensure venue reliability with {brand_name}: {web}"
+            },
+            {
+                # 4. Website Traffic rotation (online exploration, 360 virtual tours)
+                "ig_pro": f"Scouting wedding party plots or banquet halls across {city}? Stop driving in heat and traffic. 🚗❌\n\nExperience Gujarat's largest online venue directory at {brand_name}. Take 360° virtual walkthroughs, browse 10,000+ real venue photos, and filter 500+ banquets by capacity and price in under 60 seconds.\n\nWhat you can do on {web}:\n🌐 360° Immersive Virtual Walkthroughs\n🔍 Filter by budget, catering & guest capacity (100 to 5,000+)\n📸 High-resolution photo galleries & verified floor plans\n⚡ Instant direct price estimates\n\nFind your perfect celebration space from home today!\n\n🔗 Explore now: {web}\n📞 Concierge support: {phone}",
+                "ig_cre": f"What if you could stroll through Gujarat's dreamiest wedding lawns, check out the mandap view, and compare prices—all while sipping chai at home? ☕✨\n\nWelcome to {brand_name}. We've digitized 500+ verified wedding party plots and luxury banquet halls across Gujarat so you can explore every angle before booking a single visit.\n\n✨ Start your virtual tour: {web}",
+                "ig_sho": f"Explore 500+ verified wedding venues in {city} online! 🏛️💻 360° virtual tours & instant pricing.\n\n👉 Browse now: {web}",
+                "fb_pro": f"Why spend weekends visiting 20 different wedding venues when you can scout them all online? 💻✨ Browse 500+ verified banquet halls and party plots across Gujarat on {brand_name}. Take 360° virtual tours and filter by capacity & budget.\n\nExplore now: {web}",
+                "fb_cre": f"Scout your dream wedding venue from the comfort of your living room! 🌟 Discover 360° virtual walkthroughs and real pricing on {brand_name}: {web}",
+                "fb_sho": f"Browse 500+ verified Gujarat wedding party plots online: {web}",
+                "x_pro": f"Scouting wedding party plots in Gujarat? Save 40+ hours of driving between banquets. Explore 500+ verified venues online with 360° walkthroughs on {brand_name}: {web}",
+                "x_cre": f"Explore Gujarat's finest wedding venues from your phone 📱✨ 360° virtual tours on {brand_name}: {web}",
+                "x_sho": f"Scout 500+ Gujarat wedding venues online in 60 seconds: {web}",
+                "li_pro": f"Digital venue procurement across {city}. Compare capacities, floor plans, and transparent pricing for 500+ banquet spaces online at {brand_name}: {web}"
             }
         ]
-        r = rotations[iteration % len(rotations)]
+        obj_l = (objective or "").lower()
+        if "season" in obj_l:
+            base_idx = 1
+        elif "traffic" in obj_l or "web" in obj_l:
+            base_idx = 4
+        elif "educat" in obj_l or "author" in obj_l:
+            base_idx = 3
+        elif "trust" in obj_l or "proof" in obj_l:
+            base_idx = 2
+        else:
+            base_idx = 0
+
+        r = rotations[(base_idx + iteration) % len(rotations)]
         return {
             "instagram": {"professional": r["ig_pro"], "creative": r["ig_cre"], "short": r["ig_sho"]},
             "facebook": {"professional": r["fb_pro"], "creative": r["fb_cre"], "short": r["fb_sho"]},
@@ -2554,6 +2927,7 @@ def render_brand_first_content_page():
         st.session_state["studio_content_pack"] = None
 
     if generate_btn:
+        st.session_state["studio_pack_id"] = st.session_state.get("studio_pack_id", 0) + 1
         # Reset generation trackers so fresh pack values show in text areas
         for i in range(4):
             st.session_state[f"prompt_regen_ver_{i}"] = 0
@@ -2702,9 +3076,9 @@ def render_brand_first_content_page():
             </div>
             """, unsafe_allow_html=True)
 
+            pack_id = st.session_state.get("studio_pack_id", 0)
             prompt_text = cur_concept.get("image_generation_prompt", "")
-            prompt_key = f"txt_prompt_area_{active_c_idx}_{cur_it}"
-            st.session_state[prompt_key] = prompt_text
+            prompt_key = f"txt_prompt_area_{active_c_idx}_{cur_it}_{pack_id}"
             st.text_area(
                 "Image Generation Prompt (Ready for Midjourney / Flux / SDXL / Ideogram):",
                 value=prompt_text,
@@ -2715,7 +3089,7 @@ def render_brand_first_content_page():
             # Left Action Buttons: Copy Prompt & Regenerate Prompt
             lp_col1, lp_col2 = st.columns(2)
             with lp_col1:
-                render_instant_copy_button(prompt_text, "Copy Image Prompt", f"btn_cp_prompt_{active_c_idx}_{cur_it}")
+                render_instant_copy_button(prompt_text, "Copy Image Prompt", f"btn_cp_prompt_{active_c_idx}_{cur_it}_{pack_id}")
             with lp_col2:
                 if st.button("🔄 Regenerate Prompt", key=f"btn_regen_prompt_{active_c_idx}", use_container_width=True):
                     next_it = cur_it + 1
@@ -2790,8 +3164,7 @@ def render_brand_first_content_page():
             )
             full_caption_text = f"{body_caption}\n\n---\n{combined_tags}" if combined_tags else body_caption
 
-            caption_key = f"txt_caption_area_{active_c_idx}_{plat_key}_{tone_key}_{cur_cap_it}"
-            st.session_state[caption_key] = full_caption_text
+            caption_key = f"txt_caption_area_{active_c_idx}_{plat_key}_{tone_key}_{cur_cap_it}_{pack_id}"
             st.text_area(
                 f"{sel_plat} Caption ({sel_tone}):",
                 value=full_caption_text,
@@ -2802,7 +3175,7 @@ def render_brand_first_content_page():
             # Right Action Buttons: Copy Caption & Regenerate Caption
             rc_col1, rc_col2 = st.columns(2)
             with rc_col1:
-                render_instant_copy_button(full_caption_text, "Copy Caption & Tags", f"btn_cp_cap_{active_c_idx}_{cur_cap_it}")
+                render_instant_copy_button(full_caption_text, "Copy Caption & Tags", f"btn_cp_cap_{active_c_idx}_{cur_cap_it}_{pack_id}")
             with rc_col2:
                 if st.button("🔄 Regenerate Caption", key=f"btn_regen_cap_{active_c_idx}", use_container_width=True):
                     next_cap_it = cur_cap_it + 1
