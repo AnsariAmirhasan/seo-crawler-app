@@ -1754,6 +1754,103 @@ def render_concept_visual_card(
     return buf.getvalue()
 
 
+def render_instant_copy_button(text_to_copy: str, label: str, button_id: str):
+    """Renders a zero-latency client-side copy button that works reliably in all browsers."""
+    escaped_json = json.dumps(text_to_copy)
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{ background: transparent; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+    .cp-btn {{
+        width: 100%;
+        height: 38px;
+        background: #F59E0B;
+        color: #111827;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: all 0.15s ease-in-out;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }}
+    .cp-btn:hover {{
+        background: #D97706;
+    }}
+    .cp-btn:active {{
+        transform: scale(0.98);
+    }}
+    .cp-btn.success {{
+        background: #10B981 !important;
+        color: #FFFFFF !important;
+    }}
+    </style>
+    </head>
+    <body>
+    <button id="{button_id}" class="cp-btn" onclick="copyAction()">📋 {label}</button>
+    <script>
+    function copyAction() {{
+        var text = {escaped_json};
+        var btn = document.getElementById("{button_id}");
+        
+        function markDone() {{
+            btn.classList.add("success");
+            btn.innerHTML = "✅ Copied to Clipboard!";
+            setTimeout(function() {{
+                btn.classList.remove("success");
+                btn.innerHTML = "📋 " + {json.dumps(label)};
+            }}, 2200);
+        }}
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {{
+            navigator.clipboard.writeText(text).then(function() {{
+                markDone();
+            }}).catch(function(e) {{
+                fallbackCopy(text);
+            }});
+        }} else {{
+            fallbackCopy(text);
+        }}
+
+        function fallbackCopy(val) {{
+            try {{
+                var ta = document.createElement("textarea");
+                ta.value = val;
+                ta.style.position = "fixed";
+                ta.style.left = "-9999px";
+                ta.style.top = "-9999px";
+                ta.setAttribute("readonly", "");
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                ta.setSelectionRange(0, 99999);
+                var ok = document.execCommand("copy");
+                document.body.removeChild(ta);
+                if (ok) {{
+                    markDone();
+                }} else {{
+                    alert("Please select and copy text directly from the box.");
+                }}
+            }} catch(err) {{
+                alert("Please select and copy text directly from the box.");
+            }}
+        }}
+    }}
+    </script>
+    </body>
+    </html>
+    """
+    st.components.v1.html(html_code, height=45)
+
+
 # ==============================================================================
 # 6. STREAMLIT UI: AI SOCIAL CONTENT STUDIO
 # ==============================================================================
@@ -2362,6 +2459,37 @@ def render_brand_first_content_page():
 
         gemini_api_key = st.text_input("AI Provider API Key (Optional — Studio uses verified fallback if blank):", type="password", value="", help="Enter your Google Gemini or OpenAI API key.")
 
+    # Prepare payloads always available across re-runs and regenerations
+    biz_data = {
+        "brand_name": brand_name,
+        "industry": industry_input,
+        "target_country": country_input,
+        "target_city": city_input,
+        "target_audience": audience_input,
+        "website": website_url,
+        "instagram": ig_url,
+        "facebook": fb_url,
+        "x": x_url,
+        "linkedin": li_url,
+        "phone": contact_phone,
+        "email": contact_email,
+        "cta": primary_cta,
+        "campaign_info": custom_campaign_info
+    }
+
+    color_pack = {
+        "primary": {"hex": c_prim, "rgb": f"rgb{hex_to_rgb(c_prim)}", "hsl": hex_to_hsl(c_prim)},
+        "secondary": {"hex": c_sec, "rgb": f"rgb{hex_to_rgb(c_sec)}", "hsl": hex_to_hsl(c_sec)},
+        "accent": {"hex": c_acc, "rgb": f"rgb{hex_to_rgb(c_acc)}", "hsl": hex_to_hsl(c_acc)},
+        "background": {"hex": c_bg, "rgb": f"rgb{hex_to_rgb(c_bg)}", "hsl": hex_to_hsl(c_bg)},
+        "text": {"hex": c_txt, "rgb": f"rgb{hex_to_rgb(c_txt)}", "hsl": hex_to_hsl(c_txt)}
+    }
+
+    typo_pack = {
+        "heading": f_head.split(" (")[0],
+        "body": f_body
+    }
+
     # ==========================================================================
     # 🚀 PRIMARY CTA: GENERATE COMPLETE CONTENT PACK
     # ==========================================================================
@@ -2390,36 +2518,6 @@ def render_brand_first_content_page():
                 </div>
             </div>
             """.format(chosen_format, f_head.split(" (")[0], chosen_visual_style), unsafe_allow_html=True)
-
-        # Prepare payload
-        biz_data = {
-            "brand_name": brand_name,
-            "industry": industry_input,
-            "target_country": country_input,
-            "target_city": city_input,
-            "target_audience": audience_input,
-            "website": website_url,
-            "instagram": ig_url,
-            "facebook": fb_url,
-            "x": x_url,
-            "linkedin": li_url,
-            "phone": contact_phone,
-            "email": contact_email,
-            "cta": primary_cta
-        }
-
-        color_pack = {
-            "primary": {"hex": c_prim, "rgb": f"rgb{hex_to_rgb(c_prim)}", "hsl": hex_to_hsl(c_prim)},
-            "secondary": {"hex": c_sec, "rgb": f"rgb{hex_to_rgb(c_sec)}", "hsl": hex_to_hsl(c_sec)},
-            "accent": {"hex": c_acc, "rgb": f"rgb{hex_to_rgb(c_acc)}", "hsl": hex_to_hsl(c_acc)},
-            "background": {"hex": c_bg, "rgb": f"rgb{hex_to_rgb(c_bg)}", "hsl": hex_to_hsl(c_bg)},
-            "text": {"hex": c_txt, "rgb": f"rgb{hex_to_rgb(c_txt)}", "hsl": hex_to_hsl(c_txt)}
-        }
-
-        typo_pack = {
-            "heading": f_head.split(" (")[0],
-            "body": f_body
-        }
 
         generated_pack = generate_social_content_studio(
             content_format=chosen_format,
@@ -2549,9 +2647,7 @@ def render_brand_first_content_page():
             # Left Action Buttons: Copy Prompt & Regenerate Prompt
             lp_col1, lp_col2 = st.columns(2)
             with lp_col1:
-                if st.button("📋 Copy Image Prompt", key=f"btn_copy_prompt_{active_c_idx}", use_container_width=True, type="primary"):
-                    st.components.v1.html(f"<script>navigator.clipboard.writeText({json.dumps(prompt_text)});</script>", height=0)
-                    st.toast("✅ Image Prompt copied to clipboard!")
+                render_instant_copy_button(prompt_text, "Copy Image Prompt", f"btn_cp_prompt_{active_c_idx}")
             with lp_col2:
                 if st.button("🔄 Regenerate Prompt", key=f"btn_regen_prompt_{active_c_idx}", use_container_width=True):
                     cur_it = st.session_state.get(f"prompt_regen_ver_{active_c_idx}", 0) + 1
@@ -2635,9 +2731,7 @@ def render_brand_first_content_page():
             # Right Action Buttons: Copy Caption & Regenerate Caption
             rc_col1, rc_col2 = st.columns(2)
             with rc_col1:
-                if st.button("📋 Copy Caption & Tags", key=f"btn_copy_cap_{active_c_idx}", use_container_width=True, type="primary"):
-                    st.components.v1.html(f"<script>navigator.clipboard.writeText({json.dumps(full_caption_text)});</script>", height=0)
-                    st.toast("✅ Caption & Hashtags copied to clipboard!")
+                render_instant_copy_button(full_caption_text, "Copy Caption & Tags", f"btn_cp_cap_{active_c_idx}")
             with rc_col2:
                 if st.button("🔄 Regenerate Caption", key=f"btn_regen_cap_{active_c_idx}", use_container_width=True):
                     cur_cap_it = st.session_state.get(f"caption_regen_ver_{active_c_idx}", 0) + 1
