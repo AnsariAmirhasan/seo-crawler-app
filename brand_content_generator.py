@@ -2203,8 +2203,16 @@ def render_brand_first_content_page():
 
         st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 1rem 0;'>", unsafe_allow_html=True)
         st.markdown("#### Pillar 5: Brand Personality")
-        personality_list = ["Premium", "Minimal", "Luxury", "Friendly", "Professional", "Bold", "Playful", "Modern", "Traditional", "Technical", "Emotional", "Trustworthy"]
-        selected_traits = st.multiselect("Brand Personality Traits:", options=personality_list, default=active_b.get("personality", ["Royal", "Trustworthy", "Celebratory"]))
+        personality_list = [
+            "Premium", "Minimal", "Luxury", "Royal", "Celebratory", "Friendly",
+            "Professional", "Bold", "Playful", "Modern", "Traditional", "Technical",
+            "Emotional", "Trustworthy"
+        ]
+        raw_personality = active_b.get("personality", ["Royal", "Trustworthy", "Celebratory"])
+        safe_personality = [p for p in raw_personality if p in personality_list]
+        if not safe_personality:
+            safe_personality = ["Royal", "Trustworthy", "Celebratory"]
+        selected_traits = st.multiselect("Brand Personality Traits:", options=personality_list, default=safe_personality)
 
         p_col1, p_col2 = st.columns(2)
         with p_col1:
