@@ -776,7 +776,7 @@ def build_prompt_safe_zone_clause(content_format: str, web: str, phone: str, ins
 
     return (
         f"Commercial Advertising Poster Layout Architecture for {b_name}: "
-        f"[TOP-LEFT BRANDING SAFE ZONE]: Dedicated clean rectangular negative space box with subtle dashed border clearly labeled '[ YOUR LOGO HERE ]' flanked by delicate decorative botanical leaves, perfectly reserved for direct brand logo overlay. "
+        f"[TOP-LEFT BRANDING SAFE ZONE]: Dedicated clean minimalist rectangular negative space box with subtle thin dashed border clearly labeled '[ YOUR LOGO HERE ]' on a plain clean neutral background (completely clean, zero leaves, zero floral motifs, zero clutter on either side), perfectly reserved for seamless direct brand logo overlay. "
         f"[LEFT-SIDE MARKETING COPY & BADGES]: Left 40% section structured for bold high-contrast marketing typography: eye-catching primary headline, engaging sub-headline question ('What's the Difference & How to Choose?'), 4 circular feature badge icons with clean micro-labels [🏛️ Verified Quality] [💰 Direct Best Rates] [👥 Flexible Capacity] [⚡ Free Coordination], and an elegant cursive script value tagline. "
         f"[RIGHT HERO VISUAL]: Commercial high-end photography in right 60% area with beautiful depth of field, warm ambient illumination, and realistic textures. "
         f"[LOWER-MIDDLE 3-PANEL STRIP]: A horizontal 3-panel split photo strip showcasing 3 key amenities/benefits with small clean title tabs. "
@@ -896,7 +896,7 @@ def get_alternate_concept(
                     "cta": f"{cta} • Visit {web}",
                     "prompt": (
                         f"Commercial advertising poster layout for {brand_name}. "
-                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean rectangular negative space box with subtle dashed border clearly labeled '[ YOUR LOGO HERE ]' flanked by delicate decorative botanical leaf accents, perfectly reserved for direct brand logo overlay. "
+                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular negative space box with subtle thin dashed border clearly labeled '[ YOUR LOGO HERE ]' on a plain clean neutral background (completely clean, zero leaves, zero floral clutter on either side), perfectly reserved for direct brand logo overlay. "
                         f"[LEFT MARKETING CONTENT & COPY]: "
                         f"Large bold primary headline 'Gujarat\\'s Finest Wedding Lawns & Banquets' in opulent {f_head} font, "
                         f"sub-headline question 'Compare 500+ Verified Party Plots Across Gujarat', "
@@ -922,7 +922,7 @@ def get_alternate_concept(
                     "cta": f"Check Date Availability: {web}",
                     "prompt": (
                         f"Commercial advertising infographic poster layout for {brand_name}. "
-                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean rectangular negative space box with subtle dashed border clearly labeled '[ YOUR LOGO HERE ]' flanked by delicate decorative botanical leaf accents, perfectly reserved for direct brand logo overlay. "
+                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular negative space box with subtle thin dashed border clearly labeled '[ YOUR LOGO HERE ]' on a plain clean neutral background (completely clean, zero leaves, zero floral clutter on either side), perfectly reserved for direct brand logo overlay. "
                         f"[LEFT MARKETING CONTENT & COPY]: "
                         f"Large bold primary headline 'Palatial Banquet Halls & Ballrooms' in opulent {f_head} font, "
                         f"sub-headline question 'Looking for Luxury Indoor Banquets for 100 to 5,000+ Guests?', "
@@ -948,7 +948,7 @@ def get_alternate_concept(
                     "cta": f"Explore Destination Venues: {web}",
                     "prompt": (
                         f"Commercial advertising infographic poster layout for {brand_name}. "
-                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean rectangular negative space box with subtle dashed border clearly labeled '[ YOUR LOGO HERE ]' flanked by delicate decorative botanical leaf accents, perfectly reserved for direct brand logo overlay. "
+                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular negative space box with subtle thin dashed border clearly labeled '[ YOUR LOGO HERE ]' on a plain clean neutral background (completely clean, zero leaves, zero floral clutter on either side), perfectly reserved for direct brand logo overlay. "
                         f"[LEFT MARKETING CONTENT & COPY]: "
                         f"Large bold primary headline 'Unforgettable Destination Wedding Venues' in opulent {f_head} font, "
                         f"sub-headline question 'Explore Scenic Lakeside & Heritage Plots in Gujarat', "
@@ -974,7 +974,7 @@ def get_alternate_concept(
                     "cta": f"Find Daytime Party Plots: {web}",
                     "prompt": (
                         f"Commercial advertising infographic poster layout for {brand_name}. "
-                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean rectangular negative space box with subtle dashed border clearly labeled '[ YOUR LOGO HERE ]' flanked by delicate decorative botanical leaf accents, perfectly reserved for direct brand logo overlay. "
+                        f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular negative space box with subtle thin dashed border clearly labeled '[ YOUR LOGO HERE ]' on a plain clean neutral background (completely clean, zero leaves, zero floral clutter on either side), perfectly reserved for direct brand logo overlay. "
                         f"[LEFT MARKETING CONTENT & COPY]: "
                         f"Large bold primary headline 'Sunlit Lawns for Haldi, Mehendi & Sangeet' in vibrant {f_head} font, "
                         f"sub-headline question 'Planning Colorful Daytime Celebrations in Gujarat?', "
@@ -2695,7 +2695,7 @@ def render_brand_first_content_page():
             st.markdown(f"""
             <div style="background: rgba(15, 23, 42, 0.9); border: 1px dashed rgba(245, 158, 11, 0.45); border-radius: 10px; padding: 10px 14px; font-size: 0.77rem; color: #CBD5E1; margin-bottom: 10px; line-height: 1.6;">
                 🎯 <b>Commercial Ad Poster Architecture (ChatGPT-Grade Creative Layout):</b><br>
-                • <b>[ YOUR LOGO HERE ]:</b> Top-left dedicated negative space frame with decorative leaves for direct logo overlay.<br>
+                • <b>[ YOUR LOGO HERE ]:</b> Top-left dedicated minimalist negative space box (completely clean plain background, zero leaves) for direct logo overlay.<br>
                 • <b>Left Marketing Copy:</b> High-contrast headline, sub-headline question, 4 feature badge icons & cursive tagline.<br>
                 • <b>Right Hero Scene:</b> Realistic commercial photography with <b>{chosen_visual_style}</b>.<br>
                 • <b>Lower 3-Panel Strip:</b> Split photo tiles highlighting 3 key amenities & venue features.<br>
