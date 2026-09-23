@@ -30,6 +30,10 @@ import colorsys
 import requests
 import pandas as pd
 import streamlit as st
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None
 from PIL import Image, ImageDraw, ImageFont
 from urllib.parse import urlparse, quote
 from typing import Optional, Dict, Any, List, Tuple
@@ -213,10 +217,135 @@ def audit_claim_safety(text: str, verified_context: str = "") -> List[str]:
 
 
 # ==============================================================================
+# 2.5 WEBSITE INTELLIGENCE & NICHE EXTRACTION ENGINE
+# ==============================================================================
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def analyze_website_niche(url: str) -> Dict[str, Any]:
+    """
+    Crawls and analyzes the provided website to extract the true business niche,
+    offerings, keywords, locations, and meta content to prevent misclassification.
+    """
+    if not url:
+        return {}
+    clean_url = url.strip()
+    if not clean_url.startswith("http://") and not clean_url.startswith("https://"):
+        clean_url = "https://" + clean_url
+
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        }
+        res = requests.get(clean_url, headers=headers, timeout=8)
+        if res.status_code != 200:
+            return {"url": clean_url, "error": f"HTTP {res.status_code}"}
+
+        if BeautifulSoup:
+            soup = BeautifulSoup(res.text, "html.parser")
+            title = soup.title.string.strip() if soup.title and soup.title.string else ""
+            meta_desc = ""
+            meta_tag = soup.find("meta", attrs={"name": "description"}) or soup.find("meta", attrs={"property": "og:description"})
+            if meta_tag and meta_tag.get("content"):
+                meta_desc = meta_tag["content"].strip()
+            h1_tags = [h.get_text(strip=True) for h in soup.find_all("h1") if h.get_text(strip=True)]
+            body_text = " ".join(soup.stripped_strings)
+        else:
+            t_match = re.search(r"<title[^>]*>(.*?)</title>", res.text, re.IGNORECASE | re.DOTALL)
+            title = t_match.group(1).strip() if t_match else ""
+            m_match = re.search(r'<meta[^>]+(?:name|property)=["\'](?:description|og:description)["\'][^>]+content=["\']([^"\']+)["\']', res.text, re.IGNORECASE)
+            if not m_match:
+                m_match = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:name|property)=["\'](?:description|og:description)["\']', res.text, re.IGNORECASE)
+            meta_desc = m_match.group(1).strip() if m_match else ""
+            h1_tags = [h.strip() for h in re.findall(r"<h1[^>]*>(.*?)</h1>", res.text, re.IGNORECASE | re.DOTALL)]
+            clean_html = re.sub(r"<[^>]+>", " ", res.text)
+            body_text = " ".join(clean_html.split())
+
+        text_lower = body_text.lower()
+
+        # Identify brand name from title or domain
+        domain_part = clean_url.split("//")[-1].split("/")[0].replace("www.", "").split(".")[0]
+        detected_brand = title.split("|")[0].split("-")[0].strip() if title else domain_part.capitalize()
+        if len(detected_brand) > 30:
+            detected_brand = domain_part.capitalize()
+
+        # Niche classification & keyword extraction
+        detected_niche = "Professional Business Services"
+        detected_services = []
+
+        if any(w in text_lower for w in ["wedding", "venue", "banquet", "party plot", "reception", "catering", "mandap", "ceremony"]):
+            detected_niche = "Wedding & Event Venues, Banquet Halls & Event Spaces"
+            detected_services = ["Wedding Venues", "Banquet Halls", "Party Plots", "Corporate Events", "Catering & Vendor Network"]
+        elif any(w in text_lower for w in ["account", "bookkeep", "tax", "cpa", "audit", "financial"]):
+            detected_niche = "Accounting, Tax & Bookkeeping Services"
+            detected_services = ["Audit-Ready Financials", "Tax Planning", "Cloud Bookkeeping", "Payroll Management"]
+        elif any(w in text_lower for w in ["clinic", "doctor", "dental", "medical", "hospital", "healthcare"]):
+            detected_niche = "Medical & Healthcare Services"
+            detected_services = ["Clinical Consultations", "Specialist Care", "Patient Wellness"]
+        elif any(w in text_lower for w in ["real estate", "property", "realtor", "apartments", "villas"]):
+            detected_niche = "Real Estate & Property Development"
+            detected_services = ["Residential Properties", "Commercial Spaces", "Property Advisory"]
+        elif any(w in text_lower for w in ["software", "saas", "cloud infrastructure", "data telemetry", "developer tool"]):
+            detected_niche = "B2B Software & Cloud Infrastructure"
+            detected_services = ["Cloud Infrastructure", "API Integration", "Workflow Automation"]
+        elif any(w in text_lower for w in ["skincare", "cosmetic", "beauty", "apparel", "jewelry", "fashion"]):
+            detected_niche = "E-Commerce, Lifestyle & Beauty Products"
+            detected_services = ["Direct-to-Consumer Products", "Curated Collections"]
+
+        # Geographic location extraction
+        locations = []
+        for loc in ["Gujarat", "Ahmedabad", "Surat", "Vadodara", "Rajkot", "Mumbai", "Delhi", "Bengaluru", "Canada", "Toronto", "United States", "New York"]:
+            if loc.lower() in text_lower:
+                locations.append(loc)
+
+        return {
+            "url": clean_url,
+            "title": title,
+            "meta_description": meta_desc,
+            "detected_brand": detected_brand,
+            "detected_niche": detected_niche,
+            "detected_services": detected_services,
+            "locations": locations,
+            "headline": h1_tags[0] if h1_tags else "",
+            "summary": meta_desc or (h1_tags[0] if h1_tags else title)
+        }
+    except Exception as e:
+        return {"url": clean_url, "error": str(e)}
+
+
+# ==============================================================================
 # 3. SAVED BRAND PROFILES DATABASE (MODULAR ARCHITECTURE)
 # ==============================================================================
 
 DEFAULT_SAVED_BRANDS = {
+    "VenueConnect (Gujarat Venues)": {
+        "brand_name": "VenueConnect",
+        "industry": "Wedding & Event Venue Booking Platform",
+        "target_country": "India",
+        "target_city": "Gujarat (Ahmedabad, Surat, Vadodara, Rajkot)",
+        "target_audience": "Engaged couples, families planning weddings, event organizers, corporate banquet bookers",
+        "website": "https://www.venueconnect.in/",
+        "instagram": "https://instagram.com/venueconnect.in",
+        "facebook": "https://facebook.com/venueconnect.in",
+        "x": "",
+        "linkedin": "",
+        "phone": "+91 98765 43210",
+        "email": "hello@venueconnect.in",
+        "cta": "Explore Venues & Get Free Quotes",
+        "visual_style": "🎞️ 80s / 90s Vintage Nostalgia (Trending Film Grain)",
+        "colors": {
+            "primary": {"hex": "#123456", "rgb": "rgb(18, 52, 86)", "hsl": "hsl(210, 65%, 20%)"},
+            "secondary": {"hex": "#F58220", "rgb": "rgb(245, 130, 32)", "hsl": "hsl(28, 92%, 54%)"},
+            "accent": {"hex": "#FFFFFF", "rgb": "rgb(255, 255, 255)", "hsl": "hsl(0, 0%, 100%)"},
+            "background": {"hex": "#0F172A", "rgb": "rgb(15, 23, 42)", "hsl": "hsl(222, 47%, 11%)"},
+            "text": {"hex": "#F8FAFC", "rgb": "rgb(248, 250, 252)", "hsl": "hsl(210, 40%, 98%)"}
+        },
+        "fonts": {"heading": "Playfair Display", "body": "Plus Jakarta Sans"},
+        "personality": ["Royal", "Trustworthy", "Celebratory"],
+        "formal_casual": 3,
+        "conservative_creative": 4,
+        "guidelines": "Find and book the best wedding venues, banquet halls, party plots & event spaces in Gujarat. Compare prices, capacity, catering options across Ahmedabad, Surat, Rajkot, Vadodara."
+    },
     "XYZ Essential Oils (Canada)": {
         "brand_name": "XYZ Essential Oils",
         "industry": "Pure Essential Oils & Wellness Aromatherapy",
@@ -411,15 +540,41 @@ Include:
             except Exception:
                 continue
 
+    # 0. Website Intelligence Extraction
+    website_url = business.get("website", "")
+    website_context = {}
+    if website_url:
+        website_context = analyze_website_niche(website_url)
+
     # ==============================================================================
     # DYNAMIC INDUSTRY-ADAPTIVE CONTENT ENGINE (FALLBACK)
-    # Automatically generates tailored concepts for Finance, Tech, Healthcare,
+    # Automatically generates tailored concepts for Venues/Events, Finance, Tech, Healthcare,
     # Real Estate, Services, Food, Fitness, or Products.
     # ==============================================================================
-    cat = detect_industry_category(business.get("industry", ""), campaign_info, brand_name)
+    combined_context = f"{campaign_info} {website_context.get('summary', '')} {website_context.get('detected_niche', '')}"
+    cat = detect_industry_category(business.get("industry", ""), combined_context, brand_name)
     concepts = build_industry_concepts(brand_name, business.get("industry", ""), visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration=0)
 
-    if cat == "finance":
+    if cat == "events_venues":
+        strat_idea = f"The Unforgettable Celebration Standard: Finding Gujarat's Finest Venues with {brand_name}"
+        strat_target = f"Designed for engaged couples, families, and corporate event organizers in {business.get('target_city', 'Gujarat')} planning grand weddings and milestone celebrations."
+        strat_msg = f"At {brand_name}, we eliminate the chaos of venue hunting by connecting you with verified banquet halls, party plots, and event spaces across Gujarat."
+        strat_angle = "Why driving to 20 banquets in the heat is obsolete when you can compare capacities, catering, and prices in 60 seconds."
+        strat_hook = "Planning a wedding in Gujarat? Stop losing weeks to venue hunting."
+        strat_vis = f"Opulent {visual_style} aesthetic featuring sprawling evening party plot lawns illuminated by fairy lights, crystal chandeliers, floral mandaps, and rich warm ambient tones accented by {prim_hex} and {sec_hex} highlights."
+
+        ig_prof = f"Planning a dream wedding or grand celebration in Gujarat? 🌸✨\n\nStop spending weeks visiting 20 different banquets in the heat. At {brand_name}, we bring Gujarat's finest wedding venues, royal banquet halls, and open-air party plots right to your screen.\n\nWhy Gujarat families trust {brand_name}:\n🏛️ 500+ Verified Banquets & Party Plots\n💰 Transparent price comparisons & catering packages\n👥 Capacities from 100 to 5,000+ guests\n⚡ Free instant quotes & site visit coordination\n\nMake your celebration unforgettable. Book smarter today.\n\n🌐 Visit: {business.get('website', 'https://www.venueconnect.in/')}\n📲 Call / WhatsApp: {business.get('phone', '[Direct Booking Helpline]')}\n📍 Venues across Ahmedabad, Surat, Vadodara, Rajkot & Gujarat\n\nTag someone who's getting married this season! 👇"
+        li_prof = f"Corporate summits, product launches, or grand annual galas in Gujarat?\n\n{brand_name} simplifies enterprise venue scouting with verified AC banquet halls, luxury resort lawns, and transparent catering options across Ahmedabad, Surat, and Vadodara.\n\n✔ Zero brokerage or hidden fees\n✔ Verified venue photos & real customer ratings\n✔ Dedicated event venue specialist\n\nExplore corporate event spaces: {business.get('website', 'https://www.venueconnect.in/')}"
+        x_prof = f"Planning a wedding in Gujarat? Here is how to find and compare 500+ verified banquet halls & party plots across Ahmedabad, Surat, & Vadodara in under 2 minutes 🧵👇\n\n{business.get('website', 'https://www.venueconnect.in/')}"
+        fb_prof = f"Your dream wedding deserves the perfect setting. 💍✨ Discover Gujarat's most loved wedding lawns, royal banquet halls, and party plots on {brand_name}. Compare prices, guest capacities, and catering options with zero hassle!\n\n👉 Book your free site visit today: {business.get('website', 'https://www.venueconnect.in/')}\n📞 WhatsApp: {business.get('phone', 'Venue Support')}"
+        h_tags = {
+            "brand_hashtags": [f"#{brand_name.replace(' ', '')}", f"#{brand_name.replace(' ', '')}Weddings"],
+            "product_hashtags": ["#WeddingVenuesGujarat", "#BanquetHalls", "#PartyPlotsGujarat", "#GujaratEvents"],
+            "industry_hashtags": ["#IndianWeddings", "#WeddingPlanning", "#LuxuryWeddings", "#EventSpaces"],
+            "audience_hashtags": ["#GujaratCouples", "#WeddingInspo", "#DestinationWeddingIndia"],
+            "location_hashtags": ["#Ahmedabad", "#Surat", "#Vadodara", "#Rajkot", "#Gujarat"]
+        }
+    elif cat == "finance":
         strat_idea = f"The Zero-Stress Financial Standard: Scaling {brand_name} with Precision Bookkeeping"
         strat_target = f"Designed for business owners, founders, and leaders in {business.get('target_city', 'Canada')} looking to eliminate tax anxiety and messy spreadsheets."
         strat_msg = f"At {brand_name}, we turn financial chaos into clear, audit-ready numbers that fuel confident growth."
@@ -588,23 +743,119 @@ Include:
 # 5. MULTI-INDUSTRY CONCEPTS & ADAPTIVE ALTERNATE GENERATOR
 # ==============================================================================
 
+def get_trending_style_prompt_fragment(visual_style: str) -> str:
+    """Returns specialized prompt keywords matching trending photography aesthetics."""
+    vs_lower = visual_style.lower()
+    if "80s" in vs_lower or "vintage" in vs_lower or "nostalgia" in vs_lower or "grain" in vs_lower:
+        return "authentic 35mm film photography, Kodak Portra 400 film stock, gentle direct camera flash, warm nostalgic 1980s retro color grading, organic film grain, warm amber and golden tones"
+    elif "editorial" in vs_lower or "flash" in vs_lower or "vogue" in vs_lower:
+        return "high-end editorial luxury flash photography, Architectural Digest hospitality cover style, sharp directional studio strobe, crisp micro-contrast, vibrant saturated palette, Hasselblad 8k detail"
+    elif "golden hour" in vs_lower or "fairy" in vs_lower or "twilight" in vs_lower:
+        return "cinematic golden hour twilight photography, warm sun-drenched backlight filtering through decor, thousands of twinkling warm incandescent fairy lights, glowing evening atmosphere, 8k resolution"
+    elif "royal" in vs_lower or "heritage" in vs_lower:
+        return "opulent Indian royal heritage aesthetic, grand palatial stone architecture, cascading marigolds and jasmine, brass antique lamps, rich traditional luxury celebration, hyperrealistic 8k"
+    elif "minimalist" in vs_lower or "minimal" in vs_lower:
+        return "clean contemporary architectural minimalism, elegant sheer ivory drapes, manicured lawn greenery, soft diffused natural daylight, sophisticated luxury balance"
+    elif "candid" in vs_lower or "ugc" in vs_lower:
+        return "authentic candid social media documentary capture, natural unposed wedding party guest celebration, smartphone camera realism, vibrant genuine smiles, warm festival lighting"
+    elif "bold" in vs_lower:
+        return "bold vibrant high-energy commercial lighting, saturated colors, punchy contrast, dynamic angle"
+    elif "corporate" in vs_lower:
+        return "clean executive architectural photography, elegant neutral lighting, modern high-trust composition"
+    else:
+        return f"{visual_style} commercial photography, balanced studio lighting, professional 8k clarity"
+
+
+def build_prompt_safe_zone_clause(content_format: str, web: str, phone: str, instagram: str) -> str:
+    """Generates precise negative space rules for logo, website, phone, and social handle tagging."""
+    web_str = web if web else "www.venueconnect.in"
+    phone_str = phone if phone else "+91 98765 43210"
+    handle_str = instagram if instagram else "@venueconnect.in"
+
+    if "Carousel" in content_format:
+        return (
+            f"Layout & Safe Zone Rules for Multi-Slide Carousel: "
+            f"Upper 20% clear negative space reserved for brand logo and slide indicator. "
+            f"Lower-third 15% subtle gradient buffer reserved for website URL ({web_str}), booking phone ({phone_str}), and social handle ({handle_str}). "
+            f"Side margins kept clear of critical action for carousel swipe arrows. Aspect Ratio: 4:5 vertical cards."
+        )
+    elif "Reel" in content_format or "Video" in content_format:
+        return (
+            f"Safe Zone Rules for 9:16 Vertical Reel/Video Cover: "
+            f"Hero subject framed in central 70% vertical action zone. "
+            f"Top 15% clear margin for username/story bar. "
+            f"Bottom 20% clear margin for audio title, caption preview, and platform engagement buttons. "
+            f"Top-center logo buffer, lower-middle clean banner for website ({web_str}) and WhatsApp ({phone_str}). Aspect Ratio: 9:16 vertical."
+        )
+    elif "Grid" in content_format:
+        return (
+            f"Safe Zone Rules for 1:1 Instagram Profile Grid: "
+            f"Subject centered with 1:1 square crop safety, ensuring visual balance inside a 3x3 profile feed. "
+            f"Upper quadrant reserved for clean brand badge; lower edge reserved for website ({web_str}) and handle ({handle_str}) without clipping adjacent tiles. Aspect Ratio: 1:1 square."
+        )
+    elif "Story" in content_format:
+        return (
+            f"Safe Zone Rules for 9:16 Story: "
+            f"Top 15% clear margin for story header; bottom 20% clear margin for 'Send Message' / sticker reply bar; "
+            f"center reserved for interactive poll/link sticker and headline. Top-left logo placement, bottom link buffer for {web_str}. Aspect Ratio: 9:16 vertical."
+        )
+    elif "Ad" in content_format:
+        return (
+            f"Safe Zone Rules for High-Converting Ad Creative: "
+            f"Thumb-stopping high-contrast focal subject commanding attention in social feed. "
+            f"Top 15% header zone for brand logo and trust rating badge; bottom 20% CTA safe area for 'Book Venue' button buffer and website URL ({web_str}). "
+            f"Direct call/WhatsApp tagging buffer ({phone_str}). Aspect Ratio: 4:5 portrait."
+        )
+    else:
+        # Default Single Post
+        return (
+            f"Composition & Safe Zone Rules for Single Post: "
+            f"Upper 20% clear negative space reserved for brand logo and title badge. "
+            f"Lower-third 15% subtle gradient buffer reserved for website URL ({web_str}), "
+            f"booking phone ({phone_str}), and social handle tagging ({handle_str}). "
+            f"Clean uncluttered background leaves central focus crisp for maximum social engagement. Aspect Ratio: 4:5 vertical portrait."
+        )
+
+
 def detect_industry_category(industry_text: str, campaign_info: str = "", brand_name: str = "") -> str:
     """Categorizes the business into a specialized industry archetype."""
     combined = f"{industry_text} {campaign_info} {brand_name}".lower()
-    if any(k in combined for k in ["account", "bookkeep", "tax", "finance", "audit", "wealth", "cpa", "ledger", "payroll", "capital", "invest", "fiscal"]):
+
+    # 1. EVENTS, WEDDINGS & VENUES (Check FIRST so 'platform' or 'listing' doesn't misclassify as tech)
+    if any(k in combined for k in [
+        "venue", "banquet", "wedding", "marriage", "party plot", "event", "hall", "reception",
+        "catering", "decor", "convention", "resort", "mandap", "ceremony", "hospitality", "hotel"
+    ]):
+        return "events_venues"
+
+    # 2. FINANCE & BOOKKEEPING
+    elif any(k in combined for k in ["account", "bookkeep", "tax", "finance", "audit", "wealth", "cpa", "ledger", "payroll", "capital", "invest", "fiscal"]):
         return "finance"
-    elif any(k in combined for k in ["saas", "software", "tech", "cloud", "ai", "cyber", "app", "data", "it ", "developer", "platform", "api"]):
-        return "tech"
+
+    # 3. CLINIC & HEALTH
     elif any(k in combined for k in ["clinic", "medic", "doctor", "dental", "dentist", "therap", "wellness", "hospital", "pharma", "health", "physio"]):
         return "health"
+
+    # 4. REAL ESTATE
     elif any(k in combined for k in ["real estate", "realtor", "property", "mortgage", "brokerage", "architect", "interior", "home", "estate"]):
         return "realestate"
-    elif any(k in combined for k in ["food", "restaurant", "cafe", "coffee", "beverage", "bakery", "kitchen", "dining", "culinary"]):
+
+    # 5. FOOD & RESTAURANTS
+    elif any(k in combined for k in ["restaurant", "cafe", "coffee", "beverage", "bakery", "kitchen", "dining", "culinary"]):
         return "food"
+
+    # 6. GYM & FITNESS
     elif any(k in combined for k in ["gym", "fitness", "workout", "trainer", "athletics", "crossfit", "yoga", "training"]):
         return "fitness"
+
+    # 7. PHYSICAL PRODUCTS, BEAUTY & RETAIL
     elif any(k in combined for k in ["oil", "skincare", "beauty", "cosmetic", "bottle", "perfume", "serum", "apparel", "clothing", "ecommerce", "store", "goods"]):
         return "product"
+
+    # 8. TECH & SAAS (Strict technical keywords, not generic platforms/directories)
+    elif any(k in combined for k in ["saas", "software", "cloud infrastructure", "cyber", "data telemetry", "developer tool", "api", "ai engine"]):
+        return "tech"
+
     else:
         return "service"
 
@@ -618,14 +869,15 @@ def build_industry_concepts(
     bg_hex: str,
     typography: Dict[str, str],
     business: Dict[str, Any],
-    iteration: int = 0
+    iteration: int = 0,
+    content_format: str = "Single Post (Feed)"
 ) -> List[Dict[str, Any]]:
     """Builds 4 distinct, fully-realized production creative concepts tailored to the industry."""
     return [
-        get_alternate_concept(0, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration),
-        get_alternate_concept(1, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration),
-        get_alternate_concept(2, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration),
-        get_alternate_concept(3, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration)
+        get_alternate_concept(0, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration, content_format),
+        get_alternate_concept(1, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration, content_format),
+        get_alternate_concept(2, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration, content_format),
+        get_alternate_concept(3, brand_name, industry_text, visual_style, prim_hex, sec_hex, bg_hex, typography, business, iteration, content_format)
     ]
 
 
@@ -639,21 +891,87 @@ def get_alternate_concept(
     bg_hex: str,
     typography: Dict[str, str],
     business: Dict[str, Any],
-    iteration: int = 0
+    iteration: int = 0,
+    content_format: str = "Single Post (Feed)"
 ) -> Dict[str, Any]:
     """
     Generates a targeted concept variation for slot idx (0=Authority, 1=Lifestyle, 2=Infographic, 3=Problem->Solution).
     Supports endless regeneration iterations without repeating stale content.
+    Incorporates trending photography aesthetics and strict branding negative space guidelines.
     """
     cat = detect_industry_category(industry_text, business.get("campaign_info", ""), brand_name)
     cta = business.get("cta", "Learn More")
-    city = business.get("target_city", "our community")
-    web = business.get("website", "link in bio")
+    city = business.get("target_city", "Gujarat")
+    web = business.get("website", "https://www.venueconnect.in/")
+    phone = business.get("phone", "+91 98765 43210")
+    ig_h = business.get("instagram", "@venueconnect.in")
     f_head = typography.get("heading", "Outfit")
+
+    style_frag = get_trending_style_prompt_fragment(visual_style)
+    safe_clause = build_prompt_safe_zone_clause(content_format, web, phone, ig_h)
 
     # SLOT 0: CORE AUTHORITY HERO
     if idx == 0:
-        if cat == "finance":
+        if cat == "events_venues":
+            variants = [
+                {
+                    "name": "Concept 1: Royal Wedding Lawn at Twilight (Warm Nostalgic Film)",
+                    "type": "Signature Venue Showcase",
+                    "objective": "Positions the brand as the premier gateway to Gujarat's most breathtaking wedding party plots.",
+                    "visual": f"Sprawling illuminated wedding lawn in {city} at twilight, thousands of warm incandescent fairy lights, royal marigold floral archways, glowing gazebo in background, festive Gujarati celebration ambiance.",
+                    "composition": "Centered wide-angle hero framing with grand symmetrical leading lines.",
+                    "lighting": "Magical twilight golden hour ambient glow, warm incandescent fairy lights, soft vintage direct flash.",
+                    "color_dir": f"Rich twilight indigo sky contrasted with glowing amber {sec_hex} and royal {prim_hex} accents.",
+                    "typo_dir": f"Opulent {f_head} headings with refined subtitle tracking.",
+                    "logo_plc": "Top left header safe area (20% buffer).",
+                    "overlay": "Gujarat's Most Loved Wedding Venues & Party Plots.",
+                    "cta": f"{cta} • Visit {web}",
+                    "prompt": f"Commercial editorial photography of a breathtaking royal outdoor wedding venue lawn in {city} at twilight, illuminated by thousands of warm fairy lights, grand floral archway with roses and marigolds, festive evening celebration ambiance, {style_frag}. Negative space composition: {safe_clause} No intrusive text artifacts, hyperrealistic, 8k resolution."
+                },
+                {
+                    "name": "Concept 1: The Grand Palatial Banquet (Architectural Splendor)",
+                    "type": "Grand Authority",
+                    "objective": "Captures the awe-inspiring scale and luxury of Gujarat's verified indoor banquets.",
+                    "visual": f"Towering crystal chandeliers reflecting on polished marble ballroom floor in {city}, round banquet seating with royal centerpieces, glowing {sec_hex} ambient lighting.",
+                    "composition": "Dramatic eye-level 24mm wide-angle interior perspective.",
+                    "lighting": "High-key warm golden chandelier illumination with deep architectural depth.",
+                    "color_dir": f"Warm ivory, champagnes, and deep royal {prim_hex} grounded by {sec_hex} gold.",
+                    "typo_dir": f"Classic luxury serif {f_head} overlay.",
+                    "logo_plc": "Top center badge with 20% safe padding.",
+                    "overlay": "Grand Banquets for 100 to 5,000+ Guests.",
+                    "cta": f"Check Date Availability: {web}",
+                    "prompt": f"Architectural luxury photography of an opulent grand banquet hall ballroom in {city}, towering crystal chandeliers casting golden ambient light, royal floral centerpieces on pristine banquet tables, polished marble floor reflections, symmetrical wide-angle 24mm framing, {style_frag}. Negative space composition: {safe_clause} High-end Architectural Digest luxury hospitality aesthetic."
+                },
+                {
+                    "name": "Concept 1: Sunset Mandap by the Lake (Cinematic Grandeur)",
+                    "type": "Destination Luxury",
+                    "objective": "Showcases premium destination party plots and lakeside mandap setups.",
+                    "visual": f"Breathtaking destination wedding mandap setup by a tranquil lake in {city} at golden sunset, draped in cascading jasmine and fresh marigolds, antique brass lanterns flickering on water.",
+                    "composition": "Low-angle heroic mandap perspective with tranquil water reflections.",
+                    "lighting": "Warm sunkissed golden hour backlight and flickering oil lamps.",
+                    "color_dir": f"Warm terracotta, sunset amber {sec_hex}, and regal gold.",
+                    "typo_dir": f"Refined serif {f_head}.",
+                    "logo_plc": "Top right safe buffer.",
+                    "overlay": "Unforgettable Destination Venues Across Gujarat.",
+                    "cta": f"Explore Destination Venues: {web}",
+                    "prompt": f"Cinematic luxury travel photography of a grand wedding mandap on a lakeside lawn in {city} at sunset, adorned with cascading jasmine and golden marigolds, antique brass lanterns reflecting on water, {style_frag}. Negative space composition: {safe_clause} Timeless royal Gujarati celebration aesthetic, 8k."
+                },
+                {
+                    "name": "Concept 1: Vibrant Sunlit Mehendi Poolside Lawn",
+                    "type": "Festive Celebration",
+                    "objective": "Captures daytime event perfection for Mehendi, Haldi, and Sangeet celebrations.",
+                    "visual": f"Vibrant sun-drenched daytime poolside party plot lawn in {city}, colorful bohemian drapes in yellow and turquoise, marigold flower umbrellas, luxury cabana seating.",
+                    "composition": "Dynamic diagonal perspective capturing lush manicured lawn and crystal pool.",
+                    "lighting": "Bright cheerful natural morning sun with crisp soft shadows.",
+                    "color_dir": f"Vibrant festive yellows, crisp whites, and lush garden greens.",
+                    "typo_dir": f"Modern celebratory {f_head}.",
+                    "logo_plc": "Top left quadrant.",
+                    "overlay": "Sunlit Venues for Haldi, Mehendi & Sangeet.",
+                    "cta": f"Find Daytime Party Plots: {web}",
+                    "prompt": f"Vibrant luxury event photography of an open-air poolside wedding party plot in {city} in bright daylight, colorful festive drapes, marigold flower arrangements, luxury outdoor lounge seating, sparkling pool water reflections, {style_frag}. Negative space composition: {safe_clause} High-energy celebration realism."
+                }
+            ]
+        elif cat == "finance":
             variants = [
                 {
                     "name": "Concept 1: The Clarity Command (Real-Time Cloud Ledger)",
@@ -784,7 +1102,52 @@ def get_alternate_concept(
 
     # SLOT 1: LIFESTYLE / EMOTIONAL RESONANCE
     elif idx == 1:
-        if cat == "finance":
+        if cat == "events_venues":
+            variants = [
+                {
+                    "name": "Concept 2: The Stress-Free Couple (Dream Venue Locked)",
+                    "type": "Emotional Relief",
+                    "objective": "Connects emotionally with engaged couples who dread chaotic venue negotiations.",
+                    "visual": f"Joyful bride and groom smiling warmly in sunlit Gujarati wedding garden, holding hands under floral pergola, pure happiness having secured their dream venue without hassle.",
+                    "composition": "Intimate medium close-up, 85mm f/1.4 lens with creamy bokeh.",
+                    "lighting": "Golden hour sun flare filtering through floral canopy.",
+                    "color_dir": f"Warm terracotta, pastels, and golden amber {sec_hex} accents.",
+                    "typo_dir": f"Emotional {f_head} typography.",
+                    "logo_plc": "Bottom left safe zone.",
+                    "overlay": "Stop Hunting. Start Celebrating.",
+                    "cta": f"Find your match at {web}",
+                    "prompt": f"Candid documentary photography of happy engaged couple laughing in sunlit royal wedding garden in {city}, golden hour rim light, beautiful floral decor in soft focus background, authentic emotion, 85mm f/1.4 lens, natural skin tones, {style_frag}. Negative space composition: {safe_clause}"
+                },
+                {
+                    "name": "Concept 2: Joyous Sangeet Family Celebration (Authentic Night)",
+                    "type": "Cultural Resonance",
+                    "objective": "Taps into the vibrant communal joy of Gujarati wedding celebrations.",
+                    "visual": f"Dynamic candid capture of Gujarati wedding family celebrating with joy and laughter under illuminated party plot canopy in {city}, traditional attire with vibrant mirror work, authentic smiles.",
+                    "composition": "Energetic eye-level medium group composition with festive background depth.",
+                    "lighting": "Warm ambient party plot lighting with soft vintage direct flash, twinkling fairy lights.",
+                    "color_dir": f"Rich festive jewel tones contrasted with warm amber {sec_hex} lighting.",
+                    "typo_dir": f"Bold festive {f_head}.",
+                    "logo_plc": "Top right safe buffer.",
+                    "overlay": "Celebrate With Everyone You Love.",
+                    "cta": f"Find 1,000+ Guest Venues: {web}",
+                    "prompt": f"Documentary candid photography of Gujarati wedding family celebrating with laughter under illuminated party plot canopy in {city}, vibrant traditional festive attire, joyful natural smiles, twinkling fairy lights, {style_frag}. Negative space composition: {safe_clause}"
+                },
+                {
+                    "name": "Concept 2: The Royal Bride's Entrance (Palatial Corridor)",
+                    "type": "Luxury Aspiration",
+                    "objective": "Evokes timeless emotional grandeur for brides planning their royal walk.",
+                    "visual": f"Indian bride walking gracefully down a palatial marble colonnade lined with fresh rose petals and flickering brass diyas, sheer veil catching golden ambient glow.",
+                    "composition": "Symmetrical architectural corridor framing with dramatic central perspective.",
+                    "lighting": "Soft warm architectural candle-glow with subtle golden rim light.",
+                    "color_dir": f"Royal crimson, antique ivory, and warm brass {sec_hex} tones.",
+                    "typo_dir": f"Classic luxury serif {f_head}.",
+                    "logo_plc": "Top left safe zone.",
+                    "overlay": "Make Your Grand Entrance Unforgettable.",
+                    "cta": f"Discover Heritage Venues: {web}",
+                    "prompt": f"Editorial bridal photography of an Indian bride walking down a grand palatial banquet corridor lined with glowing brass lamps and fresh rose petals in {city}, sheer veil illuminated by soft warm golden light, {style_frag}. Negative space composition: {safe_clause} Vogue India luxury wedding aesthetic."
+                }
+            ]
+        elif cat == "finance":
             variants = [
                 {
                     "name": "Concept 2: Founder Peace of Mind (Lifestyle Sanctuary)",
@@ -884,7 +1247,52 @@ def get_alternate_concept(
 
     # SLOT 2: EDUCATIONAL / INFOGRAPHIC FRAMEWORK
     elif idx == 2:
-        if cat == "finance":
+        if cat == "events_venues":
+            variants = [
+                {
+                    "name": "Concept 3: The Smart Venue Comparison Matrix (Capacity & Pricing)",
+                    "type": "Comparison Framework",
+                    "objective": "Builds unmatched utility and trust by solving the real pain of price and capacity opacity.",
+                    "visual": f"Clean 3-pillar architectural card in {city}: 01 Banquet Capacity (100–5,000) • 02 In-House Catering Menus • 03 Verified Direct Price Comparison across Ahmedabad, Surat & Vadodara.",
+                    "composition": "Balanced modular 3-tier comparative layout with clear visual hierarchy.",
+                    "lighting": "Crisp high-contrast commercial studio lighting with warm festive accent glow.",
+                    "color_dir": f"Deep {bg_hex} card with crisp {prim_hex} borders and {sec_hex} badge accents.",
+                    "typo_dir": f"Bold {f_head} numerals and structured feature list.",
+                    "logo_plc": "Top center.",
+                    "overlay": "Compare 500+ Verified Venues in 60 Seconds.",
+                    "cta": f"Compare Venues Now: {web}",
+                    "prompt": f"Minimalist modern graphic design layout, comparison card for wedding venues in {city}, 3-column structured overview of guest capacity, catering packages, and price transparency, crisp {prim_hex} and {sec_hex} accents, {style_frag}. Negative space composition: {safe_clause}"
+                },
+                {
+                    "name": "Concept 3: The 4-Step Venue Booking Roadmap (Zero Stress Guide)",
+                    "type": "Process Clarity",
+                    "objective": "Dismantles wedding planning overwhelm with an effortless 4-step path.",
+                    "visual": "Elegant step-by-step roadmap: 01 Shortlist by Budget ➔ 02 Compare Capacities ➔ 03 Book Free Guided Site Visit ➔ 04 Lock Guaranteed Date.",
+                    "composition": "Vertical progression card with numbered milestone circles and glowing connector lines.",
+                    "lighting": "Clean commercial illumination with glowing amber highlight badges.",
+                    "color_dir": f"Crisp dark slate with luminous amber {sec_hex} and royal {prim_hex}.",
+                    "typo_dir": f"Clean structured {f_head} headings.",
+                    "logo_plc": "Top center badge.",
+                    "overlay": "01 Shortlist ➔ 02 Compare ➔ 03 Visit ➔ 04 Book",
+                    "cta": f"Start Your Free Search: {web}",
+                    "prompt": f"Swiss minimalist graphic design layout poster, wedding venue selection roadmap in {city}, 4 clear milestones, dark slate background, glowing {prim_hex} and {sec_hex} nodes, clean typography, {style_frag}. Negative space composition: {safe_clause}"
+                },
+                {
+                    "name": "Concept 3: Top 5 Checklist for Banquet Selection in Gujarat",
+                    "type": "Educational Authority",
+                    "objective": "Positions VenueConnect as the indispensable expert guide for family decision-makers.",
+                    "visual": "Editorial checklist card highlighting: Parking capacity, AC power backup, guest room count, sound curfew limits, and catering flexibility.",
+                    "composition": "Grid layout with clean verification icons and badges.",
+                    "lighting": "Soft even studio lighting.",
+                    "color_dir": f"Royal navy {prim_hex} accented by golden amber {sec_hex}.",
+                    "typo_dir": f"Authoritative {f_head} typography.",
+                    "logo_plc": "Bottom right corner.",
+                    "overlay": "5 Questions Every Gujarat Family Must Ask Before Paying Advance.",
+                    "cta": f"Download Complete Checklist at {web}",
+                    "prompt": f"Editorial infographic graphic design, wedding venue booking checklist poster for Gujarat banquets, crisp checklist badges, {prim_hex} and {sec_hex} accents, {style_frag}. Negative space composition: {safe_clause}"
+                }
+            ]
+        elif cat == "finance":
             variants = [
                 {
                     "name": "Concept 3: The 3 Pillars of Financial Mastery (Infographic)",
@@ -984,7 +1392,52 @@ def get_alternate_concept(
 
     # SLOT 3: PROBLEM -> SOLUTION / PARADIGM SHIFT
     else:
-        if cat == "finance":
+        if cat == "events_venues":
+            variants = [
+                {
+                    "name": "Concept 4: 20 Venue Visits ➔ 1-Click Comparison (Problem ➔ Solution)",
+                    "type": "Direct Response Ad",
+                    "objective": "High-converting split comparison showing the exhausting old way vs the smart VenueConnect way.",
+                    "visual": f"Split screen visual: On left, tired couple in traffic with messy venue brochures in {city}; on right, stunning glowing evening party plot with families dancing and verified booking badge in {sec_hex}.",
+                    "composition": "50/50 vertical division with high visual contrast.",
+                    "lighting": "Desaturated flat tones on left resolving into luminous golden celebration on right.",
+                    "color_dir": f"Neutral charcoal fading to vibrant royal {prim_hex} and festive amber {sec_hex}.",
+                    "typo_dir": "Punchy comparison labels ('Old Way' vs 'VenueConnect Way').",
+                    "logo_plc": "Bottom center bridge.",
+                    "overlay": "Wedding Dates Fill Up Fast. Lock Yours Today.",
+                    "cta": f"Get Free Quotes: {web}",
+                    "prompt": f"High-converting split screen advertising photography, left side chaotic venue paperwork and stressful traffic in {city}, right side breathtaking illuminated wedding lawn with fairy lights and joyous celebration, {style_frag}. Negative space composition: {safe_clause}"
+                },
+                {
+                    "name": "Concept 4: Wedding Season Date Rush (Auspicious Dates Alert)",
+                    "type": "Urgency & Availability",
+                    "objective": "Triggers rapid action for prime wedding dates (Sayas) before premium banquets sell out.",
+                    "visual": f"Glowing luxury calendar marking peak auspicious wedding months in Gujarat, framed beside an opulent illuminated banquet hall in {city}.",
+                    "composition": "Hero visual with prominent date milestone badges.",
+                    "lighting": "Warm ambient twilight glow with sparkling chandelier reflections.",
+                    "color_dir": f"Deep celebratory red and golden amber {sec_hex}.",
+                    "typo_dir": f"High-contrast urgency typography in {f_head}.",
+                    "logo_plc": "Top right header buffer.",
+                    "overlay": "Prime Sayas Booking 8 Months in Advance. Secure Your Venue Today.",
+                    "cta": f"Check Real-Time Availability: {web}",
+                    "prompt": f"Urgent high-converting commercial advertising creative, glowing calendar highlighting auspicious wedding dates in Gujarat, backdrop of illuminated grand banquet ballroom in {city}, warm amber lighting, {style_frag}. Negative space composition: {safe_clause}"
+                },
+                {
+                    "name": "Concept 4: Hidden Cost Opacity ➔ Guaranteed Price Transparency",
+                    "type": "Trust & Price Defense",
+                    "objective": "Eliminates fear of surprise catering, electricity, and generator charges.",
+                    "visual": "Split visual contrasting fine-print hidden fee bills on left with a crystal-clear, all-inclusive VenueConnect verified quote on right.",
+                    "composition": "Side-by-side high-contrast clarity layout.",
+                    "lighting": "Dim shadowed tones resolving into crisp daylight clarity.",
+                    "color_dir": f"Warning grey to verified emerald green and royal {prim_hex}.",
+                    "typo_dir": "Clean sans-serif trust badges.",
+                    "logo_plc": "Bottom center.",
+                    "overlay": "Zero Hidden Charges. Direct Venue Rates.",
+                    "cta": f"Get Instant Transparent Quotes: {web}",
+                    "prompt": f"High impact commercial advertising split photography, fine print hidden fee bills on left transitioning into verified transparent booking contract with green guarantee seal on right, modern studio layout, {style_frag}. Negative space composition: {safe_clause}"
+                }
+            ]
+        elif cat == "finance":
             variants = [
                 {
                     "name": "Concept 4: Spreadsheet Chaos ➔ Automated Mastery (Problem ➔ Solution)",
@@ -1081,6 +1534,46 @@ def get_alternate_concept(
             "cta": v["cta"],
             "image_generation_prompt": v["prompt"]
         }
+
+
+def build_platform_captions_fresh(brand_name: str, industry: str, objective: str, business: Dict[str, Any], iteration: int = 0) -> Dict[str, Any]:
+    """Generates fresh platform-specific captions with rotating hooks and niche resonance."""
+    cat = detect_industry_category(industry, business.get("campaign_info", ""), brand_name)
+    web = business.get("website", "https://www.venueconnect.in/")
+    phone = business.get("phone", "[Direct Booking Helpline]")
+    city = business.get("target_city", "Gujarat")
+
+    if cat == "events_venues":
+        hooks = [
+            f"Planning a dream wedding or grand celebration in {city}? Stop spending weeks visiting 20 banquets in the heat. 🌸✨",
+            f"Wedding dates in {city} are booking 6-12 months ahead! Have you secured your venue yet? 📅🏛️",
+            f"The smart way to find Gujarat's finest party plots & royal banquet halls at verified direct prices 💎✨",
+            f"Before you pay a venue advance in Ahmedabad, Surat, or Vadodara, read this! 🚨"
+        ]
+        hook = hooks[iteration % len(hooks)]
+        ig = f"{hook}\n\nWith {brand_name}, browse and compare verified wedding lawns, party plots, and luxury banquet halls across Gujarat in one place.\n\nWhy Gujarat families trust {brand_name}:\n🏛️ 500+ Verified Banquets & Party Plots\n💰 Transparent price comparisons & catering packages\n👥 Capacities from 100 to 5,000+ guests\n⚡ Free instant quotes & site visit coordination\n\nMake your celebration unforgettable. Book smarter today.\n\n🌐 Visit: {web}\n📲 Call / WhatsApp: {phone}\n📍 Venues across Ahmedabad, Surat, Vadodara, Rajkot & Gujarat\n\nTag someone getting married this season! 👇"
+        fb = f"{hook}\n\nYour dream wedding deserves the perfect setting. 💍✨ Discover Gujarat's most loved wedding lawns, royal banquet halls, and party plots on {brand_name}. Compare prices, guest capacities, and catering options with zero hassle!\n\n👉 Book your free site visit today: {web}\n📞 WhatsApp: {phone}"
+        x = f"{hook}\n\nCompare 500+ verified banquet halls & party plots across Gujarat in under 2 minutes 🧵👇\n\n{web}"
+        li = f"Corporate summits, product launches, or grand annual galas in Gujarat?\n\n{brand_name} simplifies enterprise venue scouting with verified AC banquet halls, luxury resort lawns, and transparent catering options across Ahmedabad, Surat, and Vadodara.\n\n✔ Zero brokerage or hidden fees\n✔ Verified venue photos & real customer ratings\n\nExplore corporate event spaces: {web}"
+    else:
+        hooks = [
+            f"When it comes to verified quality, clarity is your biggest growth lever at {brand_name}.",
+            f"Stop relying on guesswork. Here is the modern standard from {brand_name}.",
+            f"Why industry leaders in {city} trust {brand_name} for consistent results.",
+            f"Transforming operational friction into measurable velocity with {brand_name}."
+        ]
+        hook = hooks[iteration % len(hooks)]
+        ig = f"{hook}\n\nAt {brand_name}, we partner with clients seeking verified standards, senior expertise, and proven outcomes.\n\n✔ Dedicated Specialists\n✔ Proven Execution Framework\n✔ 100% Transparency\n\nExplore our solutions: {web}\n📲 Contact: {phone}"
+        fb = f"{hook}\n\nEmpowering businesses and clients across {city} with verified solutions. Partner with {brand_name} today:\n\n👉 {web}"
+        x = f"{hook}\n\nDiscover how {brand_name} simplifies execution 🧵👇\n\n{web}"
+        li = f"{hook}\n\nConnect with our team to discuss your objectives for this quarter: {web}"
+
+    return {
+        "instagram": {"professional": ig, "creative": ig.replace("When it comes to", "Here is the honest truth about"), "short": f"Discover {brand_name}: {web}"},
+        "facebook": {"professional": fb, "creative": fb, "short": f"Learn more: {web}"},
+        "x": {"professional": x, "creative": x, "short": f"Explore: {web}"},
+        "linkedin": {"professional": li, "creative": li, "short": f"Connect with {brand_name}: {web}"}
+    }
 
 
 # ==============================================================================
@@ -1461,9 +1954,57 @@ def render_brand_first_content_page():
     with dna_tabs[0]:
         col_id1, col_id2 = st.columns([1.5, 2.5])
         with col_id1:
-            st.markdown("#### Pillar 1: Brand Identity")
-            brand_name = st.text_input("Brand / Business Name *", value=active_b.get("brand_name", "XYZ Essential Oils"))
-            industry_input = st.text_input("Industry / Business Type *", value=active_b.get("industry", "Essential Oils & Wellness"))
+            st.markdown("#### Pillar 1: Brand Identity & Website")
+
+            web_input_val = st.text_input(
+                "🌐 Website URL (Auto-Scans Niche):",
+                value=st.session_state.get("website_input_cache", active_b.get("website", "")),
+                placeholder="https://www.venueconnect.in/",
+                help="Enter your website URL. The AI will inspect your meta tags, services, and location so prompts accurately match your real niche."
+            )
+
+            col_wb_btn, col_wb_clr = st.columns([2, 1])
+            with col_wb_btn:
+                if st.button("🔍 Scan & Understand Niche", key="btn_scan_website", use_container_width=True):
+                    if web_input_val:
+                        with st.spinner("🌐 Crawling website & extracting business niche..."):
+                            site_info = analyze_website_niche(web_input_val)
+                            st.session_state["website_niche_data"] = site_info
+                            st.session_state["website_input_cache"] = web_input_val
+                            if site_info.get("detected_brand"):
+                                st.session_state["cached_brand_name"] = site_info["detected_brand"]
+                            if site_info.get("detected_niche"):
+                                st.session_state["cached_industry"] = site_info["detected_niche"]
+                            if site_info.get("summary"):
+                                st.session_state["cached_campaign_info"] = site_info["summary"]
+                            if site_info.get("locations"):
+                                st.session_state["cached_city"] = ", ".join(site_info["locations"])
+                            st.rerun()
+                    else:
+                        st.warning("Please enter a website URL first.")
+            with col_wb_clr:
+                if st.button("Reset", key="btn_reset_web", use_container_width=True):
+                    st.session_state.pop("website_niche_data", None)
+                    st.session_state.pop("website_input_cache", None)
+                    st.session_state.pop("cached_brand_name", None)
+                    st.session_state.pop("cached_industry", None)
+                    st.session_state.pop("cached_campaign_info", None)
+                    st.session_state.pop("cached_city", None)
+                    st.rerun()
+
+            if "website_niche_data" in st.session_state and st.session_state["website_niche_data"].get("detected_niche"):
+                snd = st.session_state["website_niche_data"]
+                st.success(
+                    f"**Verified Niche:** {snd.get('detected_niche')}\n\n"
+                    f"📍 **Locations:** {', '.join(snd.get('locations', [])) or 'Gujarat / Regional'}\n\n"
+                    f"🎯 **Offerings:** {', '.join(snd.get('detected_services', []))}"
+                )
+
+            brand_default = st.session_state.get("cached_brand_name", active_b.get("brand_name", "VenueConnect"))
+            industry_default = st.session_state.get("cached_industry", active_b.get("industry", "Wedding & Event Venue Booking Platform"))
+            brand_name = st.text_input("Brand / Business Name *", value=brand_default)
+            industry_input = st.text_input("Industry / Business Type *", value=industry_default)
+            website_url = web_input_val
 
         with col_id2:
             st.markdown("#### Pillar 3: Logo & Asset Uploads")
@@ -1643,18 +2184,18 @@ def render_brand_first_content_page():
         with col_t2:
             st.markdown("#### Pillar 6: Visual Style Direction")
             visual_style_options = [
+                "🎞️ 80s / 90s Vintage Nostalgia (Trending Film Grain & Portra 400)",
+                "✨ Editorial Flash Luxury (Vogue / Architectural Digest High Contrast)",
+                "🌅 Golden Hour Cinematic (Warm Sunkissed Fairy Lights & Twilight)",
+                "👑 Royal Heritage Grandeur (Palatial Indian Wedding, Marigold & Brass)",
+                "🌿 Modern Minimalist Lawn (Clean Architectural Greenery & Elegant Drapes)",
+                "📸 Candid Smartphone UGC (Authentic First-Person Celebration Vibe)",
+                "🎨 Bold & Pop Modern",
+                "💼 Corporate & Minimal",
                 "Auto Detect From Brand",
-                "Premium",
-                "Minimal",
-                "Editorial",
-                "Lifestyle",
-                "Corporate",
-                "Bold",
-                "Cinematic",
-                "UGC",
                 "Custom"
             ]
-            chosen_visual_style = st.selectbox("Visual Style:", options=visual_style_options, index=3)
+            chosen_visual_style = st.selectbox("Visual Style:", options=visual_style_options, index=0)
             if chosen_visual_style == "Custom":
                 custom_style_desc = st.text_input("Describe Custom Visual Style:", value="Scandinavian warm minimalist photography with film grain")
             else:
@@ -1663,7 +2204,7 @@ def render_brand_first_content_page():
         st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 1rem 0;'>", unsafe_allow_html=True)
         st.markdown("#### Pillar 5: Brand Personality")
         personality_list = ["Premium", "Minimal", "Luxury", "Friendly", "Professional", "Bold", "Playful", "Modern", "Traditional", "Technical", "Emotional", "Trustworthy"]
-        selected_traits = st.multiselect("Brand Personality Traits:", options=personality_list, default=active_b.get("personality", ["Premium", "Minimal", "Trustworthy"]))
+        selected_traits = st.multiselect("Brand Personality Traits:", options=personality_list, default=active_b.get("personality", ["Royal", "Trustworthy", "Celebratory"]))
 
         p_col1, p_col2 = st.columns(2)
         with p_col1:
@@ -1676,15 +2217,19 @@ def render_brand_first_content_page():
         col_m1, col_m2 = st.columns(2)
         with col_m1:
             st.markdown("#### Pillar 7: Target Audience")
-            audience_input = st.text_area("Target Audience Description *", value=active_b.get("target_audience", "25–45 wellness-conscious consumers in urban areas seeking natural pure solutions"), height=90)
-            primary_cta = st.text_input("Primary CTA / Action *", value=active_b.get("cta", "Shop Fresh Batch"))
+            aud_default = st.session_state.get("cached_audience", active_b.get("target_audience", "Engaged couples, families planning weddings, event organizers, corporate banquet bookers"))
+            cta_default = st.session_state.get("cached_cta", active_b.get("cta", "Compare Venues & Get Free Quotes"))
+            audience_input = st.text_area("Target Audience Description *", value=aud_default, height=90)
+            primary_cta = st.text_input("Primary CTA / Action *", value=cta_default)
 
         with col_m2:
             st.markdown("#### Pillars 8 & 9: Market & Location")
-            country_input = st.text_input("Target Country *", value=active_b.get("target_country", "Canada"))
-            city_input = st.text_input("Target City / Region", value=active_b.get("target_city", "Toronto"))
-            contact_email = st.text_input("Business Email", value=active_b.get("email", "concierge@xyzessentialoils.ca"))
-            contact_phone = st.text_input("Phone Number", value=active_b.get("phone", ""))
+            country_default = st.session_state.get("cached_country", active_b.get("target_country", "India"))
+            city_default = st.session_state.get("cached_city", active_b.get("target_city", "Gujarat (Ahmedabad, Surat, Vadodara, Rajkot)"))
+            country_input = st.text_input("Target Country *", value=country_default)
+            city_input = st.text_input("Target City / Region", value=city_default)
+            contact_email = st.text_input("Business Email", value=active_b.get("email", "hello@venueconnect.in"))
+            contact_phone = st.text_input("Phone Number", value=active_b.get("phone", "+91 98765 43210"))
 
     # PILLAR 10: Social Presence & Web
     with dna_tabs[3]:
@@ -1692,11 +2237,11 @@ def render_brand_first_content_page():
         st.caption("AI analyzes public presence to maintain voice and prevent conflicting tone.")
         col_w1, col_w2 = st.columns(2)
         with col_w1:
-            website_url = st.text_input("Website URL", value=active_b.get("website", "https://xyzessentialoils.ca"))
-            ig_url = st.text_input("Instagram URL / Handle", value=active_b.get("instagram", "@xyzessentialoils"))
-            fb_url = st.text_input("Facebook URL", value=active_b.get("facebook", ""))
+            website_url = st.text_input("Website URL", value=web_input_val or active_b.get("website", "https://www.venueconnect.in/"))
+            ig_url = st.text_input("Instagram URL / Handle", value=active_b.get("instagram", "@venueconnect.in"))
+            fb_url = st.text_input("Facebook URL", value=active_b.get("facebook", "https://facebook.com/venueconnect.in"))
         with col_w2:
-            x_url = st.text_input("X (Twitter) URL", value=active_b.get("x", "@xyzoils"))
+            x_url = st.text_input("X (Twitter) URL", value=active_b.get("x", ""))
             li_url = st.text_input("LinkedIn URL", value=active_b.get("linkedin", ""))
 
         st.checkbox("Maintain existing brand style from verified links", value=True)
@@ -1718,16 +2263,24 @@ def render_brand_first_content_page():
     </div>
     """, unsafe_allow_html=True)
 
+    camp_default = st.session_state.get(
+        "cached_campaign_info",
+        active_b.get(
+            "guidelines",
+            "Find and book the best wedding venues, banquet halls, party plots & event spaces in Gujarat. Compare prices, capacity, catering options in Ahmedabad, Surat, Rajkot, Vadodara and across Gujarat."
+        )
+    )
     custom_campaign_info = st.text_area(
         "✨ CUSTOM CAMPAIGN INFORMATION (OPTIONAL)",
-        placeholder="Tell AI anything specific about this post, product, offer, campaign, webpage, promotion or message you want to communicate.\n\nExample:\n'We are launching our new Lavender Essential Oil. It is 100% natural, steam-distilled from organic high-altitude lavender, and we have a launch offer until October 15.'",
+        placeholder="Tell AI anything specific about this post, product, offer, campaign, webpage, promotion or message you want to communicate.",
         height=110,
-        value="We are introducing our pure Lavender Essential Oil fresh batch. Sourced organically from high-altitude fields, third-party GC-MS lab verified with published certificates, and delivered in dark violet UV glass."
+        value=camp_default
     )
 
     col_cp1, col_cp2 = st.columns(2)
     with col_cp1:
-        product_page_url = st.text_input("Product / Specific Campaign Page URL (Optional):", value="https://xyzessentialoils.ca/products/lavender-pure")
+        prod_url_default = st.session_state.get("cached_product_url", web_input_val or active_b.get("website", "https://www.venueconnect.in/"))
+        product_page_url = st.text_input("Product / Specific Campaign Page URL (Optional):", value=prod_url_default)
     with col_cp2:
         objective_options = [
             "Brand Awareness",
@@ -1800,7 +2353,17 @@ def render_brand_first_content_page():
                 strategy_model = st.text_input("Custom Model Identifier:", value="gemini-3.8-flash")
 
         with prov_col3:
-            image_model = st.selectbox("Image Generation Model:", ["imagen-3.0-generate-002", "dall-e-3", "pollinations-ai"])
+            image_model = st.selectbox(
+                "Target Image Prompt Syntax:",
+                [
+                    "Midjourney v6.1 (Photorealism & Cinematic Lighting)",
+                    "Flux.1 Schnell / Dev (Natural Skin & Atmosphere)",
+                    "Ideogram v2 (Clean Typography & Negative Space)",
+                    "Stable Diffusion XL / SD 3.5",
+                    "Universal Photography Prompt"
+                ],
+                help="Select your target image generator tool. CrawlPilot generates production-ready prompts with negative space for logos and website tagging."
+            )
 
         gemini_api_key = st.text_input("AI Provider API Key (Optional — Studio uses verified fallback if blank):", type="password", value="", help="Enter your Google Gemini or OpenAI API key.")
 
@@ -1905,6 +2468,200 @@ def render_brand_first_content_page():
             </span>
         </div>
         """.format(chosen_format, chosen_objective), unsafe_allow_html=True)
+
+        # ==============================================================================
+        # ⚡ SIDE-BY-SIDE STUDIO WORKBENCH: PROMPT (LEFT) vs CAPTION (RIGHT)
+        # ==============================================================================
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.98) 100%); border: 1px solid rgba(245, 158, 11, 0.5); border-radius: 14px; padding: 1.1rem 1.4rem; margin-bottom: 1.2rem; box-shadow: 0 8px 30px rgba(0,0,0,0.4);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <div style="color: #F59E0B; font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                        <span>⚡</span> AI Social Content Studio Workbench (Side-by-Side)
+                    </div>
+                    <div style="color: #94A3B8; font-size: 0.85rem; margin-top: 4px;">
+                        Target: <b>{}</b> | Format: <b>{}</b> | Style: <b>{}</b>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <span style="background: rgba(16, 185, 129, 0.15); color: #10B981; padding: 4px 10px; border-radius: 20px; font-weight: 700; font-size: 0.78rem; border: 1px solid rgba(16, 185, 129, 0.3);">
+                        ✓ Niche Verified ({})
+                    </span>
+                    <span style="background: rgba(56, 189, 248, 0.15); color: #38BDF8; padding: 4px 10px; border-radius: 20px; font-weight: 700; font-size: 0.78rem; border: 1px solid rgba(56, 189, 248, 0.3);">
+                        ✓ Branding Safe Zones Protected
+                    </span>
+                </div>
+            </div>
+        </div>
+        """.format(brand_name, chosen_format, chosen_visual_style, detect_industry_category(industry_input, custom_campaign_info, brand_name).upper()), unsafe_allow_html=True)
+
+        concepts = pack.get("creative_concepts", [])
+        if not concepts:
+            concepts = build_industry_concepts(brand_name, industry_input, chosen_visual_style, c_prim, c_sec, c_bg, typo_pack, biz_data, content_format=chosen_format)
+            pack["creative_concepts"] = concepts
+
+        concept_titles = [
+            f"Concept {i+1}: {c.get('concept_name', f'Concept {i+1}').split(': ')[-1] if ': ' in c.get('concept_name', '') else c.get('concept_name', f'Concept {i+1}')}"
+            for i, c in enumerate(concepts)
+        ]
+
+        active_c_idx = st.radio(
+            "📌 Select Creative Concept Slot:",
+            options=list(range(len(concepts))),
+            format_func=lambda i: concept_titles[i] if i < len(concept_titles) else f"Concept #{i+1}",
+            horizontal=True,
+            key="studio_active_concept_idx"
+        )
+        cur_concept = concepts[active_c_idx]
+
+        col_left_prmpt, col_right_capt = st.columns([1.1, 1.1])
+
+        # ----------------------------------------------------------------------
+        # LEFT COLUMN: TRENDING VISUAL IMAGE PROMPT
+        # ----------------------------------------------------------------------
+        with col_left_prmpt:
+            st.markdown(f"""
+            <div style="background: rgba(17, 24, 39, 0.95); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 12px; padding: 0.9rem 1.1rem; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <span style="font-weight: 800; font-size: 1.05rem; color: #38BDF8;">📸 Trending Visual Image Prompt</span>
+                    <span style="font-size: 0.74rem; background: rgba(56, 189, 248, 0.12); color: #38BDF8; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25);">
+                        {chosen_format} • {format_settings.get('aspect_ratio', '4:5')}
+                    </span>
+                </div>
+                <div style="font-size: 0.78rem; color: #94A3B8;">
+                    <b>Visual Direction:</b> {cur_concept.get('visual_direction', 'Curated scene')}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Safe Zone Specs Callout Box
+            st.markdown(f"""
+            <div style="background: rgba(15, 23, 42, 0.85); border: 1px dashed rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 8px 12px; font-size: 0.76rem; color: #CBD5E1; margin-bottom: 8px; line-height: 1.5;">
+                🛡️ <b>Negative Space & Branding Safe Zones:</b><br>
+                • <b>Logo Buffer:</b> Upper 20% clear negative space reserved for brand logo.<br>
+                • <b>Website & Contacts:</b> Lower-third subtle gradient reserved for <code>{website_url or 'venueconnect.in'}</code>, Phone & Social tagging.<br>
+                • <b>Aesthetic:</b> {chosen_visual_style}
+            </div>
+            """, unsafe_allow_html=True)
+
+            prompt_text = cur_concept.get("image_generation_prompt", "")
+            st.text_area(
+                "Image Generation Prompt (Ready for Midjourney / Flux / SDXL / Ideogram):",
+                value=prompt_text,
+                height=230,
+                key=f"txt_prompt_area_{active_c_idx}"
+            )
+
+            # Left Action Buttons: Copy Prompt & Regenerate Prompt
+            lp_col1, lp_col2 = st.columns(2)
+            with lp_col1:
+                if st.button("📋 Copy Image Prompt", key=f"btn_copy_prompt_{active_c_idx}", use_container_width=True, type="primary"):
+                    st.components.v1.html(f"<script>navigator.clipboard.writeText({json.dumps(prompt_text)});</script>", height=0)
+                    st.toast("✅ Image Prompt copied to clipboard!")
+            with lp_col2:
+                if st.button("🔄 Regenerate Prompt", key=f"btn_regen_prompt_{active_c_idx}", use_container_width=True):
+                    cur_it = st.session_state.get(f"prompt_regen_ver_{active_c_idx}", 0) + 1
+                    st.session_state[f"prompt_regen_ver_{active_c_idx}"] = cur_it
+                    with st.spinner("🔄 Generating fresh trending prompt variation..."):
+                        fresh_c = get_alternate_concept(
+                            idx=active_c_idx,
+                            brand_name=brand_name,
+                            industry_text=industry_input,
+                            visual_style=chosen_visual_style,
+                            prim_hex=c_prim,
+                            sec_hex=c_sec,
+                            bg_hex=c_bg,
+                            typography=typo_pack,
+                            business=biz_data,
+                            iteration=cur_it,
+                            content_format=chosen_format
+                        )
+                        pack["creative_concepts"][active_c_idx] = fresh_c
+                        st.session_state["studio_content_pack"] = pack
+                        st.session_state["social_content_pack"] = pack
+                        st.rerun()
+
+        # ----------------------------------------------------------------------
+        # RIGHT COLUMN: MATCHING SOCIAL CAPTION & COPY
+        # ----------------------------------------------------------------------
+        with col_right_capt:
+            st.markdown("""
+            <div style="background: rgba(17, 24, 39, 0.95); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; padding: 0.9rem 1.1rem; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <span style="font-weight: 800; font-size: 1.05rem; color: #F59E0B;">✍️ Matching Social Caption & Copy</span>
+                    <span style="font-size: 0.74rem; background: rgba(245, 158, 11, 0.12); color: #F59E0B; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.25);">
+                        Platform Adapted
+                    </span>
+                </div>
+                <div style="font-size: 0.78rem; color: #94A3B8;">
+                    High-converting hook, value proposition, website CTA, and strategic hashtags.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            cap_plat_col, cap_tone_col = st.columns([1.2, 1.2])
+            with cap_plat_col:
+                sel_plat = st.selectbox(
+                    "Platform:",
+                    ["Instagram", "Facebook", "X (Twitter)", "LinkedIn"],
+                    key=f"wb_sel_plat_{active_c_idx}"
+                )
+            with cap_tone_col:
+                sel_tone = st.selectbox(
+                    "Tone:",
+                    ["Professional / Trust", "Creative / Story-Driven", "Short & Punchy"],
+                    key=f"wb_sel_tone_{active_c_idx}"
+                )
+
+            plat_key = {"Instagram": "instagram", "Facebook": "facebook", "X (Twitter)": "x", "LinkedIn": "linkedin"}.get(sel_plat, "instagram")
+            tone_key = {"Professional / Trust": "professional", "Creative / Story-Driven": "creative", "Short & Punchy": "short"}.get(sel_tone, "professional")
+
+            caps_dict = pack.get("platform_captions", {})
+            p_data = caps_dict.get(plat_key, {})
+            if isinstance(p_data, dict):
+                body_caption = p_data.get(tone_key, p_data.get("professional", ""))
+            else:
+                body_caption = str(p_data)
+
+            ht_engine = pack.get("hashtag_engine", {})
+            combined_tags = " ".join(
+                ht_engine.get("brand_hashtags", []) +
+                ht_engine.get("product_hashtags", []) +
+                ht_engine.get("location_hashtags", [])
+            )
+            full_caption_text = f"{body_caption}\n\n---\n{combined_tags}" if combined_tags else body_caption
+
+            st.text_area(
+                f"{sel_plat} Caption ({sel_tone}):",
+                value=full_caption_text,
+                height=230,
+                key=f"txt_caption_area_{active_c_idx}_{plat_key}_{tone_key}"
+            )
+
+            # Right Action Buttons: Copy Caption & Regenerate Caption
+            rc_col1, rc_col2 = st.columns(2)
+            with rc_col1:
+                if st.button("📋 Copy Caption & Tags", key=f"btn_copy_cap_{active_c_idx}", use_container_width=True, type="primary"):
+                    st.components.v1.html(f"<script>navigator.clipboard.writeText({json.dumps(full_caption_text)});</script>", height=0)
+                    st.toast("✅ Caption & Hashtags copied to clipboard!")
+            with rc_col2:
+                if st.button("🔄 Regenerate Caption", key=f"btn_regen_cap_{active_c_idx}", use_container_width=True):
+                    cur_cap_it = st.session_state.get(f"caption_regen_ver_{active_c_idx}", 0) + 1
+                    st.session_state[f"caption_regen_ver_{active_c_idx}"] = cur_cap_it
+                    with st.spinner("🔄 Generating fresh caption and hook..."):
+                        fresh_caps = build_platform_captions_fresh(
+                            brand_name=brand_name,
+                            industry=industry_input,
+                            objective=chosen_objective,
+                            business=biz_data,
+                            iteration=cur_cap_it
+                        )
+                        pack["platform_captions"] = fresh_caps
+                        st.session_state["studio_content_pack"] = pack
+                        st.session_state["social_content_pack"] = pack
+                        st.rerun()
+
+        st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 1.4rem 0;'>", unsafe_allow_html=True)
 
         res_tabs = st.tabs([
             "🧬 Brand DNA & Strategy",
