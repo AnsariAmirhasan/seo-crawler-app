@@ -590,10 +590,10 @@ Include:
         strat_hook = "Planning a wedding in Gujarat? Stop losing weeks to venue hunting."
         strat_vis = f"Opulent {visual_style} aesthetic featuring sprawling evening party plot lawns illuminated by fairy lights, crystal chandeliers, floral mandaps, and rich warm ambient tones accented by {prim_hex} and {sec_hex} highlights."
 
-        ig_prof = f"Planning a dream wedding or grand celebration in Gujarat? 🌸✨\n\nStop spending weeks visiting 20 different banquets in the heat. At {brand_name}, we bring Gujarat's finest wedding venues, royal banquet halls, and open-air party plots right to your screen.\n\nWhy Gujarat families trust {brand_name}:\n🏛️ 500+ Verified Banquets & Party Plots\n💰 Transparent price comparisons & catering packages\n👥 Capacities from 100 to 5,000+ guests\n⚡ Free instant quotes & site visit coordination\n\nMake your celebration unforgettable. Book smarter today.\n\n🌐 Visit: {business.get('website', 'https://www.venueconnect.in/')}\n📲 Call / WhatsApp: {business.get('phone', '[Direct Booking Helpline]')}\n📍 Venues across Ahmedabad, Surat, Vadodara, Rajkot & Gujarat\n\nTag someone who's getting married this season! 👇"
-        li_prof = f"Corporate summits, product launches, or grand annual galas in Gujarat?\n\n{brand_name} simplifies enterprise venue scouting with verified AC banquet halls, luxury resort lawns, and transparent catering options across Ahmedabad, Surat, and Vadodara.\n\n✔ Zero brokerage or hidden fees\n✔ Verified venue photos & real customer ratings\n✔ Dedicated event venue specialist\n\nExplore corporate event spaces: {business.get('website', 'https://www.venueconnect.in/')}"
-        x_prof = f"Planning a wedding in Gujarat? Here is how to find and compare 500+ verified banquet halls & party plots across Ahmedabad, Surat, & Vadodara in under 2 minutes 🧵👇\n\n{business.get('website', 'https://www.venueconnect.in/')}"
-        fb_prof = f"Your dream wedding deserves the perfect setting. 💍✨ Discover Gujarat's most loved wedding lawns, royal banquet halls, and party plots on {brand_name}. Compare prices, guest capacities, and catering options with zero hassle!\n\n👉 Book your free site visit today: {business.get('website', 'https://www.venueconnect.in/')}\n📞 WhatsApp: {business.get('phone', 'Venue Support')}"
+        ig_prof = f"Planning a dream wedding or grand celebration in Gujarat? 🌸✨\n\nStop spending weeks visiting 20 different banquets in the heat. At {brand_name}, we bring Gujarat's finest wedding venues, royal banquet halls, and open-air party plots right to your screen.\n\nWhy Gujarat families trust {brand_name}:\n🏛️ 500+ Verified Banquets & Party Plots\n💰 Transparent price comparisons & catering packages\n👥 Capacities from 100 to 5,000+ guests\n⚡ Free instant quotes & site visit coordination\n\nMake your celebration unforgettable. Book smarter today.\n\n🌐 Visit: {business.get('website', 'https://www.example.com')}\n📲 Call / WhatsApp: {business.get('phone', '[Direct Booking Helpline]')}\n📍 Venues across Ahmedabad, Surat, Vadodara, Rajkot & Gujarat\n\nTag someone who's getting married this season! 👇"
+        li_prof = f"Corporate summits, product launches, or grand annual galas in Gujarat?\n\n{brand_name} simplifies enterprise venue scouting with verified AC banquet halls, luxury resort lawns, and transparent catering options across Ahmedabad, Surat, and Vadodara.\n\n✔ Zero brokerage or hidden fees\n✔ Verified venue photos & real customer ratings\n✔ Dedicated event venue specialist\n\nExplore corporate event spaces: {business.get('website', 'https://www.example.com')}"
+        x_prof = f"Planning a wedding in Gujarat? Here is how to find and compare 500+ verified banquet halls & party plots across Ahmedabad, Surat, & Vadodara in under 2 minutes 🧵👇\n\n{business.get('website', 'https://www.example.com')}"
+        fb_prof = f"Your dream wedding deserves the perfect setting. 💍✨ Discover Gujarat's most loved wedding lawns, royal banquet halls, and party plots on {brand_name}. Compare prices, guest capacities, and catering options with zero hassle!\n\n👉 Book your free site visit today: {business.get('website', 'https://www.example.com')}\n📞 WhatsApp: {business.get('phone', 'Venue Support')}"
         h_tags = {
             "brand_hashtags": [f"#{brand_name.replace(' ', '')}", f"#{brand_name.replace(' ', '')}Weddings"],
             "product_hashtags": ["#WeddingVenuesGujarat", "#BanquetHalls", "#PartyPlotsGujarat", "#GujaratEvents"],
@@ -789,9 +789,9 @@ def get_trending_style_prompt_fragment(visual_style: str) -> str:
 
 def build_prompt_safe_zone_clause(content_format: str, web: str, phone: str, instagram: str, brand_name: str = "", cta: str = "") -> str:
     """Generates precise advertising layout specifications with dedicated [ YOUR LOGO HERE ] frame, marketing typography, 3-panel split strip, and bottom branding banner."""
-    web_str = web if web else "www.venueconnect.in"
-    phone_str = phone if phone else "+91 98765 43210"
-    handle_str = instagram if instagram else "@venueconnect.in"
+    web_str = web if web else "www.example.com"
+    phone_str = phone if phone else "+1 555-0199"
+    handle_str = instagram if instagram else "@yourbrand"
     b_name = brand_name if brand_name else "Brand"
     c_btn = cta if cta else "EXPLORE NOW"
 
@@ -1296,10 +1296,10 @@ def get_alternate_concept(
     cta = business.get("cta", "Compare Venues & Get Free Quotes").strip() or "Compare Venues & Get Free Quotes"
     city = business.get("target_city", "Gujarat").strip() or "Gujarat"
     country = business.get("target_country", "India").strip() or "India"
-    web = business.get("website", "https://www.venueconnect.in/").strip() or "https://www.venueconnect.in/"
-    phone = business.get("phone", "+91 98765 43210").strip() or "+91 98765 43210"
+    web = business.get("website", "https://www.example.com").strip() or "https://www.example.com"
+    phone = business.get("phone", "+1 555-0199").strip() or "+1 555-0199"
     email = business.get("email", "").strip()
-    ig_h = business.get("instagram", "@venueconnect.in").strip()
+    ig_h = business.get("instagram", "@yourbrand").strip()
     audience = business.get("target_audience", "Engaged couples, families planning weddings, event organizers").strip() or "Engaged couples, families planning weddings, event organizers"
     campaign_info = business.get("campaign_info", "").strip()
     objective = business.get("objective", "Lead Generation").strip() or "Lead Generation"
@@ -1448,7 +1448,7 @@ def get_alternate_concept(
                 {
                     "name": "Concept 4: 20 Venue Visits ➔ 1-Click Booking (Problem to Solution Poster)",
                     "type": "Direct Response Ad",
-                    "objective": "High-converting split comparison showing the exhausting old way vs the smart VenueConnect way.",
+                    "objective": f"High-converting split comparison showing the exhausting old way vs the smart {brand_name} way.",
                     "visual": f"High-impact side-by-side contrast: Left side desaturated venue hunting traffic in {city}; right side illuminated evening party plot with families dancing.",
                     "composition": "Poster advertising layout: Top-left [ YOUR LOGO HERE ] box, left marketing copy, right hero contrast visual, lower 3-panel strip, bottom ribbon.",
                     "lighting": "Desaturated flat tones on left resolving into luminous golden celebration on right.",
@@ -1879,7 +1879,7 @@ def get_alternate_concept(
 def build_platform_captions_fresh(brand_name: str, industry: str, objective: str, business: Dict[str, Any], iteration: int = 0) -> Dict[str, Any]:
     """Generates fresh platform-specific captions with rotating hooks, body copy, and tone resonance."""
     cat = detect_industry_category(industry, business.get("campaign_info", ""), brand_name)
-    web = business.get("website", "https://www.venueconnect.in/")
+    web = business.get("website", "https://www.example.com")
     phone = business.get("phone", "+91 98765 43210")
     city = business.get("target_city", "Gujarat")
 
@@ -2289,8 +2289,12 @@ def render_brand_first_content_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # Clean brand state initialization
+    # Clean brand state initialization and purge any lingering demo/cached brand data
     active_b = {}
+    for k in list(st.session_state.keys()):
+        val = st.session_state.get(k)
+        if isinstance(val, str) and "venueconnect" in val.lower():
+            st.session_state.pop(k, None)
     if "cp_prim" not in st.session_state:
         st.session_state["cp_prim"] = "#1E3A8A"
         st.session_state["cp_sec"] = "#F59E0B"
@@ -2431,10 +2435,15 @@ def render_brand_first_content_page():
         with col_id1:
             st.markdown("#### Pillar 1: Brand Identity & Website")
 
+            cached_site = st.session_state.get("website_input_cache", active_b.get("website", ""))
+            if "venueconnect" in str(cached_site).lower():
+                cached_site = ""
+                st.session_state["website_input_cache"] = ""
+
             web_input_val = st.text_input(
                 "🌐 Website URL (Auto-Scans Niche):",
-                value=st.session_state.get("website_input_cache", active_b.get("website", "")),
-                placeholder="https://www.venueconnect.in/",
+                value=cached_site,
+                placeholder="https://www.example.com",
                 help="Enter your website URL. The AI will inspect your meta tags, services, and location so prompts accurately match your real niche."
             )
 
@@ -3035,7 +3044,7 @@ def render_brand_first_content_page():
                 • <b>Left Marketing Copy:</b> High-contrast headline, sub-headline question, 4 feature badge icons & cursive tagline.<br>
                 • <b>Right Hero Scene:</b> Realistic commercial photography with <b>{chosen_visual_style}</b>.<br>
                 • <b>Lower 3-Panel Strip:</b> Split photo tiles highlighting 3 key amenities & venue features.<br>
-                • <b>Bottom Footer Ribbon:</b> Branded bar with Website (<code>{website_url or 'www.venueconnect.in'}</code>), Phone & Action CTA pill.
+                • <b>Bottom Footer Ribbon:</b> Branded bar with Website (<code>{website_url or 'www.example.com'}</code>), Phone & Action CTA pill.
             </div>
             """, unsafe_allow_html=True)
 
