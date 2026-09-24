@@ -2289,48 +2289,14 @@ def render_brand_first_content_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # Saved Brands Selection & Manager
-    if "saved_brands_db" not in st.session_state:
-        st.session_state["saved_brands_db"] = DEFAULT_SAVED_BRANDS
-
-    saved_brands = st.session_state["saved_brands_db"]
-    brand_options = ["+ Create New Brand Profile"] + list(saved_brands.keys())
-
-    col_sb1, col_sb2 = st.columns([3, 1.2])
-    with col_sb1:
-        chosen_brand_key = st.selectbox(
-            "🏢 Active Brand Profile:",
-            options=brand_options,
-            index=1 if len(brand_options) > 1 else 0,
-            help="Select an existing saved brand profile or create a new one."
-        )
-    with col_sb2:
-        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-        if chosen_brand_key != "+ Create New Brand Profile":
-            st.caption(f"Loaded: **{chosen_brand_key.split('(')[0].strip()}**")
-
-    # Load defaults from chosen brand
-    active_b = saved_brands.get(chosen_brand_key, {}) if chosen_brand_key in saved_brands else {}
-
-    # Synchronize brand colors when switching active brand profile
-    if st.session_state.get("last_selected_brand_key") != chosen_brand_key:
-        st.session_state["last_selected_brand_key"] = chosen_brand_key
-        st.session_state.pop("current_logo_sig", None)
-        st.session_state.pop("extracted_palette", None)
-        st.session_state.pop("logo_extracted_notify", None)
-        if chosen_brand_key in saved_brands and "colors" in saved_brands[chosen_brand_key]:
-            b_colors = saved_brands[chosen_brand_key]["colors"]
-            st.session_state["cp_prim"] = b_colors.get("primary", {}).get("hex", "#123456")
-            st.session_state["cp_sec"] = b_colors.get("secondary", {}).get("hex", "#F58220")
-            st.session_state["cp_acc"] = b_colors.get("accent", {}).get("hex", "#FFFFFF")
-            st.session_state["cp_bg"] = b_colors.get("background", {}).get("hex", "#0F172A")
-            st.session_state["cp_txt"] = b_colors.get("text", {}).get("hex", "#F8FAFC")
-        elif chosen_brand_key == "+ Create New Brand Profile":
-            st.session_state["cp_prim"] = "#1E3A8A"
-            st.session_state["cp_sec"] = "#F59E0B"
-            st.session_state["cp_acc"] = "#10B981"
-            st.session_state["cp_bg"] = "#0F172A"
-            st.session_state["cp_txt"] = "#F8FAFC"
+    # Clean brand state initialization
+    active_b = {}
+    if "cp_prim" not in st.session_state:
+        st.session_state["cp_prim"] = "#1E3A8A"
+        st.session_state["cp_sec"] = "#F59E0B"
+        st.session_state["cp_acc"] = "#10B981"
+        st.session_state["cp_bg"] = "#0F172A"
+        st.session_state["cp_txt"] = "#F8FAFC"
 
     # ==========================================================================
     # STEP 0: WHAT DO YOU WANT TO CREATE? (BEFORE BRAND DNA)
@@ -2509,10 +2475,10 @@ def render_brand_first_content_page():
                     f"🎯 **Offerings:** {', '.join(snd.get('detected_services', []))}"
                 )
 
-            brand_default = st.session_state.get("cached_brand_name", active_b.get("brand_name", "VenueConnect"))
-            industry_default = st.session_state.get("cached_industry", active_b.get("industry", "Wedding & Event Venue Booking Platform"))
-            brand_name = st.text_input("Brand / Business Name *", value=brand_default)
-            industry_input = st.text_input("Industry / Business Type *", value=industry_default)
+            brand_default = st.session_state.get("cached_brand_name", active_b.get("brand_name", ""))
+            industry_default = st.session_state.get("cached_industry", active_b.get("industry", ""))
+            brand_name = st.text_input("Brand / Business Name *", value=brand_default, placeholder="e.g. Acme Corp or Sure Flow Equipment")
+            industry_input = st.text_input("Industry / Business Type *", value=industry_default, placeholder="e.g. Industrial Valves, E-Commerce, etc.")
             website_url = web_input_val
 
         with col_id2:
@@ -2734,19 +2700,19 @@ def render_brand_first_content_page():
         col_m1, col_m2 = st.columns(2)
         with col_m1:
             st.markdown("#### Pillar 7: Target Audience")
-            aud_default = st.session_state.get("cached_audience", active_b.get("target_audience", "Engaged couples, families planning weddings, event organizers, corporate banquet bookers"))
-            cta_default = st.session_state.get("cached_cta", active_b.get("cta", "Compare Venues & Get Free Quotes"))
-            audience_input = st.text_area("Target Audience Description *", value=aud_default, height=90)
-            primary_cta = st.text_input("Primary CTA / Action *", value=cta_default)
+            aud_default = st.session_state.get("cached_audience", active_b.get("target_audience", ""))
+            cta_default = st.session_state.get("cached_cta", active_b.get("cta", ""))
+            audience_input = st.text_area("Target Audience Description *", value=aud_default, height=90, placeholder="Target demographic, interests, pain points, ideal customers...")
+            primary_cta = st.text_input("Primary CTA / Action *", value=cta_default, placeholder="e.g. Learn More, Shop Now, Get Free Quote, Contact Us")
 
         with col_m2:
             st.markdown("#### Pillars 8 & 9: Market & Location")
-            country_default = st.session_state.get("cached_country", active_b.get("target_country", "India"))
-            city_default = st.session_state.get("cached_city", active_b.get("target_city", "Gujarat (Ahmedabad, Surat, Vadodara, Rajkot)"))
-            country_input = st.text_input("Target Country *", value=country_default)
-            city_input = st.text_input("Target City / Region", value=city_default)
-            contact_email = st.text_input("Business Email", value=active_b.get("email", "hello@venueconnect.in"))
-            contact_phone = st.text_input("Phone Number", value=active_b.get("phone", "+91 98765 43210"))
+            country_default = st.session_state.get("cached_country", active_b.get("target_country", ""))
+            city_default = st.session_state.get("cached_city", active_b.get("target_city", ""))
+            country_input = st.text_input("Target Country *", value=country_default, placeholder="e.g. United States, India, Global")
+            city_input = st.text_input("Target City / Region", value=city_default, placeholder="e.g. New York, Toronto, Regional (Optional)")
+            contact_email = st.text_input("Business Email", value=active_b.get("email", ""), placeholder="contact@example.com")
+            contact_phone = st.text_input("Phone Number", value=active_b.get("phone", ""), placeholder="+1 (555) 000-0000")
 
     # PILLAR 10: Social Presence & Web
     with dna_tabs[3]:
@@ -2754,12 +2720,12 @@ def render_brand_first_content_page():
         st.caption("AI analyzes public presence to maintain voice and prevent conflicting tone.")
         col_w1, col_w2 = st.columns(2)
         with col_w1:
-            website_url = st.text_input("Website URL", value=web_input_val or active_b.get("website", "https://www.venueconnect.in/"))
-            ig_url = st.text_input("Instagram URL / Handle", value=active_b.get("instagram", "@venueconnect.in"))
-            fb_url = st.text_input("Facebook URL", value=active_b.get("facebook", "https://facebook.com/venueconnect.in"))
+            website_url = st.text_input("Website URL", value=web_input_val or active_b.get("website", ""), placeholder="https://example.com")
+            ig_url = st.text_input("Instagram URL / Handle", value=active_b.get("instagram", ""), placeholder="@yourbrand")
+            fb_url = st.text_input("Facebook URL", value=active_b.get("facebook", ""), placeholder="https://facebook.com/yourbrand")
         with col_w2:
-            x_url = st.text_input("X (Twitter) URL", value=active_b.get("x", ""))
-            li_url = st.text_input("LinkedIn URL", value=active_b.get("linkedin", ""))
+            x_url = st.text_input("X (Twitter) URL", value=active_b.get("x", ""), placeholder="@yourbrand")
+            li_url = st.text_input("LinkedIn URL", value=active_b.get("linkedin", ""), placeholder="https://linkedin.com/company/yourbrand")
 
         st.checkbox("Maintain existing brand style from verified links", value=True)
         st.checkbox("Maintain existing brand voice and positioning", value=True)
@@ -2782,10 +2748,7 @@ def render_brand_first_content_page():
 
     camp_default = st.session_state.get(
         "cached_campaign_info",
-        active_b.get(
-            "guidelines",
-            "Find and book the best wedding venues, banquet halls, party plots & event spaces in Gujarat. Compare prices, capacity, catering options in Ahmedabad, Surat, Rajkot, Vadodara and across Gujarat."
-        )
+        active_b.get("guidelines", "")
     )
     custom_campaign_info = st.text_area(
         "✨ CUSTOM CAMPAIGN INFORMATION (OPTIONAL)",
@@ -2796,8 +2759,8 @@ def render_brand_first_content_page():
 
     col_cp1, col_cp2 = st.columns(2)
     with col_cp1:
-        prod_url_default = st.session_state.get("cached_product_url", web_input_val or active_b.get("website", "https://www.venueconnect.in/"))
-        product_page_url = st.text_input("Product / Specific Campaign Page URL (Optional):", value=prod_url_default)
+        prod_url_default = st.session_state.get("cached_product_url", web_input_val or active_b.get("website", ""))
+        product_page_url = st.text_input("Product / Specific Campaign Page URL (Optional):", value=prod_url_default, placeholder="https://example.com/product")
     with col_cp2:
         objective_options = [
             "Brand Awareness",
