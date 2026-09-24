@@ -153,6 +153,7 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         "h2_first": "",
         "h2_2": "",
         "h2_count": 0,
+        "h2_list": [],
         # Directives & Indexability
         "meta_robots": "",
         "is_noindex": False,
@@ -163,6 +164,7 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         "canonical_status": "Missing",
         # Content
         "word_count": 0,
+        "page_text": "",
         "text_ratio": 0.0,
         # Social & Schema
         "has_schema": False,
@@ -415,6 +417,7 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
 
     h2_tags = soup.find_all("h2")
     seo_info["h2_count"] = len(h2_tags)
+    seo_info["h2_list"] = [h.get_text(strip=True) for h in h2_tags if h.get_text(strip=True)][:8]
     if h2_tags:
         seo_info["h2_first"] = h2_tags[0].get_text(strip=True)
         if len(h2_tags) > 1:
@@ -508,8 +511,10 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
         raw_text = soup_text_copy.get_text(separator=" ", strip=True)
     except Exception:
         raw_text = soup.get_text(separator=" ", strip=True)
+    clean_words = raw_text.split()
     words = re.findall(r"\b\w+\b", raw_text)
     seo_info["word_count"] = len(words)
+    seo_info["page_text"] = " ".join(clean_words[:400])
 
     if seo_info["is_indexable"] and not is_noindex and len(words) < 250:
         seo_info["issues"].append({

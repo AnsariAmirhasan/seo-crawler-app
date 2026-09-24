@@ -3598,9 +3598,12 @@ with tab_extractor:
                 if has_sugg_cols:
                     st.info("💡 **Suggested Fixes & Developer Guides Active:** Check the highlighted suggestion columns and developer instructions on the right!")
 
+                display_cols = [c for c in selected_df.columns if not str(c).startswith("_")]
+                display_df = selected_df[display_cols]
+
                 col_sd1, col_sd2 = st.columns([1.5, 4])
                 with col_sd1:
-                    csv_sheet_bytes = selected_df.to_csv(index=False).encode('utf-8')
+                    csv_sheet_bytes = display_df.to_csv(index=False).encode('utf-8')
                     st.download_button(
                         label=f"📥 Download {selected_sheet} CSV",
                         data=csv_sheet_bytes,
@@ -3613,7 +3616,7 @@ with tab_extractor:
                     st.caption(f"Showing all rows for **{selected_sheet}** included in the downloaded workbook.")
 
                 st.dataframe(
-                    selected_df,
+                    display_df,
                     use_container_width=True,
                     hide_index=True
                 )

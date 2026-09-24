@@ -149,11 +149,15 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
     dup_desc_count = len(dup_desc_df)
     dmd_tab = sanitize_sheet_title("Duplicate Meta Descriptions")
     if dup_desc_count > 0:
-        cols = [c for c in ["url", "meta_description", "status_code"] if c in dup_desc_df.columns]
+        cols = [c for c in ["url", "meta_description", "status_code", "title", "page_text", "h2_first", "h2_list"] if c in dup_desc_df.columns]
         ddf = dup_desc_df[cols].copy().rename(columns={
             "url": "Page URL",
             "meta_description": "Duplicate Meta Description",
-            "status_code": "Status Code"
+            "status_code": "Status Code",
+            "title": "Page Title",
+            "page_text": "_page_text",
+            "h2_first": "_h2_first",
+            "h2_list": "_h2_list"
         })
         ddf["Duplicate Count"] = ddf["Duplicate Meta Description"].map(desc_counts)
         ddf["Recommended Action"] = "Write tailored, unique meta descriptions for each distinct page."
@@ -234,11 +238,15 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
     dup_title_count = len(dup_title_df)
     dtt_tab = sanitize_sheet_title("Duplicate title tags")
     if dup_title_count > 0:
-        cols = [c for c in ["url", "title", "status_code"] if c in dup_title_df.columns]
+        cols = [c for c in ["url", "title", "status_code", "page_text", "h2_first", "h2_list", "meta_description"] if c in dup_title_df.columns]
         tdf = dup_title_df[cols].copy().rename(columns={
             "url": "Page URL",
             "title": "Duplicate Title Tag",
-            "status_code": "Status Code"
+            "status_code": "Status Code",
+            "page_text": "_page_text",
+            "h2_first": "_h2_first",
+            "h2_list": "_h2_list",
+            "meta_description": "_meta_description"
         })
         tdf["Duplicate Count"] = tdf["Duplicate Title Tag"].map(title_counts)
         tdf["Recommended Action"] = "Create distinct, keyword-focused title tags for each page."
@@ -269,8 +277,15 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
     missing_title_count = len(missing_title_df)
     mtt_tab = sanitize_sheet_title("Missing title tags")
     if missing_title_count > 0:
-        cols = [c for c in ["url", "status_code"] if c in missing_title_df.columns]
-        mtt_df = missing_title_df[cols].copy().rename(columns={"url": "Page URL", "status_code": "Status Code"})
+        cols = [c for c in ["url", "status_code", "page_text", "h2_first", "h2_list", "meta_description"] if c in missing_title_df.columns]
+        mtt_df = missing_title_df[cols].copy().rename(columns={
+            "url": "Page URL",
+            "status_code": "Status Code",
+            "page_text": "_page_text",
+            "h2_first": "_h2_first",
+            "h2_list": "_h2_list",
+            "meta_description": "_meta_description"
+        })
         mtt_df["Recommended Action"] = "Add a descriptive, keyword-rich <title> tag between 30 and 60 characters."
         error_dfs[mtt_tab] = mtt_df
         index_rows.append({
@@ -301,13 +316,17 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
     long_title_count = len(long_title_df)
     ltt_tab = sanitize_sheet_title("Titles over 60 Chars")
     if long_title_count > 0:
-        cols = [c for c in ["url", "title", "title_length", "title_pixel_width", "status_code"] if c in long_title_df.columns]
+        cols = [c for c in ["url", "title", "title_length", "title_pixel_width", "status_code", "page_text", "h2_first", "h2_list", "meta_description"] if c in long_title_df.columns]
         ltdf = long_title_df[cols].copy().rename(columns={
             "url": "Page URL",
             "title": "Page Title",
             "title_length": "Length (Chars)",
             "title_pixel_width": "Pixel Width (px)",
-            "status_code": "Status Code"
+            "status_code": "Status Code",
+            "page_text": "_page_text",
+            "h2_first": "_h2_first",
+            "h2_list": "_h2_list",
+            "meta_description": "_meta_description"
         })
         ltdf["Recommended Action"] = "Shorten title to under 60 characters (<600px) to avoid ellipsis truncation in search results."
         error_dfs[ltt_tab] = ltdf
@@ -430,11 +449,14 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
     no_desc_count = len(no_desc_df)
     dhm_tab = sanitize_sheet_title("Don't have meta descriptions")
     if no_desc_count > 0:
-        cols = [c for c in ["url", "title", "status_code"] if c in no_desc_df.columns]
+        cols = [c for c in ["url", "title", "status_code", "page_text", "h2_first", "h2_list"] if c in no_desc_df.columns]
         mdf = no_desc_df[cols].copy().rename(columns={
             "url": "Page URL",
             "title": "Page Title",
-            "status_code": "Status Code"
+            "status_code": "Status Code",
+            "page_text": "_page_text",
+            "h2_first": "_h2_first",
+            "h2_list": "_h2_list"
         })
         mdf["Recommended Action"] = "Add an engaging, keyword-rich meta description between 120-155 characters."
         error_dfs[dhm_tab] = mdf
@@ -465,12 +487,16 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
     long_desc_count = len(long_desc_df)
     ld_tab = sanitize_sheet_title("Desc over 160 Chars")
     if long_desc_count > 0:
-        cols = [c for c in ["url", "meta_description", "meta_description_length", "status_code"] if c in long_desc_df.columns]
+        cols = [c for c in ["url", "meta_description", "meta_description_length", "status_code", "title", "page_text", "h2_first", "h2_list"] if c in long_desc_df.columns]
         lddf = long_desc_df[cols].copy().rename(columns={
             "url": "Page URL",
             "meta_description": "Meta Description",
             "meta_description_length": "Length (Chars)",
-            "status_code": "Status Code"
+            "status_code": "Status Code",
+            "title": "Page Title",
+            "page_text": "_page_text",
+            "h2_first": "_h2_first",
+            "h2_list": "_h2_list"
         })
         lddf["Recommended Action"] = "Shorten meta description to 120-155 characters to avoid SERP ellipsis truncation."
         error_dfs[ld_tab] = lddf
@@ -502,11 +528,15 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
     missing_h1_count = len(missing_h1_df)
     mh1_tab = sanitize_sheet_title("Missing H1")
     if missing_h1_count > 0:
-        cols = [c for c in ["url", "title", "status_code"] if c in missing_h1_df.columns]
+        cols = [c for c in ["url", "title", "status_code", "page_text", "h2_first", "h2_list", "meta_description"] if c in missing_h1_df.columns]
         h1df = missing_h1_df[cols].copy().rename(columns={
             "url": "Page URL",
             "title": "Page Title",
-            "status_code": "Status Code"
+            "status_code": "Status Code",
+            "page_text": "_page_text",
+            "h2_first": "_h2_first",
+            "h2_list": "_h2_list",
+            "meta_description": "_meta_description"
         })
         h1df["Recommended Action"] = "Add exactly one primary H1 heading describing the core topic of the page."
         error_dfs[mh1_tab] = h1df
@@ -536,13 +566,18 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
     multi_h1_count = len(multi_h1_df)
     multi_h1_tab = sanitize_sheet_title("Multiple H1 tags")
     if multi_h1_count > 0:
-        cols = [c for c in ["url", "h1_count", "h1", "h1_2", "status_code"] if c in multi_h1_df.columns]
+        cols = [c for c in ["url", "h1_count", "h1", "h1_2", "status_code", "title", "page_text", "h2_first", "h2_list", "meta_description"] if c in multi_h1_df.columns]
         mhdf = multi_h1_df[cols].copy().rename(columns={
             "url": "Page URL",
             "h1_count": "Total H1 Count",
             "h1": "First H1 Tag",
             "h1_2": "Second H1 Tag",
-            "status_code": "Status Code"
+            "status_code": "Status Code",
+            "title": "Page Title",
+            "page_text": "_page_text",
+            "h2_first": "_h2_first",
+            "h2_list": "_h2_list",
+            "meta_description": "_meta_description"
         })
         mhdf["Recommended Action"] = "Remove superfluous H1 tags so each page has exactly one primary H1 heading."
         error_dfs[multi_h1_tab] = mhdf
@@ -581,11 +616,16 @@ def extract_all_seo_errors(analysis_result: dict) -> tuple[list[dict], dict[str,
 
     dh1_tab = sanitize_sheet_title("Duplicate H1 tags")
     if dup_h1_count > 0:
-        cols = [c for c in ["url", "h1", "status_code"] if c in dup_h1_df.columns]
+        cols = [c for c in ["url", "h1", "status_code", "title", "page_text", "h2_first", "h2_list", "meta_description"] if c in dup_h1_df.columns]
         dhdf = dup_h1_df[cols].copy().rename(columns={
             "url": "Page URL",
             "h1": "Duplicate H1 Tag",
-            "status_code": "Status Code"
+            "status_code": "Status Code",
+            "title": "Page Title",
+            "page_text": "_page_text",
+            "h2_first": "_h2_first",
+            "h2_list": "_h2_list",
+            "meta_description": "_meta_description"
         })
         dhdf["Recommended Action"] = "Provide unique H1 headings for distinct landing pages."
         error_dfs[dh1_tab] = dhdf
@@ -957,7 +997,9 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
 
         # Header Row
         ws_err.row_dimensions[1].height = 24
-        col_names = list(df_err.columns)
+        # Exclude internal auxiliary columns starting with _
+        visible_cols = [c for c in df_err.columns if not str(c).startswith("_")]
+        col_names = visible_cols
         ai_col_indices = set()
         for col_idx, col_name in enumerate(col_names, 1):
             c = ws_err.cell(row=1, column=col_idx)
@@ -973,7 +1015,7 @@ def build_error_audit_excel_workbook(index_rows: list[dict], error_dfs: dict[str
             c.border = border_thin
 
         # Data Rows
-        for r_idx, row_data in enumerate(df_err.itertuples(index=False), 2):
+        for r_idx, row_data in enumerate(df_err[visible_cols].itertuples(index=False), 2):
             ws_err.row_dimensions[r_idx].height = 20
             for c_idx, val in enumerate(row_data, 1):
                 c = ws_err.cell(row=r_idx, column=c_idx)

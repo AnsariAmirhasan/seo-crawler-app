@@ -8,7 +8,11 @@ optimized title tags, single primary H1s, alt text, and actionable developer gui
 import re
 import json
 import logging
+import concurrent.futures
 from typing import Dict, List, Tuple, Optional, Callable
+from urllib.parse import urlparse
+import requests
+from bs4 import BeautifulSoup
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -40,6 +44,171 @@ COUNTRIES = [
     "🇵🇭 Philippines",
     "🇵🇰 Pakistan"
 ]
+
+# ==============================================================================
+# CONTENT RESOLUTION & BRAND STRIPPING UTILITIES
+# ==============================================================================
+
+_LIVE_CONTENT_CACHE: Dict[str, dict] = {}
+
+def clean_brand_from_title(title: str, url: str = "") -> str:
+    """
+    Strips trailing brand suffixes (e.g. ' - F3Clicks', ' | Brand', ' - Official Site',
+    'by BrandName', etc.) from page titles to get the pure subject/topic.
+    """
+    if not title or not str(title).strip():
+        return ""
+
+    t = str(title).strip().strip('"\'')
+
+    # Extract domain name tokens to detect brand names (e.g. 'f3clicks' from 'f3clicks.com')
+    domain_tokens = set()
+    if url:
+        try:
+            parsed = urlparse(url)
+            host = parsed.netloc.lower()
+            if host.startswith("www."):
+                host = host[4:]
+            parts = host.split(".")
+            for p in parts:
+                if len(p) >= 3 and p not in ["com", "org", "net", "in", "co", "uk", "io", "ai", "gov", "edu", "info", "biz"]:
+                    domain_tokens.add(p.lower())
+        except Exception:
+            pass
+
+    # Split by standard title separators
+    separators = [" - ", " | ", " – ", " — ", " : ", " ~ "]
+    for sep in separators:
+        if sep in t:
+            parts = t.split(sep)
+            last = parts[-1].strip()
+            last_clean = re.sub(r"[^\w\s]", "", last).lower()
+            # If last chunk matches domain token, or is short brand suffix
+            if last_clean in domain_tokens or (len(parts) > 1 and len(last) < 25 and not any(k in last.lower() for k in ["guide", "tips", "service", "review", "pricing"])):
+                t = sep.join(parts[:-1]).strip()
+
+    # Also strip trailing "by Brand" or "at Brand" (e.g. "Local SEO Services by F3Clicks")
+    for dt in domain_tokens:
+        t = re.sub(rf"\s+(by|at|from)\s+{re.escape(dt)}\b.*$", "", t, flags=re.I).strip()
+
+    # Clean generic trailing words like '- Official Site', '| Homepage'
+    t = re.sub(r"\s*[-|–—:]\s*(Official Site|Home|Homepage|Welcome)\b.*$", "", t, flags=re.I).strip()
+    t = t.rstrip(" -|–—:,")
+    return t or str(title).strip()
+
+
+def get_page_content_and_headings(row: pd.Series, max_chars: int = 500) -> dict:
+    """
+    Retrieve real page body text, H2 subheadings, and meta description.
+    First checks private columns (_page_text, _h2_list, _meta_description) populated during crawl.
+    If missing, falls back to a fast live fetch (cached).
+    """
+    page_text = str(row.get("_page_text", row.get("page_text", row.get("Page Content", ""))) or "").strip()
+    h2_list = row.get("_h2_list", row.get("h2_list", row.get("H2 Subheadings", [])))
+    if isinstance(h2_list, str):
+        try:
+            h2_list = json.loads(h2_list)
+        except Exception:
+            h2_list = [h.strip() for h in h2_list.split(",") if h.strip()]
+    if not isinstance(h2_list, list):
+        h2_list = []
+
+    meta_desc = str(row.get("_meta_description", row.get("meta_description", row.get("Meta Description", ""))) or "").strip()
+    url = str(row.get("Page URL", row.get("url", ""))).strip()
+
+    # If page_text is already available from crawl
+    if page_text and len(page_text) > 30:
+        return {
+            "page_text": page_text[:max_chars],
+            "h2_list": [str(h).strip() for h in h2_list if str(h).strip()][:6],
+            "meta_description": meta_desc
+        }
+
+    # If URL is valid, check cache or fast fetch live
+    if url.startswith("http://") or url.startswith("https://"):
+        if url in _LIVE_CONTENT_CACHE:
+            cached = _LIVE_CONTENT_CACHE[url]
+            return {
+                "page_text": cached.get("page_text", "")[:max_chars],
+                "h2_list": cached.get("h2_list", [])[:6],
+                "meta_description": cached.get("meta_description", meta_desc)
+            }
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 CrawlPilot/2.0"
+            }
+            resp = requests.get(url, headers=headers, timeout=3.5)
+            if resp.status_code == 200 and resp.text:
+                soup = BeautifulSoup(resp.text, "html.parser")
+                for tag in soup(["script", "style", "noscript", "svg", "nav", "footer", "header"]):
+                    tag.decompose()
+                fetched_h2s = [h.get_text(strip=True) for h in soup.find_all("h2") if h.get_text(strip=True)][:8]
+                raw_text = soup.get_text(separator=" ", strip=True)
+                words = raw_text.split()
+                fetched_text = " ".join(words[:250])
+
+                fetched_meta = ""
+                m_tag = soup.find("meta", attrs={"name": re.compile(r"^description$", re.I)})
+                if m_tag and m_tag.get("content"):
+                    fetched_meta = m_tag["content"].strip()
+
+                _LIVE_CONTENT_CACHE[url] = {
+                    "page_text": fetched_text,
+                    "h2_list": fetched_h2s,
+                    "meta_description": fetched_meta or meta_desc
+                }
+                return {
+                    "page_text": fetched_text[:max_chars],
+                    "h2_list": fetched_h2s[:6],
+                    "meta_description": fetched_meta or meta_desc
+                }
+        except Exception as e:
+            logger.debug(f"Live fetch fallback failed for {url}: {e}")
+
+    return {
+        "page_text": page_text[:max_chars],
+        "h2_list": [str(h).strip() for h in h2_list if str(h).strip()][:6],
+        "meta_description": meta_desc
+    }
+
+
+def generate_smart_h1_from_content(clean_topic: str, page_text: str = "", h2s: list = None, url: str = "") -> str:
+    """
+    Fallback that constructs a professional, high-converting 4-8 word H1 heading
+    based on real page content, H2 subheadings, and clean topic without brand suffixes.
+    """
+    if h2s:
+        for h in h2s:
+            cleaned_h = clean_brand_from_title(h, url)
+            words = cleaned_h.split()
+            if 3 <= len(words) <= 9 and not any(k in cleaned_h.lower() for k in ["menu", "navigation", "footer", "sidebar", "cookie", "copyright", "about us", "contact"]):
+                return cleaned_h
+
+    topic = clean_topic.strip()
+    if not topic and url:
+        topic = url.rstrip("/").split("/")[-1].split("?")[0].replace("-", " ").title()
+
+    topic_lower = topic.lower()
+
+    if any(topic_lower.startswith(w) for w in ["how to", "best ", "top ", "ultimate "]):
+        return topic
+
+    if "service" in topic_lower or "agency" in topic_lower or "solution" in topic_lower:
+        if not any(w in topic_lower for w in ["expert", "professional", "result", "drive", "best", "leading"]):
+            return f"Results-Driven {topic}"
+        return topic
+
+    if "seo" in topic_lower or "ppc" in topic_lower or "marketing" in topic_lower:
+        return f"High-Impact {topic} for Measurable Business Growth"
+
+    words = topic.split()
+    if 4 <= len(words) <= 8:
+        return topic
+    elif len(words) < 4:
+        return f"Professional {topic} Solutions"
+    else:
+        return " ".join(words[:7])
+
 
 # ==============================================================================
 # POST-PROCESSING UTILITIES
@@ -238,17 +407,23 @@ def enrich_meta_descriptions(
     country: str = "Global",
     business_context: str = ""
 ) -> pd.DataFrame:
-    """Generate 150-160 character meta descriptions with CTAs + Developer Implementation Guide."""
+    """Generate 150-160 character meta descriptions with CTAs grounded in REAL page content."""
     if df.empty:
         return df
 
     target_df = df.copy()
     items = []
     for idx, row in target_df.iterrows():
+        content_info = get_page_content_and_headings(row, max_chars=450)
+        raw_title = str(row.get("Page Title", row.get("Title", "")))
+        url = str(row.get("Page URL", ""))
+        clean_topic = clean_brand_from_title(raw_title, url)
         items.append({
             "id": idx,
-            "url": str(row.get("Page URL", "")),
-            "title": str(row.get("Page Title", "")),
+            "url": url,
+            "page_topic": clean_topic,
+            "page_content_summary": content_info.get("page_text", ""),
+            "h2_subheadings": content_info.get("h2_list", []),
             "current_desc": str(row.get("Duplicate Meta Description", row.get("Meta Description", "")))
         })
 
@@ -257,14 +432,14 @@ def enrich_meta_descriptions(
 
     prompt = f"""You are an elite SEO Copywriter & Technical Director.
 {biz_note}{region_note}
-Task: Research top-ranking Google search competitors for these services/products in the target country ({country}) and generate high-converting, Google-compliant meta descriptions for each page.
+Task: READ the actual `page_content_summary` and `h2_subheadings` of each page to understand its core offerings, services, or products. Then formulate a high-converting, Google-compliant meta description.
 
 STRICT SEO REQUIREMENTS:
-1. Length MUST be strictly between 150 and 160 characters (including spaces). Never generate descriptions under 145 characters!
-2. MUST end with a high-intent Call To Action (CTA) (e.g. 'Shop our collection online today!', 'Order now for fast delivery!', 'Explore top deals & save now!').
-3. Incorporate relevant primary keywords naturally derived from the URL path and title.
+1. Length MUST be strictly between 150 and 160 characters (including spaces). Never generate descriptions under 148 characters or over 160 characters!
+2. MUST end with a high-intent Call To Action (CTA) (e.g. 'Shop our collection online today!', 'Schedule your free consultation today!', 'Explore our packages & get started now!').
+3. BASE THE DESCRIPTION on the real page content and subheadings — highlighting actual benefits and solutions provided on this specific page.
 4. Each URL MUST receive a distinctly unique, non-duplicate description.
-5. Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string, 150-160 chars with CTA), and "developer_guide" (string, short implementation instruction for developer).
+5. Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string, strictly 150-160 chars ending with CTA), and "developer_guide" (string, short implementation instruction for developer).
 
 Pages to optimize:
 {json.dumps(items, indent=2)}
@@ -305,13 +480,14 @@ Return JSON format:
     for idx in target_df.index:
         raw_sugg = sugg_map.get(idx, "")
         url = str(target_df.loc[idx, "Page URL"])
-        title = str(target_df.loc[idx].get("Page Title", ""))
-        
+        raw_title = str(target_df.loc[idx].get("Page Title", ""))
+        clean_topic = clean_brand_from_title(raw_title, url)
+
         # Enforce exact 150-160 length and strong CTA
-        enforced = enforce_meta_desc_length_and_cta(raw_sugg, title=title, url=url)
+        enforced = enforce_meta_desc_length_and_cta(raw_sugg, title=clean_topic, url=url)
         final_suggs.append(enforced)
         final_chars.append(len(enforced))
-        
+
         guide = guide_map.get(
             idx,
             "Developer Guide: Insert or update <meta name='description' content='[Suggested Description]'> inside the <head> tag of this page template."
@@ -321,6 +497,11 @@ Return JSON format:
     target_df[col_sugg] = final_suggs
     target_df["Suggested Char Count"] = final_chars
     target_df["Developer Guide (How to Fix)"] = final_guides
+
+    # Drop internal helper columns
+    drop_cols = [c for c in target_df.columns if str(c).startswith("_")]
+    if drop_cols:
+        target_df.drop(columns=drop_cols, inplace=True, errors="ignore")
 
     return target_df
 
@@ -334,17 +515,25 @@ def enrich_page_titles(
     country: str = "Global",
     business_context: str = ""
 ) -> pd.DataFrame:
-    """Generate 50-60 character title tags benchmarked against competitors + Developer Guide."""
+    """Generate 50-60 character title tags based on REAL page content + Developer Guide."""
     if df.empty:
         return df
 
     target_df = df.copy()
     items = []
     for idx, row in target_df.iterrows():
+        content_info = get_page_content_and_headings(row, max_chars=400)
+        raw_title = str(row.get("Duplicate Title Tag", row.get("Page Title", row.get("Title", ""))))
+        url = str(row.get("Page URL", ""))
+        clean_topic = clean_brand_from_title(raw_title, url)
         items.append({
             "id": idx,
-            "url": str(row.get("Page URL", "")),
-            "current_title": str(row.get("Duplicate Title", row.get("Page Title", row.get("Title", ""))))
+            "url": url,
+            "clean_topic": clean_topic,
+            "current_title": raw_title,
+            "page_content_summary": content_info.get("page_text", ""),
+            "h2_subheadings": content_info.get("h2_list", []),
+            "meta_description": content_info.get("meta_description", "")
         })
 
     biz_note = f"Website Business/Niche: {business_context}\n" if business_context else ""
@@ -352,13 +541,14 @@ def enrich_page_titles(
 
     prompt = f"""You are a Senior Technical SEO Consultant.
 {biz_note}{region_note}
-Task: Generate high-CTR, competitor-benchmarked SEO <title> tags strictly between 50 and 60 characters for each page.
+Task: READ the actual `page_content_summary` and `h2_subheadings` of each page to understand its core subject matter.
+Generate high-CTR, SEO-optimized <title> tags strictly between 50 and 60 characters for each page.
 
 Requirements:
-1. Length MUST be strictly between 50 and 60 characters (ideal Google SERP pixel width ~500-580px).
-2. Format: [Primary Keyword / Product Name] | [Brand or USP Hook]
-3. Distinct and compelling for the {country} audience.
-4. Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string, 50-60 chars), and "developer_guide" (string).
+1. Length MUST be strictly between 50 and 60 characters (optimal SERP pixel width ~500-580px).
+2. Format: [Primary Service/Keyword from Content] | [USP or Brand Hook from Content]
+3. Distinct and compelling for the {country} audience based on actual page content.
+4. Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string, strictly 50-60 chars), and "developer_guide" (string).
 
 Pages:
 {json.dumps(items, indent=2)}
@@ -397,14 +587,31 @@ Return JSON format:
 
     for idx in target_df.index:
         url = str(target_df.loc[idx, "Page URL"])
-        slug = url.rstrip("/").split("/")[-1].replace("-", " ").title()
-        s = sugg_map.get(idx, f"{slug} | Official Online Store")
+        raw_title = str(target_df.loc[idx].get("Duplicate Title Tag", target_df.loc[idx].get("Page Title", "")))
+        clean_topic = clean_brand_from_title(raw_title, url)
+        if not clean_topic:
+            slug = url.rstrip("/").split("/")[-1].replace("-", " ").title()
+            clean_topic = slug or "Services"
+
+        s = sugg_map.get(idx, "")
+        if not s or s.lower() == raw_title.lower() or len(s) < 35:
+            if len(clean_topic) >= 45 and len(clean_topic) <= 60:
+                s = clean_topic
+            elif len(clean_topic) < 45:
+                s = f"{clean_topic} | Official Services & Solutions"
+                if len(s) > 60:
+                    s = f"{clean_topic} | Verified Solutions"
+            else:
+                s = clean_topic[:57] + "..."
+
         if len(s) > 60:
-            s = s[:57] + "..."
-        elif len(s) < 45:
-            s = f"{s} | Best Deals"
-            if len(s) > 60:
-                s = s[:60]
+            s = s[:57].rstrip(" -|") + "..."
+        elif len(s) < 48:
+            diff = 55 - len(s)
+            if diff >= 10:
+                s = f"{s} | Top Solutions"
+                if len(s) > 60:
+                    s = s[:60]
         final_suggs.append(s)
         final_chars.append(len(s))
         guide = guide_map.get(idx, "Developer Guide: Update the <title> tag inside the <head> section of this page template.")
@@ -413,6 +620,11 @@ Return JSON format:
     target_df[col_sugg] = final_suggs
     target_df["Suggested Title Chars"] = final_chars
     target_df["Developer Guide (How to Fix)"] = final_guides
+
+    # Drop internal helper columns
+    drop_cols = [c for c in target_df.columns if str(c).startswith("_")]
+    if drop_cols:
+        target_df.drop(columns=drop_cols, inplace=True, errors="ignore")
 
     return target_df
 
@@ -426,37 +638,56 @@ def enrich_headings(
     country: str = "Global",
     business_context: str = ""
 ) -> pd.DataFrame:
-    """Recommend single primary H1 heading tags + Developer Implementation Guide."""
+    """Recommend single primary H1 heading tags derived from REAL page content + Developer Guide."""
     if df.empty:
         return df
 
     target_df = df.copy()
     items = []
     for idx, row in target_df.iterrows():
+        content_info = get_page_content_and_headings(row, max_chars=450)
+        raw_title = str(row.get("Page Title", row.get("Title", "")))
+        url = str(row.get("Page URL", ""))
+        clean_topic = clean_brand_from_title(raw_title, url)
         items.append({
             "id": idx,
-            "url": str(row.get("Page URL", "")),
-            "h1_1": str(row.get("First H1", row.get("Primary H1", ""))),
-            "h1_2": str(row.get("Second H1", "")),
-            "title": str(row.get("Page Title", ""))
+            "url": url,
+            "raw_page_title": raw_title,
+            "clean_topic": clean_topic,
+            "page_content_summary": content_info.get("page_text", ""),
+            "h2_subheadings": content_info.get("h2_list", []),
+            "meta_description": content_info.get("meta_description", ""),
+            "h1_current": str(row.get("First H1 Tag", row.get("First H1", row.get("Duplicate H1 Tag", "")))),
+            "h1_secondary": str(row.get("Second H1 Tag", row.get("Second H1", "")))
         })
 
-    prompt = f"""You are an on-page SEO structural architect.
-Task: For each page below, recommend a single, clear semantic H1 heading tag and a precise Developer Guide on how to adjust HTML headings.
-If page has multiple H1s, identify which one should remain H1 and instruct developer to change secondary H1s into H2 tags.
-If H1 is missing or duplicate, suggest an ideal H1 for the page topic.
+    biz_note = f"Website Business/Niche: {business_context}\n" if business_context else ""
+    region_note = f"Target Country/Market: {country}\n" if country and "Global" not in country else ""
 
-Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string), and "developer_guide" (string).
+    prompt = f"""You are a World-Class On-Page SEO Architect and Conversion Copywriter.
+{biz_note}{region_note}
+CRITICAL SEO DIRECTIVE:
+You must formulate an optimal, semantic, conversion-oriented primary <h1> heading for each page below based on its REAL PAGE CONTENT and H2 subheadings.
 
-Pages:
+STRICT RULES:
+1. NEVER simply copy or repeat the raw <title> or Meta Title tag verbatim!
+2. NEVER include brand names or website name suffixes (e.g. '- F3Clicks', '| BrandName', 'by F3Clicks') in the H1 heading. H1 is strictly an on-page content headline for human readers, NOT a SERP browser title!
+3. READ the `page_content_summary` and `h2_subheadings` for each page. Determine the real core subject matter, services, or products discussed on that specific page.
+4. Formulate an engaging, authoritative, 4 to 8 word primary H1 heading that accurately reflects the page content (e.g. 'Drive Targeted Customers with Result-Driven Local SEO Services', 'Scalable White Label SEO Solutions for Growing Agencies', 'High-Converting PPC Campaign Management for Measurable Growth').
+5. If the issue is 'Multiple H1 tags', identify the best primary H1 to retain, and in 'developer_guide' instruct the developer to demote other <h1> tags to <h2>.
+6. If the issue is 'Missing H1', suggest the ideal primary H1 for the page based on the content, and instruct developer where to place it in the template.
+
+Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string, the 4-8 word H1 without brand suffix), and "developer_guide" (string).
+
+Pages to evaluate:
 {json.dumps(items, indent=2)}
 
 Return JSON format:
 [
   {{
     "id": 0,
-    "suggestion": "Pure Organic Lavender Essential Oil",
-    "developer_guide": "In header.liquid/template.php, keep this primary <h1> and change the secondary <h1> tag into a semantic <h2> or <h3> tag."
+    "suggestion": "Drive Targeted Local Customers with Result-Oriented Local SEO",
+    "developer_guide": "Add a single primary <h1> tag at the top of the main content container in the page template."
   }}
 ]"""
 
@@ -475,17 +706,41 @@ Return JSON format:
 
     col_sugg = "Suggested Single Primary H1" if "Multiple" in issue_type else "Suggested H1 Heading"
 
-    target_df[col_sugg] = [
-        sugg_map.get(idx, target_df.loc[idx].get("First H1", target_df.loc[idx].get("Page Title", "Main Product / Topic")))
-        for idx in target_df.index
-    ]
-    target_df["Developer Guide (How to Fix)"] = [
-        guide_map.get(
+    final_h1s = []
+    final_guides = []
+
+    for idx in target_df.index:
+        url = str(target_df.loc[idx, "Page URL"])
+        raw_title = str(target_df.loc[idx].get("Page Title", target_df.loc[idx].get("Title", "")))
+        clean_topic = clean_brand_from_title(raw_title, url)
+        content_info = get_page_content_and_headings(target_df.loc[idx], max_chars=450)
+        h2s = content_info.get("h2_list", [])
+        page_text = content_info.get("page_text", "")
+
+        raw_sugg = sugg_map.get(idx, "")
+        clean_sugg = clean_brand_from_title(raw_sugg, url)
+
+        if not clean_sugg or clean_sugg.lower() == raw_title.lower() or clean_sugg.lower() == clean_topic.lower():
+            final_h1 = generate_smart_h1_from_content(clean_topic, page_text=page_text, h2s=h2s, url=url)
+        else:
+            final_h1 = clean_sugg
+
+        final_h1 = clean_brand_from_title(final_h1, url)
+
+        guide = guide_map.get(
             idx,
             "Developer Guide: Open template file. Ensure exactly one <h1> exists on the page (use the Suggested H1). Demote additional <h1> tags to <h2> or <h3>."
         )
-        for idx in target_df.index
-    ]
+        final_h1s.append(final_h1)
+        final_guides.append(guide)
+
+    target_df[col_sugg] = final_h1s
+    target_df["Developer Guide (How to Fix)"] = final_guides
+
+    # Drop internal helper columns
+    drop_cols = [c for c in target_df.columns if str(c).startswith("_")]
+    if drop_cols:
+        target_df.drop(columns=drop_cols, inplace=True, errors="ignore")
 
     return target_df
 
@@ -703,6 +958,13 @@ def enrich_audit_report_with_ai(
 
         else:
             enriched_dfs[sheet_name] = df_err.copy()
+
+    # Safeguard: purge any internal helper columns starting with _ from all sheets
+    for s_name in list(enriched_dfs.keys()):
+        d_clean = enriched_dfs[s_name]
+        d_drops = [c for c in d_clean.columns if str(c).startswith("_")]
+        if d_drops:
+            enriched_dfs[s_name] = d_clean.drop(columns=d_drops, errors="ignore")
 
     # Enrich Index Rows with Suggested Developer Action Plan
     enriched_index = []
