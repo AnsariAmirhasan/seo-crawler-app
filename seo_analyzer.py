@@ -5,6 +5,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 import pandas as pd
 from collections import Counter
+import collections
 import requests
 from concurrent.futures import ThreadPoolExecutor
 
@@ -650,6 +651,163 @@ def resolve_image_sizes(df_images: pd.DataFrame, max_workers: int = 20, timeout:
     df_images["is_over_100kb"] = df_images["size_kb"] > 100.0
     return df_images
 
+
+def url_match_keys(u: str) -> list[str]:
+    """
+    Generate canonical and common variant keys for matching target_url to page_url:
+    - Strips fragment and query parameters
+    - Trailing slash and non-trailing slash
+    - http and https
+    - www and non-www
+    - Lowercase domain
+    """
+    if not u:
+        return []
+    u = str(u).strip()
+    keys = [u]
+    u_clean = u.split("#")[0]
+    keys.append(u_clean)
+    u_no_query = u_clean.split("?")[0]
+    keys.append(u_no_query)
+
+    # Trailing slash variants
+    if u_no_query.endswith("/"):
+        keys.append(u_no_query.rstrip("/"))
+    else:
+        keys.append(u_no_query + "/")
+
+    # Protocol & www variants
+    expanded = list(keys)
+    for k in keys:
+        if k.startswith("http://"):
+            expanded.append("https://" + k[7:])
+        elif k.startswith("https://"):
+            expanded.append("http://" + k[8:])
+
+        if "://www." in k:
+            expanded.append(k.replace("://www.", "://", 1))
+        elif "://" in k:
+            expanded.append(k.replace("://", "://www.", 1))
+
+    lowers = [k.lower() for k in expanded]
+    return list(set(expanded + lowers))
+
+
+def resolve_inlinks_and_orphans(df_pages: pd.DataFrame, df_links: pd.DataFrame, start_url: str = "") -> pd.DataFrame:
+    """
+    Accurately calculates internal inlinks and determines orphan status:
+    1. Resolves 301/302 redirects so internal links pointing to redirecting URLs
+       pass inlink equity and credit to their final destination pages.
+    2. Uses multi-key URL matching (handling trailing slashes, www/non-www, http/https).
+    3. Respects crawler lineage: if a page was reached via another internal page (source_page),
+       it has at least 1 inlink and is never an orphan.
+    4. Start URL (homepage) is never an orphan.
+    """
+    if df_pages.empty:
+        return df_pages
+
+    if not start_url and "url" in df_pages.columns:
+        start_url = str(df_pages.iloc[0].get("url", ""))
+
+    start_keys = set(url_match_keys(start_url)) if start_url else set()
+
+    # 1. Build redirect resolution map
+    redirect_map = {}
+    for _, p in df_pages.iterrows():
+        p_url = str(p.get("url", "")).strip()
+        f_url = str(p.get("final_url", "")).strip()
+        s_code = p.get("status_code", 0)
+        if p_url and f_url and f_url != p_url and (300 <= s_code < 400 or p.get("is_redirect_chain", False)):
+            redirect_map[p_url] = f_url
+
+    # Resolve multi-hop redirects (A -> B -> C => A -> C)
+    for k in list(redirect_map.keys()):
+        curr = redirect_map[k]
+        hops = 0
+        while curr in redirect_map and hops < 10:
+            curr = redirect_map[curr]
+            hops += 1
+        redirect_map[k] = curr
+
+    # 2. Count internal inlinks and map source pages & anchors
+    inlinks_counter = collections.defaultdict(int)
+    source_map = {}
+    anchor_map = {}
+
+    if not df_links.empty and "is_internal" in df_links.columns:
+        internal_links = df_links[df_links["is_internal"] == True]
+        for _, r in internal_links.iterrows():
+            tgt = str(r.get("target_url", "")).strip()
+            src = str(r.get("source_url", "")).strip()
+            anc = str(r.get("anchor_text", "")).strip()
+            if not tgt:
+                continue
+
+            resolved_tgt = redirect_map.get(tgt, tgt)
+            targets_to_credit = {tgt, resolved_tgt}
+
+            for t_item in targets_to_credit:
+                for k in url_match_keys(t_item):
+                    inlinks_counter[k] += 1
+                    if k not in source_map and src:
+                        source_map[k] = src
+                        anchor_map[k] = anc
+
+    # 3. Calculate outlinks
+    if not df_links.empty and "source_url" in df_links.columns and "is_internal" in df_links.columns:
+        internal_outlinks = df_links[df_links["is_internal"] == True].groupby("source_url").size().to_dict()
+        external_outlinks = df_links[df_links["is_internal"] == False].groupby("source_url").size().to_dict()
+        df_pages["internal_outlinks_count"] = df_pages["url"].map(internal_outlinks).fillna(0).astype(int)
+        df_pages["external_outlinks_count"] = df_pages["url"].map(external_outlinks).fillna(0).astype(int)
+    else:
+        df_pages["internal_outlinks_count"] = 0
+        df_pages["external_outlinks_count"] = 0
+
+    # 4. Map back to each page
+    final_inlinks = []
+    final_is_orphan = []
+    final_sources = []
+    final_anchors = []
+
+    for _, row in df_pages.iterrows():
+        p_url = str(row.get("url", "")).strip()
+        keys = url_match_keys(p_url)
+
+        # Get maximum inlinks across all key variants
+        cnt = max([inlinks_counter.get(k, 0) for k in keys] + [0])
+
+        src_found = None
+        anc_found = None
+        for k in keys:
+            if k in source_map:
+                src_found = source_map[k]
+                anc_found = anchor_map.get(k, "")
+                break
+
+        # Check crawler source_page lineage
+        raw_src = str(row.get("source_page", "")).strip()
+        if not src_found and raw_src and raw_src not in ["Initial Seed", p_url]:
+            src_found = raw_src
+            anc_found = "[Internal Discovery / Redirect]"
+            if cnt == 0:
+                cnt = 1
+
+        is_seed = bool(set(keys) & start_keys) if start_keys else (row.get("depth", 0) == 0)
+        is_orphan = (cnt == 0) and not is_seed
+
+        final_inlinks.append(cnt)
+        final_is_orphan.append(is_orphan)
+        final_sources.append(src_found or row.get("source_page", ""))
+        final_anchors.append(anc_found or "")
+
+    df_pages["inlinks_count"] = final_inlinks
+    df_pages["is_orphan"] = final_is_orphan
+    df_pages["source_url"] = final_sources
+    df_pages["anchor_text"] = final_anchors
+
+    return df_pages
+
+
 def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list):
     """Aggregate all page audits, compute site-wide duplicates, metrics, and health score."""
     pages_audit = []
@@ -679,42 +837,9 @@ def analyze_crawl_results(crawled_pages: list, all_links: list, all_images: list
         df_images["size_kb"] = []
         df_images["is_over_100kb"] = []
 
-    # Compute link stats and map source_page / anchor_text per page
-    if not df_links.empty and not df_pages.empty:
-        internal_outlinks = df_links[df_links["is_internal"] == True].groupby("source_url").size().to_dict()
-        external_outlinks = df_links[df_links["is_internal"] == False].groupby("source_url").size().to_dict()
-        internal_inlinks = df_links[df_links["is_internal"] == True].groupby("target_url").size().to_dict()
-        df_pages["internal_outlinks_count"] = df_pages["url"].map(internal_outlinks).fillna(0).astype(int)
-        df_pages["external_outlinks_count"] = df_pages["url"].map(external_outlinks).fillna(0).astype(int)
-        df_pages["inlinks_count"] = df_pages["url"].map(internal_inlinks).fillna(0).astype(int)
-
-        source_map = {}
-        anchor_map = {}
-        for _, r in df_links.iterrows():
-            tgt = str(r.get("target_url", "")).strip()
-            src = str(r.get("source_url", "")).strip()
-            anc = str(r.get("anchor_text", "")).strip()
-            if tgt:
-                if tgt not in source_map:
-                    source_map[tgt] = src
-                    anchor_map[tgt] = anc
-                tgt_alt = tgt.rstrip('/') if tgt.endswith('/') else (tgt + '/')
-                if tgt_alt not in source_map:
-                    source_map[tgt_alt] = src
-                    anchor_map[tgt_alt] = anc
-
-        df_pages["source_url"] = df_pages["url"].map(source_map).fillna(df_pages.get("source_page", ""))
-        df_pages["anchor_text"] = df_pages["url"].map(anchor_map).fillna("")
-    else:
-        df_pages["internal_outlinks_count"] = 0
-        df_pages["external_outlinks_count"] = 0
-        df_pages["inlinks_count"] = 0
-        df_pages["source_url"] = df_pages.get("source_page", "")
-        df_pages["anchor_text"] = ""
-
-    # Determine starting seed URL (first crawled URL)
+    # Compute link stats, resolve redirect hops, inlinks, and map source_page / anchor_text per page
     start_url = crawled_pages[0].get("url") if crawled_pages else ""
-    df_pages["is_orphan"] = (df_pages["inlinks_count"] == 0) & (df_pages["url"] != start_url)
+    df_pages = resolve_inlinks_and_orphans(df_pages, df_links, start_url=start_url)
 
     # Classify Response Description and Screaming Frog Response Category
     def classify_response(row):

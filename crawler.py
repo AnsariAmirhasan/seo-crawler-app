@@ -117,7 +117,7 @@ class SEOSpider:
         self,
         start_url: str,
         max_pages: int = 10000,
-        max_depth: int = 5,
+        max_depth: int = 25,
         concurrency: int = 10,
         user_agent_name: str = "Chrome (Windows 11)",
         respect_robots: bool = False,
@@ -470,6 +470,17 @@ class SEOSpider:
                             dest_url = normalize_url(fetch_res["final_url"])
                             allow_sub = (self.crawl_mode == "All Subdomains")
                             if is_internal_url(dest_url, self.allowed_domains, allow_subdomains=allow_sub):
+                                # Record the redirect hop in all_links so destination page receives internal inlink credit
+                                if len(self.all_links) < 40000:
+                                    self.all_links.append({
+                                        "source_url": url,
+                                        "target_url": dest_url,
+                                        "anchor_text": f"[{fetch_res.get('status_code', 301)} Redirect]",
+                                        "link_location": "Redirect",
+                                        "is_internal": True,
+                                        "nofollow": False,
+                                        "rel": "redirect"
+                                    })
                                 if dest_url not in visited_urls and self.should_crawl(dest_url, depth):
                                     to_visit.append((dest_url, depth, url))
 

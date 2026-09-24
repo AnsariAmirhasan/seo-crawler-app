@@ -399,7 +399,7 @@ with st.sidebar:
         </div>
         <div style="font-size: 0.82rem; color: #CBD5E1; line-height: 1.85;">
             <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> <b>10,000 URLs</b> <span style="color: #64748B;">(Fixed Capacity)</span></div>
-            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Max 10 Click Depth</div>
+            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Max 25 Click Depth (Deep Crawl)</div>
             <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> 12 Multi-Threaded Workers</div>
             <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Chrome Desktop (WAF Safe)</div>
             <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Multi-Tab Excel Export</div>
@@ -488,7 +488,7 @@ def render_xml_sitemap_generator():
             spider = SEOSpider(
                 start_url=target_site,
                 max_pages=cfg_max_pages,
-                max_depth=8,
+                max_depth=25,
                 concurrency=cfg_concurrency,
                 respect_robots=cfg_respect_robots,
                 crawl_mode="All Subdomains" if cfg_subdomains else "Single Subdomain Only"
@@ -803,7 +803,7 @@ if btn_clear:
 
 # Fixed Optimized Engine Parameters (10,000 URLs limit)
 max_pages = 10000
-max_depth = 10
+max_depth = 25
 concurrency = 12
 timeout = 10
 user_agent_choice = "Chrome (Windows 11)"
@@ -1443,43 +1443,10 @@ with tab_responses:
 
         df_links = results.get("df_links", pd.DataFrame())
 
-        # Ensure inlinks_count and is_orphan exist even if viewed from a cached session
-        if "inlinks_count" not in df_pages.columns:
-            if not df_links.empty and "is_internal" in df_links.columns and "target_url" in df_links.columns:
-                internal_inlinks = df_links[df_links["is_internal"] == True].groupby("target_url").size().to_dict()
-                df_pages["inlinks_count"] = df_pages["url"].map(internal_inlinks).fillna(0).astype(int)
-            else:
-                df_pages["inlinks_count"] = 0
-
-        # Ensure source_url and anchor_text exist even if viewed from a cached session
-        if ("source_url" not in df_pages.columns or "anchor_text" not in df_pages.columns) and not df_links.empty:
-            source_map = {}
-            anchor_map = {}
-            for _, r in df_links.iterrows():
-                tgt = str(r.get("target_url", "")).strip()
-                src = str(r.get("source_url", "")).strip()
-                anc = str(r.get("anchor_text", "")).strip()
-                if tgt:
-                    if tgt not in source_map:
-                        source_map[tgt] = src
-                        anchor_map[tgt] = anc
-                    tgt_alt = tgt.rstrip('/') if tgt.endswith('/') else (tgt + '/')
-                    if tgt_alt not in source_map:
-                        source_map[tgt_alt] = src
-                        anchor_map[tgt_alt] = anc
-            if "source_url" not in df_pages.columns:
-                df_pages["source_url"] = df_pages["url"].map(source_map).fillna(df_pages.get("source_page", ""))
-            if "anchor_text" not in df_pages.columns:
-                df_pages["anchor_text"] = df_pages["url"].map(anchor_map).fillna("")
-        else:
-            if "source_url" not in df_pages.columns:
-                df_pages["source_url"] = df_pages.get("source_page", "")
-            if "anchor_text" not in df_pages.columns:
-                df_pages["anchor_text"] = ""
-
-        if "is_orphan" not in df_pages.columns:
-            start_url = results.get("start_url", "")
-            df_pages["is_orphan"] = (df_pages["inlinks_count"] == 0) & (df_pages["url"] != start_url)
+        # Ensure accurate inlinks_count, source_url, anchor_text, and is_orphan status
+        from seo_analyzer import resolve_inlinks_and_orphans
+        start_u = results.get("start_url", "")
+        df_pages = resolve_inlinks_and_orphans(df_pages, df_links, start_url=start_u)
 
         # Ensure columns exist even if viewed from a cached session
         for c in ["redirect_hops", "inlinks_count"]:
@@ -1543,7 +1510,7 @@ with tab_responses:
         c_loop = len(df_pages[df_pages.get("is_redirect_loop", False) == True])
         c_4xx = len(df_pages[(df_pages["status_code"] >= 400) & (df_pages["status_code"] < 500)])
         c_5xx = len(df_pages[(df_pages["status_code"] >= 500) & (df_pages["status_code"] < 600)])
-        c_orphan = len(df_pages[(df_pages.get("is_orphan", False) == True) | (df_pages.get("inlinks_count", 0) == 0)])
+        c_orphan = int((df_pages["is_orphan"] == True).sum()) if "is_orphan" in df_pages.columns else 0
         c_noindex = len(df_pages[(df_pages.get("is_noindex", False) == True) | (df_pages.get("meta_robots", "").fillna("").str.contains("noindex", case=False))])
 
         rm1, rm2, rm3, rm4, rm5, rm6, rm7, rm8 = st.columns(8)
@@ -1618,7 +1585,7 @@ with tab_responses:
         elif "Server Error (5xx)" in resp_filter:
             df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 500) & (df_resp_filtered["status_code"] < 600)]
         elif "Orphan URLs" in resp_filter:
-            df_resp_filtered = df_resp_filtered[(df_resp_filtered.get("is_orphan", False) == True) | (df_resp_filtered.get("inlinks_count", 0) == 0)]
+            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("is_orphan", False) == True]
         else:
             df_resp_filtered = df_pages.copy()
 
