@@ -658,6 +658,26 @@ Include:
             "audience_hashtags": ["#HealthyLiving", "#CommunityHealth"],
             "location_hashtags": [f"#{business.get('target_city', 'Care').replace(' ', '')}"]
         }
+    elif cat == "industrial_manufacturing":
+        p_name = business.get("product_name") or f"{brand_name} Industrial Equipment"
+        strat_idea = f"Severe-Service Reliability: Zero Plant Downtime with {brand_name} {p_name}"
+        strat_target = f"Plant engineers, maintenance directors, and procurement leaders in {business.get('target_city', 'our region')} requiring certified, zero-leakage flow control."
+        strat_msg = f"At {brand_name}, we manufacture heavy-duty {p_name} built for severe industrial applications with verified pressure ratings, ISO certifications, and CAD support."
+        strat_angle = f"Why substandard industrial equipment causes catastrophic downtime, and how {brand_name} guarantees continuous operation."
+        strat_hook = f"Stop risking plant shutdowns. Discover heavy-duty {p_name} engineered for extreme reliability."
+        strat_vis = f"Industrial commercial photography with dark brushed metal, glowing technical spec pointers, and vibrant {prim_hex} and {sec_hex} accents."
+
+        ig_prof = f"When continuous plant operations are on the line, there is zero room for failure.\n\nAt {brand_name}, our {p_name} is engineered for severe service, high torque, and zero leakage.\n\nWhy plant engineers choose {brand_name}:\n✔ 100% Factory Hydrostatic Pressure Tested\n✔ IP67 Weatherproof / Explosion-Proof Enclosures\n✔ Comprehensive 3D CAD Models & Datasheets\n✔ Rapid Dispatch & Direct Engineering Support\n\nUpgrade your facility today. Request CAD models & specs: {business.get('website', 'https://www.example.com')}"
+        li_prof = f"The hidden cost in industrial processing facilities?\n\nUnplanned downtime caused by valve seat failure and underspecified actuators.\n\nAt {brand_name}, we manufacture {p_name} built to withstand extreme temperatures, corrosive media, and continuous duty cycles.\n\nKey Engineering Specs:\n1. Precision CNC-Machined Tolerances\n2. Certified Hydrostatic Test Reports\n3. Direct Engineering Technical Support\n\nHow is your facility safeguarding against flow control downtime? Explore specifications: {business.get('website', 'https://www.example.com')}"
+        x_prof = f"Preventing unplanned plant downtime: Why severe-service {p_name} requires precision engineering and certified hydrostatic testing 🧵👇\n\nLearn more from {brand_name}: {business.get('website', 'https://www.example.com')}"
+        fb_prof = f"Heavy-duty engineering designed for demanding plant environments. ⚙️ Discover {p_name} by {brand_name}. High torque, zero leakage, and complete technical documentation.\n\n👉 Request a Quote: {business.get('website', 'https://www.example.com')}\n📞 Call Helpline: {business.get('phone', 'Technical Support')}"
+        h_tags = {
+            "brand_hashtags": [f"#{brand_name.replace(' ', '')}", f"#{brand_name.replace(' ', '')}Engineering"],
+            "product_hashtags": ["#IndustrialValves", "#Actuators", "#FlowControl", "#PlantEngineering"],
+            "industry_hashtags": ["#Manufacturing", "#HeavyIndustry", "#MechanicalEngineering"],
+            "audience_hashtags": ["#PlantManager", "#ProcessEngineering", "#Procurement"],
+            "location_hashtags": [f"#{business.get('target_city', 'Industrial').replace(' ', '')}"]
+        }
     elif cat == "product":
         strat_idea = f"The Standard of Excellence: Elevating {business.get('industry', 'Brand')} Through Radical Quality"
         strat_target = f"Built directly for {business.get('target_audience', 'discerning clients')} who value verified authenticity."
@@ -817,31 +837,44 @@ def detect_industry_category(industry_text: str, campaign_info: str = "", brand_
     ]):
         return "events_venues"
 
-    # 2. FINANCE & BOOKKEEPING
+    # 2. INDUSTRIAL, MANUFACTURING & ENGINEERING (Valves, Actuators, Hardware, Machinery)
+    elif any(k in combined for k in [
+        "valve", "vlave", "actuator", "manufacturer", "manufacturing", "industrial", "hardware",
+        "machinery", "pump", "strainer", "engineering", "flange", "pipeline", "equipment",
+        "fabrication", "automation", "pneumatic", "hydraulic", "casting", "foundry", "metal",
+        "packaging", "laminate", "pouch", "foil", "carton"
+    ]):
+        return "industrial_manufacturing"
+
+    # 3. FINANCE & BOOKKEEPING
     elif any(k in combined for k in ["account", "bookkeep", "tax", "finance", "audit", "wealth", "cpa", "ledger", "payroll", "capital", "invest", "fiscal"]):
         return "finance"
 
-    # 3. CLINIC & HEALTH
+    # 4. CLINIC & HEALTH
     elif any(k in combined for k in ["clinic", "medic", "doctor", "dental", "dentist", "therap", "wellness", "hospital", "pharma", "health", "physio"]):
         return "health"
 
-    # 4. REAL ESTATE
+    # 5. REAL ESTATE
     elif any(k in combined for k in ["real estate", "realtor", "property", "mortgage", "brokerage", "architect", "interior", "home", "estate"]):
         return "realestate"
 
-    # 5. FOOD & RESTAURANTS
+    # 6. FOOD & RESTAURANTS
     elif any(k in combined for k in ["restaurant", "cafe", "coffee", "beverage", "bakery", "kitchen", "dining", "culinary"]):
         return "food"
 
-    # 6. GYM & FITNESS
+    # 7. GYM & FITNESS
     elif any(k in combined for k in ["gym", "fitness", "workout", "trainer", "athletics", "crossfit", "yoga", "training"]):
         return "fitness"
 
-    # 7. PHYSICAL PRODUCTS, BEAUTY & RETAIL
-    elif any(k in combined for k in ["oil", "skincare", "beauty", "cosmetic", "bottle", "perfume", "serum", "apparel", "clothing", "ecommerce", "store", "goods"]):
+    # 8. PHYSICAL PRODUCTS, PACKAGING, BEAUTY & RETAIL
+    elif any(k in combined for k in [
+        "product", "packaging", "laminate", "pouch", "bottle", "can", "carton", "box", "tube",
+        "oil", "skincare", "beauty", "cosmetic", "perfume", "serum", "apparel", "clothing", "ecommerce",
+        "store", "goods", "gadget", "device", "fmcg"
+    ]):
         return "product"
 
-    # 8. TECH & SAAS (Strict technical keywords, not generic platforms/directories)
+    # 9. TECH & SAAS (Strict technical keywords, not generic platforms/directories)
     elif any(k in combined for k in ["saas", "software", "cloud infrastructure", "cyber", "data telemetry", "developer tool", "api", "ai engine"]):
         return "tech"
 
@@ -888,12 +921,16 @@ def format_ad_poster_prompt(
     prim_hex: str,
     style_frag: str,
     extra_details: str = "",
-    aspect_ratio: str = "4:5"
+    aspect_ratio: str = "4:5",
+    layout_format: str = "standard_poster",
+    product_name: str = "",
+    product_badge: str = "",
+    sec_hex: str = "#F58220",
+    bg_hex: str = "#0F172A"
 ) -> str:
     """
     Constructs a ChatGPT/Midjourney/Flux/SDXL ready Commercial Advertising Poster Prompt
-    honoring EVERY brand parameter: Logo negative space, typography, custom copy, badges,
-    hero visual style, 3-panel strip, and footer contact ribbon.
+    honoring EVERY brand parameter and matching the chosen Google/Agency commercial ad design.
     """
     clean_badges = [b.strip() for b in badges if b.strip()]
     badges_str = " ".join(f"[{b.strip('[]')}]" for b in clean_badges[:4])
@@ -901,6 +938,75 @@ def format_ad_poster_prompt(
     clean_panels = [p.strip() for p in strip_panels if p.strip()]
     strip_str = ", ".join(f"({i+1}) {p}" for i, p in enumerate(clean_panels[:3]))
 
+    cta_btn = (cta or "ORDER NOW").strip().upper()
+    if not cta_btn.endswith("➔"):
+        cta_btn = f"{cta_btn} ➔"
+
+    p_name = product_name or f"{brand_name} Product"
+    p_badge = product_badge or "50% OFF"
+
+    # =========================================================================
+    # 1. 🌟 GOOGLE TRENDING: 3D CURVED PODIUM & RADIAL SPOTLIGHT (Reference 2)
+    # =========================================================================
+    if layout_format == "podium_hero":
+        return (
+            f"Commercial advertising product poster layout for {brand_name}. "
+            f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular negative space box with subtle thin dashed border clearly labeled '[ YOUR LOGO HERE ]' on a plain clean neutral background (completely clean, zero leaves, zero floral clutter), perfectly reserved for direct brand logo overlay. "
+            f"[TOP-LEFT MARKETING COPY & HEADLINE]: Large bold primary headline '{headline}' in opulent {f_head} font, "
+            f"sub-headline question '{sub_headline}' in clean legible {f_body} font, "
+            f"4 circular feature badge icons with clean micro-labels: {badges_str}, with elegant script value tagline '{tagline}'. "
+            f"[TOP-RIGHT FLOATING PROMO BADGE]: Eye-catching speech bubble badge '{p_badge}' with clean drop shadow, accompanied by decorative subtle dot-matrix patterns in {sec_hex}. "
+            f"[CENTER HERO PRODUCT ON 3D PODIUM]: Pristine 3D curved circular white podium platform in center stage with soft realistic contact shadows and directional studio spotlighting; resting proudly on top is the exact {p_name} (preserving precise industrial hardware/actuator/packaging geometry, metallic/matte coating, and details); illuminated by dramatic dual-angle rim lights. "
+            f"[DYNAMIC BACKGROUND]: Energetic radial burst radiating outward from behind the product in deep {bg_hex} transitioning into vibrant {prim_hex} gradients. "
+            f"[BOTTOM BRAND FOOTER BANNER]: Full-width clean white footer ribbon across the bottom edge with: Phone helpline: {phone or '+1 555-0199'} | Center bold high-contrast clickable pill button '{cta_btn}' | Globe icon Website: {web or 'www.example.com'}. "
+            f"Ultra-crisp 8k resolution, professional graphic design advertising creative, balanced commercial composition, 1:1 aspect ratio."
+        ).strip()
+
+    # =========================================================================
+    # 2. ⚖️ GOOGLE/TRISHALA: SIDE-BY-SIDE PACKAGING MYTH VS FACT (Reference 1)
+    # =========================================================================
+    elif layout_format == "comparison_myth":
+        return (
+            f"Commercial packaging & product comparison advertising poster layout for {brand_name}. "
+            f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular negative space box clearly labeled '[ YOUR LOGO HERE ]' on plain neutral background. "
+            f"[TOP BOLD HEADER]: Bold uppercase primary headline '{headline}' in opulent {f_head} font, with sub-header '{sub_headline}' in clean legible {f_body} font. "
+            f"[CENTER DUAL PRODUCT COMPARISON]: High-key minimalist studio staging with soft organic leaf shadow silhouette falling gracefully in upper background; two {p_name} units staged side-by-side on reflective clean floor: on left is 'YOUR PRODUCT ({brand_name})' featuring precision-machined heavy-duty build with vibrant {prim_hex} accents and flawless finish; centered between them is a large bold '≠' inequality symbol; on right is 'COMPETITOR / STANDARD PRODUCT' with dull, generic, standard grade construction labeled 'COMPETITOR PRODUCT'. "
+            f"[FLOATING BENEFIT BADGES]: 4 circular feature badge icons with clean micro-labels: {badges_str}. "
+            f"[BOTTOM FOOTER BANNER]: Minimalist high-trust footer ribbon: 'Certified Quality Assurance • Direct Helpline: {phone or '+1 555-0199'} • Visit {web or 'www.example.com'} | Button: {cta_btn}'. "
+            f"Ultra-clean commercial advertising photograph, crisp 8k resolution, professional packaging comparison poster, balanced negative space, 1:1 aspect ratio."
+        ).strip()
+
+    # =========================================================================
+    # 3. 🔬 INDUSTRIAL & TECHNICAL HARDWARE SPEC SHEET (CAD & Engineering)
+    # =========================================================================
+    elif layout_format == "technical_spec":
+        return (
+            f"Industrial engineering advertising poster layout for {brand_name}. "
+            f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular box labeled '[ YOUR LOGO HERE ]'. "
+            f"[CENTER HERO HARDWARE]: High-precision 8k commercial studio photograph of {p_name} (heavy-duty industrial equipment / hardware) displayed at dynamic 30-degree isometric angle, showing CNC-machined metallic housing, precision seals, and industrial coating in {prim_hex} finish. "
+            f"[FLOATING SPEC CALLOUT POINTERS]: 4 thin high-contrast technical line pointers originating from key components to floating micro-spec text badges: {badges_str}. "
+            f"[HEADER & SUBHEAD]: Bold industrial typography '{headline}' in {f_head}, with sub-head '{sub_headline}' in {f_body}. "
+            f"[BOTTOM B2B INQUIRY RIBBON]: Dark sleek banner with 'Request Technical Datasheet & 3D CAD Models | Call: {phone or '+1 555-0199'} | Web: {web or 'www.example.com'} | Button: {cta_btn}'. "
+            f"Hyper-realistic industrial commercial photography, studio lighting, ultra-sharp 8k resolution, 1:1 aspect ratio."
+        ).strip()
+
+    # =========================================================================
+    # 4. 💥 HIGH-IMPACT E-COMMERCE PROMOTIONAL SALE POSTER
+    # =========================================================================
+    elif layout_format == "promo_sale":
+        return (
+            f"High-impact commercial promotional product advertising poster layout for {brand_name}. "
+            f"[TOP-LEFT LOGO FRAME]: Dedicated clean minimalist rectangular box labeled '[ YOUR LOGO HERE ]'. "
+            f"[TOP MARKETING COPY]: Bold urgent headline '{headline}' in display {f_head} font, sub-headline '{sub_headline}' in {f_body}. "
+            f"[HERO PRODUCT SPOTLIGHT]: Front-and-center studio product showcase of {p_name} elevated on a polished reflective surface with dynamic angled backlighting in {prim_hex} and {sec_hex}, sharp crisp edge highlights. "
+            f"[PROMOTIONAL BADGE & BADGES]: Large high-contrast discount / offer badge '{p_badge}', 4 feature badges {badges_str}, with script tagline '{tagline}'. "
+            f"[BOTTOM CONTACT RIBBON]: High-urgency promotional footer bar with Phone: {phone or '+1 555-0199'} | Web: {web or 'www.example.com'} | High-contrast CTA pill button '{cta_btn}'. "
+            f"Ultra-sharp 8k resolution, high-converting commercial advertising poster, 1:1 aspect ratio."
+        ).strip()
+
+    # =========================================================================
+    # 5. STANDARD COMMERCIAL ADVERTISING POSTER
+    # =========================================================================
     contact_parts = []
     if web:
         contact_parts.append(f"Globe icon 'Website: {web}'")
@@ -908,10 +1014,6 @@ def format_ad_poster_prompt(
         contact_parts.append(f"Phone icon 'Helpline: {phone}'")
     if email:
         contact_parts.append(f"Email icon 'Email: {email}'")
-
-    cta_btn = (cta or "EXPLORE NOW").strip().upper()
-    if not cta_btn.endswith("➔"):
-        cta_btn = f"{cta_btn} ➔"
     contact_parts.append(f"Right-aligned clickable CTA pill button '{cta_btn}'")
     footer_str = " | ".join(contact_parts)
 
@@ -957,6 +1059,21 @@ def get_objective_messaging(
     # Check if custom CTA is provided by user (and not just empty/default placeholder)
     has_custom_cta = bool(cta_input and cta_input.strip() and cta_input.strip() != "Compare Venues & Get Free Quotes")
     custom_cta_pill = f"{cta_input.strip().upper()} ➔" if has_custom_cta else ""
+
+    if base_v.get("is_product_specific") or cat == "industrial_manufacturing":
+        return {
+            "concept_badge": base_v.get("type", "Product Showcase"),
+            "objective_desc": base_v.get("objective", f"Engineered for {objective}"),
+            "headline": base_v.get("headline", ""),
+            "sub_headline": base_v.get("sub_headline", ""),
+            "badges": base_v.get("badges", []),
+            "tagline": base_v.get("tagline", ""),
+            "hero_scene": base_v.get("hero_scene", ""),
+            "strip": base_v.get("strip", []),
+            "cta": custom_cta_pill or base_v.get("cta", "ORDER NOW ➔"),
+            "overlay": base_v.get("overlay", ""),
+            "visual": base_v.get("visual", "")
+        }
 
     if cat == "events_venues":
         # -------------------------------------------------------------
@@ -1312,10 +1429,181 @@ def get_alternate_concept(
     style_frag = get_trending_style_prompt_fragment(visual_style)
     ratio = "9:16" if "story" in content_format.lower() or "reel" in content_format.lower() else "4:5"
 
+    is_product_mode = bool(
+        business.get("is_product_specific") or
+        cat in ["industrial_manufacturing", "product"] or
+        business.get("uploaded_product_name")
+    )
+
+    p_name = str(business.get("product_name") or "").strip()
+    if not p_name:
+        if business.get("uploaded_product_name"):
+            raw_fn = business.get("uploaded_product_name").rsplit(".", 1)[0]
+            clean_fn = re.sub(r'[\-_]', ' ', raw_fn)
+            clean_fn = re.sub(r'\b\d+x\d+\b', '', clean_fn).strip()
+            p_name = clean_fn.title() if clean_fn else "High-Performance Product"
+        elif cat == "industrial_manufacturing":
+            p_name = f"{brand_name} Industrial Valve & Actuator"
+        else:
+            p_name = f"{brand_name} Signature Product"
+
+    p_badge = str(business.get("product_badge") or ("50% OFF" if "sale" in campaign_info.lower() else "⭐ 100% Quality Tested")).strip()
+    p_layout_choice = business.get("product_layout_style", "🌟 3D Curved Podium & Radial Spotlight (Google Ad Trend)")
+
+    # =========================================================================
+    # 0. 🛍️ PRODUCT-SPECIFIC & INDUSTRIAL COMMERCIAL AD POSTERS (Google Ad Trends)
+    # =========================================================================
+    if is_product_mode:
+        if idx == 0:
+            if "Comparison" in p_layout_choice or "Myth" in p_layout_choice:
+                variants = [{
+                    "name": f"Concept 1: Packaging & Quality Myth vs Fact (Dual Product Comparison Poster)",
+                    "type": "Comparative Authority Poster",
+                    "layout_format": "comparison_myth",
+                    "is_product_specific": True,
+                    "product_name": p_name,
+                    "product_badge": p_badge,
+                    "objective": "Direct side-by-side comparison proving why premium engineering outperforms cheap alternatives.",
+                    "visual": f"High-key minimalist studio staging with soft organic shadow silhouette in background; two {p_name} units staged side-by-side on reflective clean floor: on left is 'YOUR PRODUCT ({brand_name})' featuring precision-machined heavy-duty build with vibrant {prim_hex} accents and flawless finish; centered between them is a large bold '≠' inequality symbol; on right is 'COMPETITOR / STANDARD PRODUCT' with dull, generic, standard grade construction labeled 'COMPETITOR PRODUCT'.",
+                    "composition": "Trishala-style packaging/product comparison poster: Top bold Myth header, top-left logo, center dual product comparison with '≠' symbol, clean soft shadow background, bottom verification footer ribbon.",
+                    "lighting": "Diffused soft studio daylight with delicate organic shadow cast.",
+                    "color_dir": f"Clean minimalist neutral light grey/white background, rich {prim_hex} on Your Product vs desaturated grey on Competitor Product.",
+                    "typo_dir": f"Bold authoritative uppercase {f_head} with clean sans-serif {f_body} subhead.",
+                    "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                    "overlay": f"PACKAGING & INDUSTRY MYTH: CAN YOU AFFORD TO COMPROMISE ON {p_name.upper()}?",
+                    "cta": f"COMPARE NOW ➔ • Visit {web}",
+                    "headline": f"PACKAGING & INDUSTRY MYTH: CAN YOU AFFORD TO COMPROMISE ON YOUR {p_name.upper()}?",
+                    "sub_headline": "Why Material Grade, Engineering Precision & Zero-Tolerance Quality Outperform Cheap Competitors",
+                    "badges": ["⚖️ Verifiable Metallurgy", "🚫 Zero Failure Risk", "🛡️ Certified Quality", "⚡ High Efficiency"],
+                    "tagline": f"The Genuine Quality Standard • {traits_tagline}",
+                    "hero_scene": f"High-key commercial comparison photography, pristine reflective white floor, soft botanical/ambient shadow in upper background, two {p_name} units side-by-side with bold '≠' symbol in between, left unit in immaculate brand {prim_hex} finish labeled 'YOUR PRODUCT', right unit in generic dull finish labeled 'COMPETITOR PRODUCT'",
+                    "strip": ["Certified Grade Materials", "Zero-Tolerance Precision", "Comprehensive Factory Warranty"]
+                }]
+            elif "Spec Sheet" in p_layout_choice or "CAD" in p_layout_choice:
+                variants = [{
+                    "name": f"Concept 1: Precision CAD Spec Sheet (Technical Feature Callout Poster)",
+                    "type": "Technical Engineering Infographic",
+                    "layout_format": "technical_spec",
+                    "is_product_specific": True,
+                    "product_name": p_name,
+                    "product_badge": p_badge,
+                    "objective": "High-trust technical engineering ad poster showcasing precision component callouts, specifications, and certifications.",
+                    "visual": f"Hyper-realistic 8k CAD studio photograph of {p_name} positioned at dynamic 30-degree isometric angle on dark titanium brushed surface; glowing precision callout pointer lines extending from key hardware components to technical micro-spec callout tags: [High-Torque Drive Mechanism], [IP67 Waterproof Enclosure], [Precision Seat & Seal], and [Factory Hydrostatic Test Certified].",
+                    "composition": "Industrial engineering layout: Top-left logo, bold engineering headline, center isometric product with 4 floating pointer lines to spec badges, bottom B2B inquiry banner.",
+                    "lighting": "Technical blueprint studio lighting with crisp edge separation.",
+                    "color_dir": f"Dark titanium slate {bg_hex} with technical cyan {sec_hex} pointers and brand {prim_hex} accents.",
+                    "typo_dir": f"Monospace / technical sans-serif {f_head} with clean tabular specs.",
+                    "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                    "overlay": f"Heavy-Duty {p_name}: Zero-Compromise Engineering",
+                    "cta": f"REQUEST CAD & SPECS ➔ • Call {phone} • {web}",
+                    "headline": f"Heavy-Duty {p_name}: Zero-Compromise Engineering",
+                    "sub_headline": f"Precision manufactured for severe service, high torque, and zero-leakage industrial applications in {city}",
+                    "badges": ["⚙️ High-Torque Drive", "🛡️ IP67 Enclosure", "🔧 Zero-Leakage Seal", "⚡ 100% Pressure Tested"],
+                    "tagline": f"Precision Engineered for Extreme Conditions • {traits_tagline}",
+                    "hero_scene": f"Commercial industrial studio photography of {p_name} at dynamic 30-degree isometric angle on dark brushed titanium surface, sharp metallic reflections, glowing technical pointer lines to 4 component spec callouts, studio lighting, Hasselblad 8k clarity",
+                    "strip": ["3D CAD Models Available", "IP67 Weatherproof Seal", "Certified Pressure Rating"]
+                }]
+            else:
+                variants = [{
+                    "name": f"Concept 1: 3D Curved Podium Spotlight ({p_name} Ad Poster)",
+                    "type": "3D Podium Hero Spotlight",
+                    "layout_format": "podium_hero",
+                    "is_product_specific": True,
+                    "product_name": p_name,
+                    "product_badge": p_badge,
+                    "objective": f"High-converting Google commercial product ad layout positioning {p_name} front-and-center on an elevated 3D podium with radial backdrop.",
+                    "visual": f"Pristine 3D curved circular white podium platform in center stage with glossy surface reflection and realistic cast shadow; resting proudly on top is the exact {p_name} (preserving precise industrial valve/actuator geometry, metallic hardware finish, and components); dynamic radial burst background radiating outward in deep {bg_hex} with brand {prim_hex} accents and subtle dot matrix grid patterns; dramatic studio rim lighting accentuating edges.",
+                    "composition": "Google commercial ad poster layout: Top-left [ YOUR LOGO HERE ] box, top-left bold headline & badges, center 3D podium with uploaded product, top-right promotional speech bubble, dynamic radial background, bottom white contact & CTA banner.",
+                    "lighting": "High-end commercial 3D studio lighting, sharp rim highlights, clean contact shadow under podium.",
+                    "color_dir": f"Deep {bg_hex} dark-mode base with vibrant radial {prim_hex} glow and {sec_hex} accent badge.",
+                    "typo_dir": f"Bold display {f_head} headline with clean geometric {f_body} copy.",
+                    "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                    "overlay": f"Exclusive & High-Performance {p_name}",
+                    "cta": f"ORDER NOW ➔ • Helpline: {phone} • {web}",
+                    "headline": f"Exclusive & High-Performance {p_name}",
+                    "sub_headline": f"Precision Engineered for Extreme Reliability & Maximum Uptime Across Demanding Applications in {city}",
+                    "badges": [f"🏷️ {p_badge}", "⭐ 100% Tested", "🛡️ Heavy-Duty Build", "⚡ Fast Dispatch"],
+                    "tagline": f"Engineered Without Compromise • {traits_tagline}",
+                    "hero_scene": f"Commercial product advertising photography, centered 3D circular curved podium with glossy surface, exact {p_name} standing proudly on top with realistic metallic textures and cast shadow, dramatic studio rim lighting, dynamic radial speed burst background in {prim_hex} and {bg_hex}, floating speech bubble badge '{p_badge}'",
+                    "strip": ["Precision CNC Machined", "Factory Hydrostatic Tested", "Rapid Global Dispatch"]
+                }]
+        elif idx == 1:
+            variants = [{
+                "name": f"Concept 2: Packaging & Quality Myth vs Fact (Dual Product Comparison Poster)",
+                "type": "Comparative Authority Poster",
+                "layout_format": "comparison_myth",
+                "is_product_specific": True,
+                "product_name": p_name,
+                "product_badge": p_badge,
+                "objective": "Direct side-by-side comparison debunking industry myths and proving why cheap competitor alternatives fail.",
+                "visual": f"High-key minimalist studio staging with soft organic shadow silhouette falling gracefully in upper background; two {p_name} units staged side-by-side on reflective clean floor: on left is 'YOUR PRODUCT ({brand_name})' featuring precision-machined heavy-duty build with vibrant {prim_hex} accents and flawless finish; centered between them is a large bold '≠' inequality symbol; on right is 'COMPETITOR / STANDARD PRODUCT' with dull, generic, standard grade construction labeled 'COMPETITOR PRODUCT'.",
+                "composition": "Trishala-style packaging/product comparison poster: Top bold Myth header, top-left logo, center dual product comparison with '≠' symbol, clean soft shadow background, bottom verification footer ribbon.",
+                "lighting": "Diffused soft studio daylight with delicate organic shadow cast.",
+                "color_dir": f"Clean minimalist neutral light grey/white background, rich {prim_hex} on Your Product vs desaturated grey on Competitor Product.",
+                "typo_dir": f"Bold authoritative uppercase {f_head} with clean sans-serif {f_body} subhead.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": f"PACKAGING & INDUSTRY MYTH: CAN YOU AFFORD TO COMPROMISE ON {p_name.upper()}?",
+                "cta": f"COMPARE NOW ➔ • Visit {web}",
+                "headline": f"PACKAGING & INDUSTRY MYTH: CAN YOU AFFORD TO COMPROMISE ON YOUR {p_name.upper()}?",
+                "sub_headline": "Why Material Grade, Engineering Precision & Zero-Tolerance Quality Outperform Cheap Competitors",
+                "badges": ["⚖️ Verifiable Metallurgy", "🚫 Zero Failure Risk", "🛡️ Certified Quality", "⚡ High Efficiency"],
+                "tagline": f"The Genuine Quality Standard • {traits_tagline}",
+                "hero_scene": f"High-key commercial comparison photography, pristine reflective white floor, soft botanical/ambient shadow in upper background, two {p_name} units side-by-side with bold '≠' symbol in between, left unit in immaculate brand {prim_hex} finish labeled 'YOUR PRODUCT', right unit in generic dull finish labeled 'COMPETITOR PRODUCT'",
+                "strip": ["Certified Grade Materials", "Zero-Tolerance Precision", "Comprehensive Factory Warranty"]
+            }]
+        elif idx == 2:
+            variants = [{
+                "name": f"Concept 3: Precision CAD Spec Sheet (Technical Feature Callout Poster)",
+                "type": "Technical Engineering Infographic",
+                "layout_format": "technical_spec",
+                "is_product_specific": True,
+                "product_name": p_name,
+                "product_badge": p_badge,
+                "objective": "High-trust technical engineering ad poster showcasing precision component callouts, specifications, and certifications.",
+                "visual": f"Hyper-realistic 8k CAD studio photograph of {p_name} positioned at dynamic 30-degree isometric angle on dark titanium brushed surface; glowing precision callout pointer lines extending from key hardware components to technical micro-spec callout tags: [High-Torque Drive Mechanism], [IP67 Waterproof Enclosure], [Precision Seat & Seal], and [Factory Hydrostatic Test Certified].",
+                "composition": "Industrial engineering layout: Top-left logo, bold engineering headline, center isometric product with 4 floating pointer lines to spec badges, bottom B2B inquiry banner.",
+                "lighting": "Technical blueprint studio lighting with crisp edge separation.",
+                "color_dir": f"Dark titanium slate {bg_hex} with technical cyan {sec_hex} pointers and brand {prim_hex} accents.",
+                "typo_dir": f"Monospace / technical sans-serif {f_head} with clean tabular specs.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": f"Heavy-Duty {p_name}: Zero-Compromise Engineering",
+                "cta": f"REQUEST CAD & SPECS ➔ • Call {phone} • {web}",
+                "headline": f"Heavy-Duty {p_name}: Zero-Compromise Engineering",
+                "sub_headline": f"Precision manufactured for severe service, high torque, and zero-leakage industrial applications in {city}",
+                "badges": ["⚙️ High-Torque Drive", "🛡️ IP67 Enclosure", "🔧 Zero-Leakage Seal", "⚡ 100% Pressure Tested"],
+                "tagline": f"Precision Engineered for Extreme Conditions • {traits_tagline}",
+                "hero_scene": f"Commercial industrial studio photography of {p_name} at dynamic 30-degree isometric angle on dark brushed titanium surface, sharp metallic reflections, glowing technical pointer lines to 4 component spec callouts, studio lighting, Hasselblad 8k clarity",
+                "strip": ["3D CAD Models Available", "IP67 Weatherproof Seal", "Certified Pressure Rating"]
+            }]
+        else:
+            variants = [{
+                "name": f"Concept 4: Unplanned Downtime ➔ Flawless Reliability (Problem to Solution Poster)",
+                "type": "Direct Response Ad Poster",
+                "layout_format": "promo_sale",
+                "is_product_specific": True,
+                "product_name": p_name,
+                "product_badge": p_badge,
+                "objective": f"Direct response commercial poster targeting the pain of equipment downtime and presenting {p_name} as the ultimate solution.",
+                "visual": f"Dramatic split contrast visual: left side shows desaturated pipe leakage and warning alarm indicators representing costly failure; right side transitions into radiant illuminated plant piping with the installed {p_name} operating with flawless efficiency and glowing status lights.",
+                "composition": "Problem-to-solution split poster: Left 40% problem contrast, Right 60% hero solution product, top-left logo, bottom rapid quote banner.",
+                "lighting": "High-contrast chiaroscuro: moody flat grey on left to crisp golden studio clarity on right.",
+                "color_dir": f"Desaturated industrial grey resolving into vibrant brand {prim_hex} and amber {sec_hex}.",
+                "typo_dir": f"High-impact urgency headline in bold {f_head}.",
+                "logo_plc": "Top-left dedicated clean minimalist '[ YOUR LOGO HERE ]' box.",
+                "overlay": f"Stop Losing Millions to Unplanned {p_name} Downtime",
+                "cta": f"GET RAPID QUOTE ➔ • Helpline: {phone} • {web}",
+                "headline": f"Stop Losing Millions to Unplanned {p_name} Downtime",
+                "sub_headline": f"Upgrade to {brand_name} {p_name} for Continuous, Dependable Operation Across Your Facility",
+                "badges": ["⚡ 99.9% Operating Uptime", "💰 Reduced Maintenance", "📦 Readily Available", "🛠️ Full Tech Support"],
+                "tagline": f"Continuous Reliability Guaranteed • {traits_tagline}",
+                "hero_scene": f"Commercial split-screen advertising photography: left side depicts leaking piping and alarm warning lights; right side shows the installed {p_name} operating seamlessly with green status lights, polished stainless steel and industrial coating, crystal clear clarity",
+                "strip": ["Zero Plant Downtime", "Rapid Direct Dispatch", "Full Engineering Warranty"]
+            }]
+
     # =========================================================================
     # 1. EVENTS, BANQUETS & VENUES (e.g., VenueConnect)
     # =========================================================================
-    if cat == "events_venues":
+    elif cat == "events_venues":
         if idx == 0:
             # Slot 0: Core Authority Hero
             variants = [
@@ -1857,7 +2145,12 @@ def get_alternate_concept(
         f_body=f_body,
         prim_hex=prim_hex,
         style_frag=style_frag,
-        aspect_ratio=ratio
+        aspect_ratio="1:1" if is_product_mode else ratio,
+        layout_format=v.get("layout_format", "standard_poster"),
+        product_name=v.get("product_name", p_name if is_product_mode else ""),
+        product_badge=v.get("product_badge", p_badge if is_product_mode else ""),
+        sec_hex=sec_hex,
+        bg_hex=bg_hex
     )
 
     return {
@@ -1965,6 +2258,41 @@ def build_platform_captions_fresh(brand_name: str, industry: str, objective: str
             "facebook": {"professional": r["fb_pro"], "creative": r["fb_cre"], "short": r["fb_sho"]},
             "x": {"professional": r["x_pro"], "creative": r["x_cre"], "short": r["x_sho"]},
             "linkedin": {"professional": r["li_pro"], "creative": r["li_pro"], "short": r["ig_sho"]}
+        }
+    elif cat in ["industrial_manufacturing", "product"] or business.get("is_product_specific"):
+        p_name = business.get("product_name") or "Industrial Equipment"
+        rotations = [
+            {
+                "ig_pro": f"When operating at scale, downtime isn't an option—reliability is everything. ⚙️\n\nMeet the {brand_name} {p_name}: Precision engineered, factory pressure tested, and built for severe service industrial environments.\n\nKey Highlights:\n✔ 100% Quality & Pressure Tested\n✔ High-Torque Mechanism & Zero Leakage\n✔ Rapid Dispatch & Global Engineering Support\n\nUpgrade your operations today. {business.get('cta', 'Request a Quote')}.\n\n🌐 Explore at: {web}\n📞 Direct Helpline: {phone}\n\n#Manufacturing #IndustrialValves #Automation #{brand_name.replace(' ', '')}",
+                "ig_cre": f"Underneath every smooth-running industrial plant is equipment engineered without compromise. 💡⚙️\n\nThe {brand_name} {p_name} is crafted with precision metallurgy and zero-tolerance seals to keep your operations running continuously and safely.\n\n✨ Certified Performance. Zero Headaches.\n🔗 Request Technical Datasheet: {web}\n📞 Engineering Support: {phone}",
+                "ig_sho": f"Heavy-duty {p_name} by {brand_name}. Zero leakage, 100% factory tested. Inquire today: {web}",
+                "fb_pro": f"Trusted by industrial operators and engineers across {city}! ⚙️\n\nDiscover the {brand_name} {p_name} advantage:\n✔ Certified metallurgy\n✔ Rapid dispatch\n✔ Unmatched durability\n\n👉 Inquire today: {web}\n📞 Call: {phone}",
+                "fb_cre": f"Say goodbye to unplanned downtime. The {brand_name} {p_name} delivers dependable, uninterrupted performance for modern plants.\n\nExplore specifications: {web}",
+                "fb_sho": f"Need heavy-duty {p_name}? Direct manufacturer pricing & quick dispatch from {brand_name}: {web}",
+                "x_pro": f"Why 80% of valve and actuator failures happen within the first 6 months (and how precision engineering eliminates them) 🧵👇\n\nTechnical specs & CAD models: {web}",
+                "x_cre": f"Engineered for extreme performance and zero leakage. Discover {p_name} by {brand_name}: {web}",
+                "x_sho": f"Industrial {p_name} built for zero downtime: {web}",
+                "li_pro": f"Unplanned downtime is the single largest hidden cost in process operations.\n\nAt {brand_name}, we manufacture our {p_name} with zero-compromise metallurgy, precision CNC tolerances, and comprehensive pressure testing.\n\nNeed 3D CAD models, technical datasheets, or sizing assistance?\n\nConnect with our engineering team: {web}"
+            },
+            {
+                "ig_pro": f"Stop settling for generic competitor equipment that leads to frequent maintenance cycles and costly shutdowns. 🛑\n\nThe {brand_name} {p_name} gives you verifiable reliability, superior corrosion resistance, and precision operation.\n\nExplore full technical specifications: {web}\n📞 Helpline: {phone}",
+                "ig_cre": f"Precision in every component. Reliability in every cycle. The {brand_name} {p_name} is the gold standard for industrial excellence.\n\nLearn more: {web}",
+                "ig_sho": f"Certified heavy-duty {p_name} with zero maintenance headaches: {web}",
+                "fb_pro": f"Upgrade your plant equipment with {brand_name} {p_name}. Built for extreme duty, tested for perfection.\n\nRequest a quote: {web}",
+                "fb_cre": f"Excellence is engineered, not accidental. Discover {p_name} by {brand_name}: {web}",
+                "fb_sho": f"Direct manufacturer support & CAD models for {p_name}: {web}",
+                "x_pro": f"Heavy-duty engineering designed for demanding environments. Learn about {brand_name} {p_name}: {web}",
+                "x_cre": f"Zero leakage. Maximum uptime. Discover {p_name} by {brand_name}: {web}",
+                "x_sho": f"Industrial {p_name} from {brand_name}: {web}",
+                "li_pro": f"Procuring industrial equipment for high-pressure or critical service applications? Discover how {brand_name} delivers certified {p_name} with complete documentation and CAD drawings: {web}"
+            }
+        ]
+        r = rotations[iteration % len(rotations)]
+        return {
+            "instagram": {"professional": r["ig_pro"], "creative": r["ig_cre"], "short": r["ig_sho"]},
+            "facebook": {"professional": r["fb_pro"], "creative": r["fb_cre"], "short": r["fb_sho"]},
+            "x": {"professional": r["x_pro"], "creative": r["x_cre"], "short": r["x_sho"]},
+            "linkedin": {"professional": r["li_pro"], "creative": r["li_pro"], "short": r["li_pro"]}
         }
     else:
         rotations = [
@@ -2118,6 +2446,20 @@ def render_concept_visual_card(
             draw.text((hx + 30, hy + 120), "CLINICAL PROTOCOL: 100% VERIFIED", fill=(56, 189, 248), anchor="lm")
             draw.text((hx + 30, hy + 155), "EVIDENCE-BASED CARE", fill=(148, 163, 184), anchor="lm")
             draw.line([(hx + 30, hy + 200), (hx + hw - 30, hy + 200)], fill=(40, 60, 80), width=1)
+
+        elif cat == "industrial_manufacturing":
+            # Industrial Hardware & CAD Blueprint Card
+            ix, iy, iw, ih = W//2 - 210, int(H * 0.23), 420, 250
+            draw.rounded_rectangle([(ix, iy), (ix + iw, iy + ih)], radius=16, fill=(15, 23, 38), outline=c_sec, width=2)
+            draw.rounded_rectangle([(ix + 10, iy + 10), (ix + iw - 10, iy + 48)], radius=8, fill=(24, 34, 52))
+            draw.text((ix + 25, iy + 29), "HEAVY-DUTY INDUSTRIAL SPECS", fill=(248, 250, 252), anchor="lm")
+            draw.text((ix + iw - 25, iy + 29), "⚙️ ISO 9001", fill=(16, 185, 129), anchor="rm")
+            draw.text((ix + 30, iy + 85), "PRESSURE CLASS: ANSI 150/300#", fill=c_sec, anchor="lm")
+            draw.text((ix + 30, iy + 120), "ENCLOSURE: IP67 WEATHERPROOF", fill=(56, 189, 248), anchor="lm")
+            draw.text((ix + 30, iy + 155), "TESTING: 100% HYDROSTATIC ZERO-LEAK", fill=(148, 163, 184), anchor="lm")
+            draw.line([(ix + 30, iy + 200), (ix + 150, iy + 180), (ix + 270, iy + 205), (ix + 390, iy + 175)], fill=c_sec, width=3)
+            for pt in [(ix + 30, iy + 200), (ix + 150, iy + 180), (ix + 270, iy + 205), (ix + 390, iy + 175)]:
+                draw.ellipse([(pt[0]-4, pt[1]-4), (pt[0]+4, pt[1]+4)], fill=(56, 189, 248))
 
         elif cat == "product":
             # Luxury Product Hero Showcase (pedestal & packaging)
@@ -2505,6 +2847,83 @@ def render_brand_first_content_page():
             with up_col4:
                 uploaded_guide = st.file_uploader("Brand Guidelines (PDF / DOCX)", type=["pdf", "docx", "txt"], key="upl_guide")
 
+            # 🛍️ PRODUCT-SPECIFIC COMMERCIAL CREATIVE STUDIO (Google Ad Designs)
+            has_prod = uploaded_product is not None
+            is_ind_prod = any(k in (industry_input or "").lower() for k in ["valve", "vlave", "actuator", "manufactur", "hardware", "machin", "equipment", "product", "packaging", "pouch", "bottle", "cosmetic"])
+            
+            is_prod_mode = st.checkbox(
+                "🛍️ Product-Specific Ad Designs (Adapts prompt directly to uploaded product & Google Trending layouts)",
+                value=has_prod or is_ind_prod,
+                key="chk_prod_specific_mode",
+                help="When enabled, creates high-converting commercial advertising poster prompts (3D curved podium, myth vs fact comparison, exploded CAD spec sheet) featuring your exact product."
+            )
+
+            # Auto-infer clean product name from uploaded file or industry
+            default_prod_name = ""
+            if uploaded_product is not None:
+                raw_stem = os.path.splitext(uploaded_product.name)[0]
+                cleaned_stem = re.sub(r'[_+\-]+', ' ', raw_stem)
+                cleaned_stem = re.sub(r'\b\d+x\d+\b', '', cleaned_stem, flags=re.IGNORECASE).strip()
+                if any(k in cleaned_stem.lower() for k in ["compac", "valve", "actuator", "cair"]):
+                    default_prod_name = "Compact Electric Actuator Valve"
+                elif cleaned_stem and len(cleaned_stem) > 3:
+                    default_prod_name = cleaned_stem.title()
+                else:
+                    default_prod_name = f"{brand_name} Industrial Product"
+            elif any(k in (industry_input or "").lower() for k in ["valve", "vlave", "actuator"]):
+                default_prod_name = "Electric Actuator Knife Gate Valve"
+            elif industry_input:
+                default_prod_name = f"{brand_name} {industry_input.split()[0]} Product"
+            else:
+                default_prod_name = f"{brand_name} Hero Product"
+
+            if is_prod_mode:
+                st.markdown("""
+                <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 10px 14px; margin: 8px 0 10px 0;">
+                    <div style="font-weight: 700; color: #38BDF8; font-size: 0.85rem; margin-bottom: 3px;">
+                        🎯 Product Ad Studio Activated (Google & Agency Commercial Designs)
+                    </div>
+                    <div style="font-size: 0.74rem; color: #94A3B8; line-height: 1.45;">
+                        Prompts will feature your exact product on a 3D curved podium, side-by-side comparison (≠), CAD spec pointers, and high-impact CTA ribbons.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                p_col1, p_col2 = st.columns(2)
+                with p_col1:
+                    prod_name_input = st.text_input(
+                        "Product Name / Model *:",
+                        value=default_prod_name,
+                        key="input_product_name",
+                        help="Exact product model name to feature in the image prompts and headlines."
+                    )
+                with p_col2:
+                    default_badge = "Zero Leakage Guaranteed" if any(k in (industry_input or "").lower() for k in ["valve", "vlave", "actuator", "manufactur"]) else "50% OFF"
+                    prod_badge_input = st.text_input(
+                        "Offer / Feature Badge:",
+                        value=default_badge,
+                        key="input_product_badge",
+                        help="E.g., 50% OFF, Zero Leakage Guaranteed, ISO 9001 Certified, Tested Tough"
+                    )
+
+                prod_layout_choice = st.selectbox(
+                    "Commercial Ad Poster Layout Style (Google Trending):",
+                    [
+                        "🎨 Auto-Rotate Across All 4 Google Trending Layouts",
+                        "🌟 3D Curved Podium & Radial Spotlight (Hero Product Ad)",
+                        "⚖️ Packaging / Product Comparison (Myth vs Fact with '≠')",
+                        "🔬 Industrial CAD & Engineering Spec Sheet (Exploded Callouts)",
+                        "💥 High-Impact Promotional Sale & Deal Poster"
+                    ],
+                    index=0,
+                    key="select_product_layout_style",
+                    help="Select your preferred Google-trending advertising layout."
+                )
+            else:
+                prod_name_input = default_prod_name
+                prod_badge_input = "50% OFF"
+                prod_layout_choice = "🎨 Auto-Rotate Across All 4 Google Trending Layouts"
+
         # Color Extraction & Brand Color System
         st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 1rem 0;'>", unsafe_allow_html=True)
         col_pillar_hdr, col_reextract = st.columns([3, 1.2])
@@ -2873,6 +3292,11 @@ def render_brand_first_content_page():
         "c_acc": c_acc,
         "c_bg": c_bg,
         "c_txt": c_txt,
+        "is_product_specific": is_prod_mode,
+        "product_name": prod_name_input.strip() if is_prod_mode else "",
+        "product_badge": prod_badge_input.strip() if is_prod_mode else "",
+        "product_layout_style": prod_layout_choice if is_prod_mode else "",
+        "uploaded_product_name": uploaded_product.name if uploaded_product is not None else None,
     }
 
     color_pack = {
@@ -3037,16 +3461,61 @@ def render_brand_first_content_page():
             """, unsafe_allow_html=True)
 
             # Safe Zone Specs Callout Box (Ad Poster Architecture)
-            st.markdown(f"""
-            <div style="background: rgba(15, 23, 42, 0.9); border: 1px dashed rgba(245, 158, 11, 0.45); border-radius: 10px; padding: 10px 14px; font-size: 0.77rem; color: #CBD5E1; margin-bottom: 10px; line-height: 1.6;">
-                🎯 <b>Commercial Ad Poster Architecture (ChatGPT-Grade Creative Layout):</b><br>
-                • <b>[ YOUR LOGO HERE ]:</b> Top-left dedicated minimalist negative space box (completely clean plain background, zero leaves) for direct logo overlay.<br>
-                • <b>Left Marketing Copy:</b> High-contrast headline, sub-headline question, 4 feature badge icons & cursive tagline.<br>
-                • <b>Right Hero Scene:</b> Realistic commercial photography with <b>{chosen_visual_style}</b>.<br>
-                • <b>Lower 3-Panel Strip:</b> Split photo tiles highlighting 3 key amenities & venue features.<br>
-                • <b>Bottom Footer Ribbon:</b> Branded bar with Website (<code>{website_url or 'www.example.com'}</code>), Phone & Action CTA pill.
-            </div>
-            """, unsafe_allow_html=True)
+            layout_type = cur_concept.get("layout_format", "standard_poster")
+            if layout_type == "podium_hero":
+                callout_html = f"""
+                <div style="background: rgba(15, 23, 42, 0.9); border: 1px dashed rgba(56, 189, 248, 0.5); border-radius: 10px; padding: 10px 14px; font-size: 0.77rem; color: #CBD5E1; margin-bottom: 10px; line-height: 1.6;">
+                    🎯 <b>Google Trending Product Ad Architecture (3D Curved Podium & Radial Spotlight):</b><br>
+                    • <b>[ YOUR LOGO HERE ]:</b> Top-left dedicated minimalist negative space box for direct brand logo overlay.<br>
+                    • <b>Top-Left Copy:</b> High-contrast headline, sub-headline, and 4 circular feature badge icons.<br>
+                    • <b>Center Stage 3D Podium:</b> Curved circular podium staging <b>{cur_concept.get('product_name', brand_name + ' Product')}</b> with contact shadow & dual rim lights.<br>
+                    • <b>Top-Right Promo Badge:</b> Floating speech bubble badge (<b>{cur_concept.get('product_badge', '50% OFF')}</b>) & dot-matrix accent grid.<br>
+                    • <b>Bottom Footer Ribbon:</b> Branded ribbon with Phone ({contact_phone or '+1 555-0199'}), <b>ORDER NOW ➔</b> button, and Website (<code>{website_url or 'www.example.com'}</code>).
+                </div>
+                """
+            elif layout_type == "comparison_myth":
+                callout_html = f"""
+                <div style="background: rgba(15, 23, 42, 0.9); border: 1px dashed rgba(16, 185, 129, 0.5); border-radius: 10px; padding: 10px 14px; font-size: 0.77rem; color: #CBD5E1; margin-bottom: 10px; line-height: 1.6;">
+                    🎯 <b>Google/Trishala Packaging Comparison Architecture (Myth vs Fact with '≠'):</b><br>
+                    • <b>[ YOUR LOGO HERE ]:</b> Top-left dedicated clean minimalist box for brand logo overlay.<br>
+                    • <b>Top Myth Header:</b> Bold uppercase headline addressing packaging/product misconceptions.<br>
+                    • <b>Center Dual Comparison:</b> <b>YOUR PRODUCT ({brand_name})</b> vs <b>≠</b> vs <b>COMPETITOR PRODUCT</b> on clean reflective floor with soft leaf shadow.<br>
+                    • <b>Floating Quality Badges:</b> Verifiable metallurgy, zero failure risk, and certified standards.<br>
+                    • <b>Bottom Verification Ribbon:</b> Helpline, <b>COMPARE NOW ➔</b> button, and Website (<code>{website_url or 'www.example.com'}</code>).
+                </div>
+                """
+            elif layout_type == "technical_spec":
+                callout_html = f"""
+                <div style="background: rgba(15, 23, 42, 0.9); border: 1px dashed rgba(245, 158, 11, 0.5); border-radius: 10px; padding: 10px 14px; font-size: 0.77rem; color: #CBD5E1; margin-bottom: 10px; line-height: 1.6;">
+                    🎯 <b>Industrial Engineering CAD Spec Sheet Architecture:</b><br>
+                    • <b>[ YOUR LOGO HERE ]:</b> Top-left dedicated minimalist box.<br>
+                    • <b>Center Hero Hardware:</b> 30° isometric view of <b>{cur_concept.get('product_name', brand_name + ' Hardware')}</b> showing precision CNC-machined build.<br>
+                    • <b>Spec Callout Pointers:</b> 4 thin technical pointer lines to micro-spec badges (Torque, IP67, Seals, Hydrostatic Test).<br>
+                    • <b>Bottom B2B Ribbon:</b> Helpline, <b>REQUEST CAD & SPECS ➔</b> button, and Website (<code>{website_url or 'www.example.com'}</code>).
+                </div>
+                """
+            elif layout_type == "promo_sale":
+                callout_html = f"""
+                <div style="background: rgba(15, 23, 42, 0.9); border: 1px dashed rgba(239, 68, 68, 0.5); border-radius: 10px; padding: 10px 14px; font-size: 0.77rem; color: #CBD5E1; margin-bottom: 10px; line-height: 1.6;">
+                    🎯 <b>High-Impact Direct Response Ad Architecture (Problem ➔ Solution):</b><br>
+                    • <b>[ YOUR LOGO HERE ]:</b> Top-left dedicated clean minimalist box.<br>
+                    • <b>Top Marketing Copy:</b> Urgency headline solving operational downtime & equipment failure.<br>
+                    • <b>Split-Screen Hero:</b> Left side depicts leakage/failure; right side shows flawless installed <b>{cur_concept.get('product_name', brand_name + ' Product')}</b>.<br>
+                    • <b>Bottom Action Ribbon:</b> Helpline, <b>GET RAPID QUOTE ➔</b> button, and Website (<code>{website_url or 'www.example.com'}</code>).
+                </div>
+                """
+            else:
+                callout_html = f"""
+                <div style="background: rgba(15, 23, 42, 0.9); border: 1px dashed rgba(245, 158, 11, 0.45); border-radius: 10px; padding: 10px 14px; font-size: 0.77rem; color: #CBD5E1; margin-bottom: 10px; line-height: 1.6;">
+                    🎯 <b>Commercial Ad Poster Architecture:</b><br>
+                    • <b>[ YOUR LOGO HERE ]:</b> Top-left dedicated minimalist negative space box for direct logo overlay.<br>
+                    • <b>Left Marketing Copy:</b> High-contrast headline, sub-headline question, 4 feature badge icons & cursive tagline.<br>
+                    • <b>Right Hero Scene:</b> Realistic commercial photography with <b>{chosen_visual_style}</b>.<br>
+                    • <b>Lower 3-Panel Strip:</b> Split photo tiles highlighting 3 key features.<br>
+                    • <b>Bottom Footer Ribbon:</b> Branded bar with Website (<code>{website_url or 'www.example.com'}</code>), Phone & Action CTA pill.
+                </div>
+                """
+            st.markdown(callout_html, unsafe_allow_html=True)
 
             pack_id = st.session_state.get("studio_pack_id", 0)
             prompt_text = cur_concept.get("image_generation_prompt", "")
