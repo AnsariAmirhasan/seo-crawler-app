@@ -298,14 +298,43 @@ def parse_page_seo(page_data: dict, all_links: list = None, all_images: list = N
     seo_info["is_noindex"] = is_noindex
     seo_info["is_nofollow"] = is_nofollow
 
+    # Check if page is actually a WAF Bot Challenge / Captcha Interstitial page (e.g. SiteGround, Cloudflare)
+    is_waf_challenge = False
+    waf_reason = ""
+    page_text_lower = soup.get_text().lower()
+    html_raw = str(soup).lower()
+    if "sgcaptcha" in html_raw or "robot challenge screen" in page_text_lower or "checking the site connection security" in page_text_lower:
+        is_waf_challenge = True
+        waf_reason = "SiteGround Anti-Bot Security Screen (sgcaptcha)"
+    elif "cf-browser-verification" in html_raw or ("just a moment..." in page_text_lower and "cloudflare" in page_text_lower):
+        is_waf_challenge = True
+        waf_reason = "Cloudflare Turnstile / Under Attack Challenge"
+    elif "aws-waf" in html_raw or "awswaf" in html_raw:
+        is_waf_challenge = True
+        waf_reason = "AWS WAF Bot Challenge"
+
+    seo_info["is_waf_challenge"] = is_waf_challenge
+    seo_info["waf_challenge_reason"] = waf_reason
+
+    if is_waf_challenge:
+        seo_info["issues"].append({
+            "type": "Warning",
+            "category": "Indexability",
+            "issue": f"🛡️ Bot Protection Interstitial Screen ({waf_reason})",
+            "recommendation": f"Your hosting firewall ({waf_reason}) served a security challenge page to the crawler instead of your real website. Any detected noindex or meta-refresh tags belong to this security screen, NOT your actual website."
+        })
+
     if is_noindex:
         seo_info["is_indexable"] = False
         seo_info["indexability_reason"] = "Blocked by meta robots noindex" if "noindex" in robots_content else "Blocked by X-Robots-Tag noindex"
+        rec_msg = "This page is intentionally excluded from search engines. On-page SEO issues (H1, title, description) are bypassed."
+        if is_waf_challenge:
+            rec_msg = f"⚠️ IMPORTANT: This noindex tag was detected on the {waf_reason} challenge page served to the cloud server, NOT on your real website."
         seo_info["issues"].append({
             "type": "Notice",
             "category": "Indexability",
             "issue": f"Noindex Tag Detected ({seo_info['meta_robots']})",
-            "recommendation": "This page is intentionally excluded from search engines. On-page SEO issues (H1, title, description) are bypassed."
+            "recommendation": rec_msg
         })
     elif is_nofollow:
         seo_info["issues"].append({
