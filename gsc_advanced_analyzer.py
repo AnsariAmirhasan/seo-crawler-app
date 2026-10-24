@@ -19,17 +19,55 @@ from wordcloud import WordCloud
 from typing import Dict, Any, Tuple, Optional
 
 
+def read_csv_robust(file_bytes_or_buffer) -> pd.DataFrame:
+    """Robustly reads a CSV file trying different encodings, delimiters, and strip BOM."""
+    if isinstance(file_bytes_or_buffer, bytes):
+        raw_bytes = file_bytes_or_buffer
+    else:
+        raw_bytes = file_bytes_or_buffer.read()
+
+    # Try common encodings and separators
+    for enc in ['utf-8-sig', 'utf-8', 'latin1', 'cp1252', 'utf-16']:
+        for sep in [None, ',', ';', '\t']:
+            try:
+                if sep is None:
+                    df = pd.read_csv(io.BytesIO(raw_bytes), encoding=enc, sep=None, engine='python')
+                else:
+                    df = pd.read_csv(io.BytesIO(raw_bytes), encoding=enc, sep=sep)
+
+                if len(df.columns) >= 2 or (len(df) > 0 and len(df.columns) == 1):
+                    # Clean column names (strip BOM, quotes, spaces)
+                    cleaned_cols = [str(c).replace('\ufeff', '').strip().strip('"').strip("'") for c in df.columns]
+                    # If columns were merged because sep sniffing didn't catch it, continue trying
+                    if len(cleaned_cols) == 1 and (';' in cleaned_cols[0] or ',' in cleaned_cols[0] or '\t' in cleaned_cols[0]):
+                        continue
+                    df.columns = cleaned_cols
+                    return df
+            except Exception:
+                continue
+
+    # Ultimate fallback default
+    try:
+        df = pd.read_csv(io.BytesIO(raw_bytes), encoding_errors='replace')
+        df.columns = [str(c).replace('\ufeff', '').strip().strip('"').strip("'") for c in df.columns]
+        return df
+    except Exception as e:
+        st.warning(f"Warning parsing CSV: {e}")
+        return pd.DataFrame()
+
+
 def extract_csv_from_zip(zip_file) -> Dict[str, pd.DataFrame]:
     """Extract all CSV files from the uploaded ZIP file with case-insensitive matching."""
     csv_data = {}
     with zipfile.ZipFile(zip_file, 'r') as zip_ref:
         for file in zip_ref.namelist():
-            if file.endswith('.csv') and not file.startswith('__MACOSX'):
-                clean_name = os.path.basename(file).replace('.csv', '')
+            if file.lower().endswith('.csv') and not file.startswith('__MACOSX'):
+                clean_name = os.path.basename(file).replace('.csv', '').replace('.CSV', '')
                 try:
-                    df = pd.read_csv(zip_ref.open(file))
-                    csv_data[clean_name] = df
-                    csv_data[clean_name.lower()] = df
+                    df = read_csv_robust(zip_ref.read(file))
+                    if not df.empty:
+                        csv_data[clean_name] = df
+                        csv_data[clean_name.lower()] = df
                 except Exception as e:
                     st.warning(f"Warning: Could not parse {file}: {e}")
     return csv_data
@@ -38,44 +76,87 @@ def extract_csv_from_zip(zip_file) -> Dict[str, pd.DataFrame]:
 def clean_ctr_column(df: pd.DataFrame, column_name: str = 'ctr') -> pd.DataFrame:
     """Convert CTR from percentage string ('2.5%') or scaled float to a proper decimal float."""
     for col in df.columns:
-        if col.lower() == column_name.lower():
-            if df[col].dtype == object:
-                df[col] = (
-                    df[col]
-                    .astype(str)
-                    .str.replace('%', '', regex=False)
-                    .str.replace(',', '.', regex=False)
-                    .str.strip()
-                )
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
-            if df[col].max() > 1.0:
-                df[col] = df[col] / 100.0
+        if col.lower() == column_name.lower() or 'ctr' in col.lower() or 'klickrate' in col.lower() or 'taux' in col.lower():
+            try:
+                if df[col].dtype == object:
+                    df[col] = (
+                        df[col]
+                        .astype(str)
+                        .str.replace('%', '', regex=False)
+                        .str.replace(',', '.', regex=False)
+                        .str.strip()
+                    )
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+                else:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+
+                if df[col].max() > 1.0:
+                    df[col] = df[col] / 100.0
+            except Exception:
+                df[col] = 0.0
             break
     return df
 
 
-def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Standardize column names to lowercase with underscores and resolve GSC naming variations."""
+def standardize_columns(df: pd.DataFrame, default_entity_type: str = 'query') -> pd.DataFrame:
+    """
+    Standardize column names to lowercase with underscores and resolve GSC naming variations.
+    Guarantees that query/page/country, clicks, impressions, ctr, position columns exist.
+    """
+    if df.empty:
+        return df
+
     new_cols = []
     for col in df.columns:
-        c = col.strip().lower().replace(' ', '_').replace('-', '_')
-        if c in ['top_queries', 'query', 'queries', 'search_query']:
+        c = str(col).replace('\ufeff', '').strip().lower().replace(' ', '_').replace('-', '_')
+        if any(k in c for k in ['query', 'queries', 'keyword', 'consulta', 'suchanfrag', 'requêt']):
             new_cols.append('query')
-        elif c in ['top_pages', 'page', 'pages', 'url']:
+        elif any(k in c for k in ['page', 'url', 'landing_page', 'seite', 'página']):
             new_cols.append('page')
-        elif c in ['countries', 'country', 'country_code']:
+        elif any(k in c for k in ['countr', 'land', 'pays', 'país']):
             new_cols.append('country')
-        elif c in ['clicks', 'click', 'clicks_count']:
+        elif any(k in c for k in ['click', 'clic', 'klick', 'clique']):
             new_cols.append('clicks')
-        elif c in ['impressions', 'impression', 'views']:
+        elif any(k in c for k in ['impress', 'view', 'vista', 'vue', 'impressionen']):
             new_cols.append('impressions')
-        elif c in ['ctr', 'click_through_rate']:
+        elif 'ctr' in c or 'klickrate' in c or 'taux' in c or '%' in c:
             new_cols.append('ctr')
-        elif c in ['position', 'avg_position', 'average_position']:
+        elif any(k in c for k in ['position', 'pos', 'rang', 'rank', 'platz']):
             new_cols.append('position')
         else:
             new_cols.append(c)
+
     df.columns = new_cols
+
+    # Positional mapping fallback if standard names weren't present
+    # Standard GSC format: Col 0 = Entity, Col 1 = Clicks, Col 2 = Impressions, Col 3 = CTR, Col 4 = Position
+    if default_entity_type not in df.columns and len(df.columns) > 0:
+        df.rename(columns={df.columns[0]: default_entity_type}, inplace=True)
+
+    if 'clicks' not in df.columns:
+        if len(df.columns) > 1 and df.columns[1] not in ['query', 'page', 'country']:
+            df.rename(columns={df.columns[1]: 'clicks'}, inplace=True)
+        else:
+            df['clicks'] = 0
+
+    if 'impressions' not in df.columns:
+        if len(df.columns) > 2 and df.columns[2] not in ['query', 'page', 'country', 'clicks']:
+            df.rename(columns={df.columns[2]: 'impressions'}, inplace=True)
+        else:
+            df['impressions'] = 0
+
+    if 'ctr' not in df.columns:
+        if len(df.columns) > 3 and df.columns[3] not in ['query', 'page', 'country', 'clicks', 'impressions']:
+            df.rename(columns={df.columns[3]: 'ctr'}, inplace=True)
+        else:
+            df['ctr'] = 0.0
+
+    if 'position' not in df.columns:
+        if len(df.columns) > 4 and df.columns[4] not in ['query', 'page', 'country', 'clicks', 'impressions', 'ctr']:
+            df.rename(columns={df.columns[4]: 'position'}, inplace=True)
+        else:
+            df['position'] = 0.0
+
     return df
 
 
@@ -163,9 +244,9 @@ def render_advance_gsc_analysis_page():
     col_upload, col_sample = st.columns([3.5, 1.5])
     with col_upload:
         uploaded_file = st.file_uploader(
-            "📤 Upload Google Search Console Export (ZIP format containing Queries.csv, Pages.csv, Countries.csv):",
-            type=['zip'],
-            help="In Google Search Console, click 'Export' ➔ 'Download ZIP'. Upload the unchanged ZIP file here."
+            "📤 Upload Google Search Console Export (ZIP or CSV format):",
+            type=['zip', 'csv'],
+            help="In Google Search Console, click 'Export' ➔ 'Download ZIP' (or upload Queries.csv directly)."
         )
     with col_sample:
         st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
@@ -175,19 +256,29 @@ def render_advance_gsc_analysis_page():
 
     if uploaded_file is not None:
         try:
-            with st.spinner("📦 Extracting and parsing Google Search Console CSV files..."):
-                csv_files = extract_csv_from_zip(uploaded_file)
+            with st.spinner("📦 Extracting and parsing Google Search Console data..."):
+                if uploaded_file.name.lower().endswith('.zip'):
+                    csv_files = extract_csv_from_zip(uploaded_file)
+                else:
+                    # Single CSV uploaded
+                    single_df = read_csv_robust(uploaded_file.getvalue())
+                    clean_name = os.path.splitext(uploaded_file.name)[0]
+                    csv_files[clean_name] = single_df
+                    csv_files[clean_name.lower()] = single_df
+                    csv_files['queries'] = single_df
+                    csv_files['Queries'] = single_df
+
                 st.session_state["gsc_cached_data"] = csv_files
-                st.toast("✅ GSC ZIP successfully extracted and processed!", icon="🚀")
+                st.toast("✅ GSC Data successfully loaded and processed!", icon="🚀")
         except Exception as e:
-            st.error(f"❌ Error extracting ZIP file: {str(e)}")
-            st.info("💡 Please make sure the ZIP file is directly exported from Google Search Console.")
+            st.error(f"❌ Error processing file: {str(e)}")
+            st.info("💡 Please make sure the file is directly exported from Google Search Console.")
             return
     elif load_sample or st.session_state.get("gsc_use_sample"):
         st.session_state["gsc_use_sample"] = True
         csv_files = generate_sample_gsc_data()
         st.session_state["gsc_cached_data"] = csv_files
-        st.info("ℹ️ Currently displaying **Sample Industrial GSC Demo Dataset**. Upload your real ZIP export above anytime to analyze your live site.")
+        st.info("ℹ️ Currently displaying **Sample Industrial GSC Demo Dataset**. Upload your real export above anytime to analyze your live site.")
     elif "gsc_cached_data" in st.session_state:
         csv_files = st.session_state["gsc_cached_data"]
     else:
@@ -209,38 +300,65 @@ def render_advance_gsc_analysis_page():
         """, unsafe_allow_html=True)
         return
 
-    # Extract & standardize DataFrames
-    queries_df = csv_files.get('Queries', csv_files.get('queries', pd.DataFrame())).copy()
-    pages_df = csv_files.get('Pages', csv_files.get('pages', pd.DataFrame())).copy()
-    countries_df = csv_files.get('Countries', csv_files.get('countries', pd.DataFrame())).copy()
+    # Intelligently find queries, pages, and countries DataFrames across filenames & languages
+    queries_df = pd.DataFrame()
+    for k in csv_files:
+        if any(w in k.lower() for w in ['quer', 'suchanfrag', 'consult', 'requêt', 'keyword']):
+            queries_df = csv_files[k].copy()
+            break
+
+    pages_df = pd.DataFrame()
+    for k in csv_files:
+        if any(w in k.lower() for w in ['page', 'seite', 'págin', 'url']):
+            pages_df = csv_files[k].copy()
+            break
+
+    countries_df = pd.DataFrame()
+    for k in csv_files:
+        if any(w in k.lower() for w in ['countr', 'land', 'pays', 'país']):
+            countries_df = csv_files[k].copy()
+            break
+
+    # If queries_df is still not resolved, take the first available DataFrame
+    if queries_df.empty and len(csv_files) > 0:
+        first_key = list(csv_files.keys())[0]
+        queries_df = csv_files[first_key].copy()
 
     if queries_df.empty:
         st.error("❌ 'Queries.csv' was not found inside the uploaded ZIP. Please ensure your Google Search Console export contains Queries data.")
         return
 
-    # Standardize and clean
-    queries_df = standardize_columns(queries_df)
+    # Standardize and clean with full column guarantees
+    queries_df = standardize_columns(queries_df, default_entity_type='query')
     queries_df = clean_ctr_column(queries_df, 'ctr')
 
     if not pages_df.empty:
-        pages_df = standardize_columns(pages_df)
+        pages_df = standardize_columns(pages_df, default_entity_type='page')
         pages_df = clean_ctr_column(pages_df, 'ctr')
 
     if not countries_df.empty:
-        countries_df = standardize_columns(countries_df)
+        countries_df = standardize_columns(countries_df, default_entity_type='country')
         countries_df = clean_ctr_column(countries_df, 'ctr')
 
+    # Ensure numeric columns are strictly typed and NaN-free
     for df in [queries_df, pages_df, countries_df]:
         if not df.empty:
-            for col in ['clicks', 'impressions', 'position', 'ctr']:
+            for col in ['clicks', 'impressions']:
                 if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+                else:
+                    df[col] = 0
+            for col in ['position', 'ctr']:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(float)
+                else:
+                    df[col] = 0.0
 
     # 3. High-Level KPI Summary Cards
-    total_clicks = int(queries_df['clicks'].sum())
-    total_impressions = int(queries_df['impressions'].sum())
+    total_clicks = int(queries_df['clicks'].sum()) if 'clicks' in queries_df.columns else 0
+    total_impressions = int(queries_df['impressions'].sum()) if 'impressions' in queries_df.columns else 0
     avg_ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0.0
-    avg_position = queries_df['position'].mean() if len(queries_df) > 0 else 0.0
+    avg_position = queries_df['position'].mean() if 'position' in queries_df.columns and len(queries_df) > 0 else 0.0
     total_queries = len(queries_df)
     total_pages = len(pages_df) if not pages_df.empty else 0
 
@@ -280,11 +398,11 @@ def render_advance_gsc_analysis_page():
         with c_p1:
             min_impressions = st.slider(
                 "Minimum Impressions Filter:",
-                min_value=10,
+                min_value=1,
                 max_value=10000,
-                value=500 if total_impressions > 50000 else 50,
-                step=50,
-                help="Filters out very low volume queries so you only focus on meaningful search traffic."
+                value=500 if total_impressions > 50000 else 20,
+                step=10,
+                help="Filters out low volume queries so you only focus on meaningful search traffic."
             )
             top_queries_count = st.slider("Top Queries to Display:", 5, 100, 25, step=5)
         with c_p2:
@@ -297,13 +415,13 @@ def render_advance_gsc_analysis_page():
     def format_gsc_df_for_display(df: pd.DataFrame) -> pd.DataFrame:
         d = df.copy()
         if 'ctr' in d.columns:
-            d['ctr'] = d['ctr'].apply(lambda x: f"{x*100:.2f}%")
+            d['ctr'] = d['ctr'].apply(lambda x: f"{x*100:.2f}%" if pd.notnull(x) else "0.00%")
         if 'position' in d.columns:
-            d['position'] = d['position'].apply(lambda x: f"{x:.1f}")
+            d['position'] = d['position'].apply(lambda x: f"{x:.1f}" if pd.notnull(x) else "0.0")
         if 'clicks' in d.columns:
-            d['clicks'] = d['clicks'].astype(int)
+            d['clicks'] = d['clicks'].fillna(0).astype(int)
         if 'impressions' in d.columns:
-            d['impressions'] = d['impressions'].astype(int)
+            d['impressions'] = d['impressions'].fillna(0).astype(int)
         return d
 
     # 5. Core Analytical Modules Tabs
@@ -331,11 +449,16 @@ def render_advance_gsc_analysis_page():
         </div>
         """, unsafe_allow_html=True)
 
-        quick_wins = queries_df[
+        filter_mask = (
             (queries_df['position'] >= min_pos_qw) &
             (queries_df['position'] <= max_pos_qw) &
             (queries_df['impressions'] >= min_impressions)
-        ][query_cols].sort_values(['impressions', 'position'], ascending=[False, True]).reset_index(drop=True)
+        )
+        sort_cols = [c for c in ['impressions', 'position'] if c in queries_df.columns]
+        if sort_cols:
+            quick_wins = queries_df[filter_mask][query_cols].sort_values(sort_cols, ascending=[False, True]).reset_index(drop=True)
+        else:
+            quick_wins = queries_df[filter_mask][query_cols].reset_index(drop=True)
 
         if len(quick_wins) > 0:
             quick_wins.index = range(1, len(quick_wins) + 1)
@@ -364,11 +487,16 @@ def render_advance_gsc_analysis_page():
         </div>
         """, unsafe_allow_html=True)
 
-        low_hanging = queries_df[
+        filter_mask = (
             (queries_df['position'] <= 3.5) &
             (queries_df['ctr'] < low_hanging_ctr_thresh) &
-            (queries_df['impressions'] >= max(10, min_impressions // 2))
-        ][query_cols].sort_values(['impressions', 'ctr'], ascending=[False, True]).reset_index(drop=True)
+            (queries_df['impressions'] >= max(5, min_impressions // 2))
+        )
+        sort_cols = [c for c in ['impressions', 'ctr'] if c in queries_df.columns]
+        if sort_cols:
+            low_hanging = queries_df[filter_mask][query_cols].sort_values(sort_cols, ascending=[False, True]).reset_index(drop=True)
+        else:
+            low_hanging = queries_df[filter_mask][query_cols].reset_index(drop=True)
 
         if len(low_hanging) > 0:
             low_hanging.index = range(1, len(low_hanging) + 1)
@@ -397,17 +525,21 @@ def render_advance_gsc_analysis_page():
         </div>
         """, unsafe_allow_html=True)
 
-        top_10 = queries_df[queries_df['position'] <= 10.0]
-        avg_ctr_top10 = top_10['ctr'].mean() if len(top_10) > 0 and top_10['ctr'].mean() > 0 else 0.045
+        top_10 = queries_df[queries_df['position'] <= 10.0] if 'position' in queries_df.columns else pd.DataFrame()
+        avg_ctr_top10 = top_10['ctr'].mean() if len(top_10) > 0 and 'ctr' in top_10.columns and top_10['ctr'].mean() > 0 else 0.045
 
         calc_df = queries_df.copy()
-        calc_df['potential_clicks'] = calc_df.apply(
-            lambda r: r['clicks'] if r['position'] <= 10.0 else (r['impressions'] * avg_ctr_top10),
-            axis=1
-        )
-        calc_df['click_gain'] = calc_df['potential_clicks'] - calc_df['clicks']
+        if 'clicks' in calc_df.columns and 'position' in calc_df.columns and 'impressions' in calc_df.columns:
+            calc_df['potential_clicks'] = calc_df.apply(
+                lambda r: r['clicks'] if r['position'] <= 10.0 else (r['impressions'] * avg_ctr_top10),
+                axis=1
+            )
+            calc_df['click_gain'] = calc_df['potential_clicks'] - calc_df['clicks']
+        else:
+            calc_df['potential_clicks'] = 0
+            calc_df['click_gain'] = 0
 
-        current_clicks_sum = calc_df['clicks'].sum()
+        current_clicks_sum = calc_df['clicks'].sum() if 'clicks' in calc_df.columns else 0
         potential_clicks_sum = calc_df['potential_clicks'].sum()
         gain_clicks_sum = max(0, potential_clicks_sum - current_clicks_sum)
         gain_pct = (gain_clicks_sum / current_clicks_sum * 100) if current_clicks_sum > 0 else 0
@@ -422,21 +554,24 @@ def render_advance_gsc_analysis_page():
         with pot_col4:
             st.metric("Projected Growth", f"+{gain_pct:.1f}%", f"+{int(gain_clicks_sum):,} extra clicks")
 
+        pot_target_cols = [c for c in ['query', 'position', 'clicks', 'potential_clicks', 'click_gain', 'impressions'] if c in calc_df.columns]
         potential_table = calc_df[
-            (calc_df['click_gain'] > 5) &
+            (calc_df['click_gain'] > 1) &
             (calc_df['position'] > 10.0)
-        ][['query', 'position', 'clicks', 'potential_clicks', 'click_gain', 'impressions']].sort_values(
-            'click_gain', ascending=False
-        ).head(30).reset_index(drop=True)
+        ][pot_target_cols]
+
+        if 'click_gain' in potential_table.columns:
+            potential_table = potential_table.sort_values('click_gain', ascending=False)
+        potential_table = potential_table.head(30).reset_index(drop=True)
 
         if len(potential_table) > 0:
             potential_table.index = range(1, len(potential_table) + 1)
             disp_pot = potential_table.copy()
-            disp_pot['clicks'] = disp_pot['clicks'].astype(int)
-            disp_pot['potential_clicks'] = disp_pot['potential_clicks'].astype(int)
-            disp_pot['click_gain'] = disp_pot['click_gain'].astype(int)
-            disp_pot['impressions'] = disp_pot['impressions'].astype(int)
-            disp_pot['position'] = disp_pot['position'].apply(lambda x: f"{x:.1f}")
+            if 'clicks' in disp_pot.columns: disp_pot['clicks'] = disp_pot['clicks'].astype(int)
+            if 'potential_clicks' in disp_pot.columns: disp_pot['potential_clicks'] = disp_pot['potential_clicks'].astype(int)
+            if 'click_gain' in disp_pot.columns: disp_pot['click_gain'] = disp_pot['click_gain'].astype(int)
+            if 'impressions' in disp_pot.columns: disp_pot['impressions'] = disp_pot['impressions'].astype(int)
+            if 'position' in disp_pot.columns: disp_pot['position'] = disp_pot['position'].apply(lambda x: f"{x:.1f}")
 
             st.markdown("#### 🎯 Top Keywords Ranked by Click Gain Opportunity:")
             st.dataframe(disp_pot, use_container_width=True, height=350)
@@ -455,13 +590,14 @@ def render_advance_gsc_analysis_page():
     # TAB 4: TOP PERFORMING QUERIES
     with tab_top:
         st.markdown(f"#### 📊 Top {top_queries_count} Queries Driving Highest Clicks")
-        top_queries = queries_df.nlargest(top_queries_count, 'clicks')[query_cols].reset_index(drop=True)
+        sort_col = 'clicks' if 'clicks' in queries_df.columns else ('impressions' if 'impressions' in queries_df.columns else queries_df.columns[0])
+        top_queries = queries_df.nlargest(min(top_queries_count, len(queries_df)), sort_col)[query_cols].reset_index(drop=True)
         top_queries.index = range(1, len(top_queries) + 1)
 
         disp_top = format_gsc_df_for_display(top_queries)
         st.dataframe(disp_top, use_container_width=True, height=380)
 
-        if len(top_queries) > 0:
+        if len(top_queries) > 0 and 'clicks' in top_queries.columns:
             fig_top = px.bar(
                 top_queries.head(15).sort_values('clicks', ascending=True),
                 x='clicks',
@@ -493,7 +629,11 @@ def render_advance_gsc_analysis_page():
         question_regex = r'\b(what|how|why|when|where|which|who|can|is|are|should|does|do)\b'
         question_queries = queries_df[
             queries_df['query'].astype(str).str.lower().str.contains(question_regex, regex=True, na=False)
-        ][query_cols].sort_values('impressions', ascending=False).reset_index(drop=True)
+        ][query_cols]
+
+        if 'impressions' in question_queries.columns:
+            question_queries = question_queries.sort_values('impressions', ascending=False)
+        question_queries = question_queries.reset_index(drop=True)
 
         if len(question_queries) > 0:
             question_queries.index = range(1, len(question_queries) + 1)
@@ -522,10 +662,15 @@ def render_advance_gsc_analysis_page():
         </div>
         """, unsafe_allow_html=True)
 
-        opps = queries_df[
+        filter_mask = (
             (queries_df['position'] > max_pos_opp) &
             (queries_df['impressions'] >= min_impressions)
-        ][query_cols].sort_values(['impressions', 'position'], ascending=[False, True]).reset_index(drop=True)
+        )
+        sort_cols = [c for c in ['impressions', 'position'] if c in queries_df.columns]
+        if sort_cols:
+            opps = queries_df[filter_mask][query_cols].sort_values(sort_cols, ascending=[False, True]).reset_index(drop=True)
+        else:
+            opps = queries_df[filter_mask][query_cols].reset_index(drop=True)
 
         if len(opps) > 0:
             opps.index = range(1, len(opps) + 1)
@@ -549,7 +694,10 @@ def render_advance_gsc_analysis_page():
         st.write("Visualizes the most frequently occurring terms across your top queries weighted by search impressions.")
 
         try:
-            top_for_cloud = queries_df.nlargest(150, 'impressions')['query'].astype(str).tolist()
+            if 'impressions' in queries_df.columns:
+                top_for_cloud = queries_df.nlargest(min(150, len(queries_df)), 'impressions')['query'].astype(str).tolist()
+            else:
+                top_for_cloud = queries_df['query'].head(150).astype(str).tolist()
             text = ' '.join(top_for_cloud)
             if len(text.strip()) > 5:
                 wc = WordCloud(
@@ -564,6 +712,7 @@ def render_advance_gsc_analysis_page():
                 ax.imshow(wc, interpolation='bilinear')
                 ax.axis('off')
                 st.pyplot(fig_wc)
+                plt.close(fig_wc)
             else:
                 st.info("Not enough text to generate a word cloud.")
         except Exception as e:
@@ -578,13 +727,14 @@ def render_advance_gsc_analysis_page():
             c_name_col = 'country' if 'country' in countries_df.columns else countries_df.columns[0]
             with col_g1:
                 st.markdown("#### 🌍 Top Countries by Clicks")
-                top_countries = countries_df.sort_values('clicks', ascending=False).head(10)
+                sort_col = 'clicks' if 'clicks' in countries_df.columns else countries_df.columns[min(1, len(countries_df.columns)-1)]
+                top_countries = countries_df.sort_values(sort_col, ascending=False).head(10)
                 fig_c = px.bar(
-                    top_countries.sort_values('clicks', ascending=True),
+                    top_countries.sort_values(sort_col, ascending=True),
                     y=c_name_col,
-                    x='clicks',
+                    x=sort_col,
                     orientation='h',
-                    color='clicks',
+                    color=sort_col,
                     color_continuous_scale='Blues',
                     template="plotly_dark"
                 )
@@ -593,12 +743,13 @@ def render_advance_gsc_analysis_page():
 
             with col_g2:
                 st.markdown("#### 🌐 Top Countries by Impressions")
+                sort_col_i = 'impressions' if 'impressions' in countries_df.columns else countries_df.columns[min(2, len(countries_df.columns)-1)]
                 fig_ci = px.bar(
-                    top_countries.sort_values('impressions', ascending=True),
+                    top_countries.sort_values(sort_col_i, ascending=True) if sort_col_i in top_countries.columns else top_countries,
                     y=c_name_col,
-                    x='impressions',
+                    x=sort_col_i if sort_col_i in top_countries.columns else sort_col,
                     orientation='h',
-                    color='impressions',
+                    color=sort_col_i if sort_col_i in top_countries.columns else sort_col,
                     color_continuous_scale='Greens',
                     template="plotly_dark"
                 )
@@ -610,18 +761,21 @@ def render_advance_gsc_analysis_page():
             st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 1.5rem 0;'>", unsafe_allow_html=True)
             st.markdown("#### 📄 Top Pages Driving Organic Traffic")
             p_cols = [c for c in ['page', 'clicks', 'impressions', 'ctr', 'position'] if c in pages_df.columns]
-            top_pages = pages_df.sort_values('clicks', ascending=False).head(20).reset_index(drop=True)
+            sort_p = 'clicks' if 'clicks' in pages_df.columns else pages_df.columns[0]
+            top_pages = pages_df.sort_values(sort_p, ascending=False).head(20).reset_index(drop=True)
             top_pages.index = range(1, len(top_pages) + 1)
-            st.dataframe(format_gsc_df_for_display(top_pages), use_container_width=True, height=300)
+            st.dataframe(format_gsc_df_for_display(top_pages[p_cols]), use_container_width=True, height=300)
 
             st.markdown("#### 📌 Underperforming Pages (High Impressions, Low CTR < 4%)")
-            under_pages = pages_df[
+            under_mask = (
                 (pages_df['impressions'] >= min_impressions) &
                 (pages_df['ctr'] < 0.04)
-            ].sort_values('impressions', ascending=False).head(15).reset_index(drop=True)
+            )
+            sort_under = 'impressions' if 'impressions' in pages_df.columns else pages_df.columns[0]
+            under_pages = pages_df[under_mask].sort_values(sort_under, ascending=False).head(15).reset_index(drop=True)
 
             if len(under_pages) > 0:
                 under_pages.index = range(1, len(under_pages) + 1)
-                st.dataframe(format_gsc_df_for_display(under_pages), use_container_width=True, height=280)
+                st.dataframe(format_gsc_df_for_display(under_pages[p_cols]), use_container_width=True, height=280)
             else:
                 st.info("No pages found with high impressions and CTR < 4%.")
