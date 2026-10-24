@@ -3252,6 +3252,8 @@ with tab_extractor:
             )
             if ai_provider == "Google Gemini":
                 model_options = [
+                    "gemini-4-argon",
+                    "gemini-4-argon-thinking",
                     "gemini-3.8-flash",
                     "gemini-3.7-flash",
                     "gemini-3.6-flash",

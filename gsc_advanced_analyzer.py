@@ -29,6 +29,16 @@ try:
 except ImportError:
     OPENPYXL_AVAILABLE = False
 
+try:
+    import docx
+    from docx import Document
+    from docx.shared import Inches, Pt, RGBColor
+    from docx.oxml import parse_xml
+    from docx.oxml.ns import nsdecls
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+
 
 def read_csv_robust(file_bytes_or_buffer) -> pd.DataFrame:
     """Robustly reads a CSV file trying different encodings, delimiters, and strip BOM."""
@@ -407,7 +417,7 @@ def call_ai_api(api_key: str, provider: str, model: str, system_prompt: str, use
         except Exception as e:
             err = str(e).lower()
             if "404" in err or "not found" in err or "not_found" in err:
-                for fallback in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+                for fallback in ["gemini-4-argon", "gemini-3.8-pro-preview", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
                     try:
                         response = client.models.generate_content(
                             model=fallback,
@@ -522,7 +532,7 @@ def generate_ai_seo_action_plan(
     items_to_process: List[Dict[str, Any]],
     api_key: str = "",
     provider: str = "Google Gemini",
-    model: str = "gemini-3.8-pro-preview",
+    model: str = "gemini-4-argon",
     candidate_pages: List[str] = None,
     base_domain: str = "",
     brand_tokens: set = None
@@ -690,6 +700,189 @@ def export_action_plan_to_excel(df: pd.DataFrame) -> bytes:
             worksheet.column_dimensions[col_letter].width = col_width
 
     return output.getvalue()
+
+
+def set_docx_cell_background(cell, fill_hex: str):
+    """Utility to set XML background color for docx table cell."""
+    try:
+        tcPr = cell._tc.get_or_add_tcPr()
+        shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
+        tcPr.append(shd)
+    except Exception:
+        pass
+
+
+def export_action_plan_to_docx(df: pd.DataFrame, base_domain: str = "") -> bytes:
+    """Exports SEO Action Plan into a comprehensive Word Document (.docx) deliverable with Solutions, Strategies & Suggestions."""
+    if not DOCX_AVAILABLE:
+        return df.to_string().encode('utf-8')
+
+    doc = Document()
+
+    for section in doc.sections:
+        section.top_margin = Inches(0.8)
+        section.bottom_margin = Inches(0.8)
+        section.left_margin = Inches(0.8)
+        section.right_margin = Inches(0.8)
+
+    # Document Header Title
+    p_title = doc.add_paragraph()
+    run_title = p_title.add_run('CRAWLPILOT ADVANCED GSC ACTION PLAN & STRATEGY')
+    run_title.font.name = 'Calibri'
+    run_title.font.size = Pt(20)
+    run_title.font.bold = True
+    run_title.font.color.rgb = RGBColor(15, 23, 42)
+
+    p_sub = doc.add_paragraph()
+    run_sub = p_sub.add_run(f'Target Domain: {base_domain or "Your Website"} | On-Page Strategic Roadmap & Recommendations')
+    run_sub.font.name = 'Calibri'
+    run_sub.font.size = Pt(11)
+    run_sub.font.color.rgb = RGBColor(100, 116, 139)
+
+    doc.add_paragraph()
+
+    # Section 1: Executive Overview
+    h1 = doc.add_heading('1. Executive SEO Strategy Overview', level=1)
+    try:
+        h1.style.font.color.rgb = RGBColor(124, 58, 237)
+    except Exception:
+        pass
+
+    p_intro = doc.add_paragraph(
+        f'This document details the search optimization strategy for {base_domain or "your site"} based on verified '
+        'Google Search Console performance metrics. Each high-potential query is mapped to its exact target URL '
+        '(ensuring Brand navigational terms target the Homepage and commercial keywords point to dedicated product pages). '
+        'For every keyword, this deliverable provides strategic SERP diagnosis, concrete solutions, CTR-optimized Title Tags, '
+        'authoritative H1 headings, persuasive Meta Descriptions, and step-by-step implementation tasks.'
+    )
+    p_intro.style.font.name = 'Calibri'
+
+    doc.add_paragraph()
+
+    # Section 2: Detailed Query Action Plans
+    h2 = doc.add_heading('2. High-Impact Queries: Solutions & On-Page Suggestions', level=1)
+    try:
+        h2.style.font.color.rgb = RGBColor(124, 58, 237)
+    except Exception:
+        pass
+
+    for idx, row in df.iterrows():
+        q_text = str(row.get('query', '')).strip()
+        cat = str(row.get('category', 'Opportunity'))
+        pos = float(row.get('position', 0))
+        clicks = int(row.get('clicks', 0))
+        imp = int(row.get('impressions', 0))
+        ctr_val = float(row.get('ctr', 0))
+        target_p = str(row.get('target_page', ''))
+        target_t = str(row.get('target_type', 'Existing Page'))
+        title = str(row.get('ai_title', ''))
+        h1_tag = str(row.get('ai_h1', ''))
+        meta = str(row.get('ai_meta_description', ''))
+        plan = str(row.get('action_plan', ''))
+
+        # Query Title Header
+        p_q = doc.add_paragraph()
+        run_idx = p_q.add_run(f'Query #{idx+1}: "{q_text}"')
+        run_idx.font.name = 'Calibri'
+        run_idx.font.size = Pt(13)
+        run_idx.font.bold = True
+        run_idx.font.color.rgb = RGBColor(30, 41, 59)
+
+        # Overview Table
+        table = doc.add_table(rows=2, cols=4)
+        table.style = 'Table Grid'
+
+        headers = ['SERP Position', 'Clicks / Impressions', 'Current CTR', 'Target URL Type']
+        for c_idx, h in enumerate(headers):
+            cell = table.cell(0, c_idx)
+            cell.text = h
+            set_docx_cell_background(cell, '0F172A')
+            cell.paragraphs[0].runs[0].font.bold = True
+            cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+            cell.paragraphs[0].runs[0].font.size = Pt(9)
+
+        vals = [f'#{pos:.1f}', f'{clicks:,} clicks / {imp:,} imp', f'{ctr_val*100:.2f}%', target_t]
+        for c_idx, v in enumerate(vals):
+            cell = table.cell(1, c_idx)
+            cell.text = v
+            set_docx_cell_background(cell, 'F8FAFC')
+            cell.paragraphs[0].runs[0].font.size = Pt(9)
+
+        doc.add_paragraph()
+
+        # Target URL
+        p_url = doc.add_paragraph()
+        p_url.add_run('🔗 Designated Target Page: ').font.bold = True
+        run_uv = p_url.add_run(target_p)
+        run_uv.font.color.rgb = RGBColor(2, 132, 199)
+
+        # Solution & Diagnosis
+        p_sol = doc.add_paragraph()
+        run_sl = p_sol.add_run('💡 Strategic Diagnosis & Solution:\n')
+        run_sl.font.bold = True
+        run_sl.font.color.rgb = RGBColor(16, 185, 129)
+        if "Brand" in target_t or "Homepage" in target_t:
+            sol_desc = (
+                f'This is a core brand navigational term currently ranking at Pos #{pos:.1f} with {imp:,} impressions. '
+                f'The strategic solution is to consolidate brand authority on the Homepage ({target_p}), ensuring the brand name '
+                'is prominently featured in the Homepage title tag, H1, and Organization schema.'
+            )
+        elif cat == "Low-Hanging Fruit":
+            sol_desc = (
+                f'This query holds prime Top-3 SERP real estate (#{pos:.1f}) with high impressions ({imp:,}), but a low CTR ({ctr_val*100:.2f}%). '
+                'The strategic solution is immediate metadata rewriting on the target page: inject compelling click-triggers, '
+                'brackets [2026], pricing indicators, and fast-response promises to capture lost clicks.'
+            )
+        elif cat == "Quick Win":
+            sol_desc = (
+                f'This query ranks in striking distance on Page 2 (#{pos:.1f}) with {imp:,} impressions. '
+                'The strategic solution is content depth enhancement on the target page: insert an H2 dedicated to this exact keyword, '
+                'link internally from 2 higher-ranking authority pages, and refresh technical specifications.'
+            )
+        elif cat == "Question":
+            sol_desc = (
+                f'This query represents high-intent informational demand ({imp:,} impressions). '
+                'The strategic solution is adding an FAQ accordion or 45-word direct answer block on the target page '
+                'to trigger Google Featured Snippets and People Also Ask (PAA) rich results.'
+            )
+        else:
+            sol_desc = (
+                f'This query generates significant visibility ({imp:,} impressions) at Pos #{pos:.1f}. '
+                'The strategic solution is strengthening topical depth on the designated target URL and consolidating internal link equity.'
+            )
+        p_sol.add_run(sol_desc)
+
+        # Suggestions
+        p_sug = doc.add_paragraph()
+        run_sug_title = p_sug.add_run('🎯 AI On-Page Suggestions:\n')
+        run_sug_title.font.bold = True
+        run_sug_title.font.color.rgb = RGBColor(139, 92, 246)
+        p_sug.add_run('• Optimized Title Tag: ').font.bold = True
+        p_sug.add_run(f'{title}\n')
+        p_sug.add_run('• Primary H1 Heading: ').font.bold = True
+        p_sug.add_run(f'{h1_tag}\n')
+        p_sug.add_run('• High-CTR Meta Description: ').font.bold = True
+        p_sug.add_run(f'{meta}\n')
+
+        # Action Plan
+        p_act = doc.add_paragraph()
+        run_act_title = p_act.add_run('🛠️ Implementation Roadmap & Action Plan:\n')
+        run_act_title.font.bold = True
+        run_act_title.font.color.rgb = RGBColor(217, 119, 6)
+        p_act.add_run(f'{plan}\n')
+
+        # Action Checklists
+        doc.add_paragraph('☐ Deploy revised <title> tag on target page.', style='List Bullet')
+        doc.add_paragraph('☐ Align primary <h1> tag to match search intent.', style='List Bullet')
+        doc.add_paragraph('☐ Update <meta name="description"> with compelling CTA.', style='List Bullet')
+        doc.add_paragraph('☐ Add 2 contextual internal links from relevant authority pages.', style='List Bullet')
+        doc.add_paragraph('☐ Validate and apply Schema Markup (Organization / Product / FAQ).', style='List Bullet')
+
+        doc.add_paragraph('―' * 55)
+
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
 
 
 def generate_sample_gsc_data() -> Dict[str, pd.DataFrame]:
@@ -976,6 +1169,8 @@ def render_advance_gsc_analysis_page():
     with c_model:
         if ai_provider == "Google Gemini":
             model_options = [
+                "gemini-4-argon",
+                "gemini-4-argon-thinking",
                 "gemini-3.8-pro-preview",
                 "gemini-3.8-flash",
                 "gemini-3.7-pro",
@@ -1188,18 +1383,29 @@ def render_advance_gsc_analysis_page():
                         ✨ Complete SEO Action Plan Ready ({len(ai_df)} Queries Optimized)
                     </div>
                     <div style="font-size: 0.84rem; color: #94A3B8;">
-                        Includes Target URLs (Brand ➔ Homepage), Clicks, Impressions, CTR, Positions, AI Title Tags, H1 Headings, Meta Descriptions, and Action Plans.
+                        Download the comprehensive deliverable document (.DOCX) complete with SERP diagnosis, strategic solutions, AI Title/H1/Meta suggestions, and step-by-step implementation tasks.
                     </div>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        col_dl_xl, col_dl_csv = st.columns(2)
+        col_dl_docx, col_dl_xl, col_dl_csv = st.columns([1.4, 1.1, 1.1])
+        with col_dl_docx:
+            docx_bytes = export_action_plan_to_docx(ai_df, base_domain=saved_domain)
+            st.download_button(
+                "📄 Download Action Plan Document (.DOCX)",
+                data=docx_bytes,
+                file_name="complete_seo_action_plan.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                key="btn_dl_ai_docx",
+                type="primary",
+                use_container_width=True
+            )
         with col_dl_xl:
             excel_bytes = export_action_plan_to_excel(ai_df)
             st.download_button(
-                "📥 Download Complete SEO Action Plan (.XLSX)",
+                "📊 Download Excel (.XLSX)",
                 data=excel_bytes,
                 file_name="complete_seo_action_plan.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1209,7 +1415,7 @@ def render_advance_gsc_analysis_page():
         with col_dl_csv:
             csv_bytes = ai_df.to_csv(index=False).encode('utf-8')
             st.download_button(
-                "📥 Download Complete SEO Action Plan (.CSV)",
+                "📥 Download CSV (.CSV)",
                 data=csv_bytes,
                 file_name="complete_seo_action_plan.csv",
                 mime="text/csv",
@@ -1239,6 +1445,25 @@ def render_advance_gsc_analysis_page():
             plan_df.index = range(1, len(plan_df) + 1)
 
             st.markdown("#### 🎯 AI Recommended Target Pages & Content Metadata")
+            tab_c_docx, tab_c_xl = st.columns([1.5, 1])
+            with tab_c_docx:
+                st.download_button(
+                    "📄 Download Full Strategy Document (.DOCX)",
+                    data=export_action_plan_to_docx(plan_df, base_domain=saved_domain),
+                    file_name="seo_action_plan_with_solutions.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="btn_dl_tab_ai_docx",
+                    use_container_width=True
+                )
+            with tab_c_xl:
+                st.download_button(
+                    "📊 Download Excel (.XLSX)",
+                    data=export_action_plan_to_excel(plan_df),
+                    file_name="seo_action_plan.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="btn_dl_tab_ai_xl",
+                    use_container_width=True
+                )
             disp_plan = plan_df.copy()
             if 'ctr' in disp_plan.columns:
                 disp_plan['ctr'] = disp_plan['ctr'].apply(lambda x: f"{float(x)*100:.2f}%" if pd.notnull(x) else "0.00%")

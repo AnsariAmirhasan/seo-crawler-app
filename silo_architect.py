@@ -300,6 +300,8 @@ def render_silo_architect_page():
     with c_model:
         if ai_provider == "Google Gemini":
             model_options = [
+                "gemini-4-argon",
+                "gemini-4-argon-thinking",
                 "gemini-3.8-pro-preview",
                 "gemini-3.8-flash",
                 "gemini-3.7-pro",
