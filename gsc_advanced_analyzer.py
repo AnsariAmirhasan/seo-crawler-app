@@ -2,13 +2,15 @@
 Advance GSC Data Analysis Module for CrawlPilot SEO Suite
 Integrates deep Google Search Console (GSC) export analysis, striking-distance quick wins,
 low-hanging fruit CTR optimization, content gaps, questions intent, traffic projection modeling,
-and country/page telemetry.
+target page mapping engine, AI title/H1/meta-description generation, and complete Excel export.
 """
 
 import io
 import re
 import os
+import json
 import zipfile
+import urllib.parse
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -16,7 +18,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, List
+
+try:
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
 
 
 def read_csv_robust(file_bytes_or_buffer) -> pd.DataFrame:
@@ -190,7 +200,374 @@ def sanitize_dataframe(df: pd.DataFrame, default_entity_type: str = 'query') -> 
         else:
             df[col] = 0.0
 
+    # Mathematical guarantee for CTR: prevents display bugs (e.g. 0.00% when clicks > 0)
+    if 'impressions' in df.columns and 'clicks' in df.columns:
+        df['ctr'] = np.where(df['impressions'] > 0, df['clicks'] / df['impressions'], 0.0)
+
     return df
+
+
+def extract_base_domain(pages_df: pd.DataFrame, default: str = "https://example.com") -> str:
+    """Extracts base website protocol + domain from pages dataframe or session crawl results."""
+    # Check if active crawl result has domain
+    crawl_res = st.session_state.get("crawl_results")
+    if crawl_res and crawl_res.get("start_url"):
+        parsed = urllib.parse.urlparse(crawl_res.get("start_url"))
+        if parsed.netloc:
+            return f"{parsed.scheme or 'https'}://{parsed.netloc}"
+
+    if not pages_df.empty and 'page' in pages_df.columns:
+        for url in pages_df['page'].dropna():
+            u = str(url).strip()
+            if u.startswith('http://') or u.startswith('https://'):
+                parsed = urllib.parse.urlparse(u)
+                if parsed.netloc:
+                    return f"{parsed.scheme}://{parsed.netloc}"
+
+    return default
+
+
+def tokenize_text(text: str) -> set:
+    """Tokenize and stem keywords for URL slug matching."""
+    words = re.findall(r'[a-zA-Z0-9]+', str(text).lower())
+    stems = set()
+    for w in words:
+        stems.add(w)
+        if w.endswith('es') and len(w) > 4:
+            stems.add(w[:-2])
+            stems.add(w[:-1])
+        elif w.endswith('s') and len(w) > 3:
+            stems.add(w[:-1])
+        if w.endswith('ing') and len(w) > 5:
+            stems.add(w[:-3])
+        if w.endswith('ed') and len(w) > 4:
+            stems.add(w[:-2])
+    return stems
+
+
+def map_queries_to_pages(queries_df: pd.DataFrame, pages_df: pd.DataFrame, base_domain: str = "") -> pd.DataFrame:
+    """
+    Intelligently maps each query to an existing URL from pages_df (or crawled pages)
+    based on keyword token similarity. If no existing URL matches well, recommends creating
+    a targeted new page with a slugified URL structure.
+    """
+    df_q = queries_df.copy()
+    if df_q.empty or 'query' not in df_q.columns:
+        return df_q
+
+    if not base_domain:
+        base_domain = extract_base_domain(pages_df)
+    base_domain = base_domain.rstrip('/')
+
+    candidate_urls = []
+    # 1. From pages_df
+    if not pages_df.empty and 'page' in pages_df.columns:
+        candidate_urls.extend([str(u).strip() for u in pages_df['page'].dropna().unique() if str(u).strip()])
+
+    # 2. From crawl session state if available
+    crawl_data = st.session_state.get("crawl_results")
+    if crawl_data and isinstance(crawl_data, dict):
+        crawled_list = crawl_data.get("pages", [])
+        if isinstance(crawled_list, list):
+            for cp in crawled_list:
+                if isinstance(cp, dict) and cp.get("url"):
+                    candidate_urls.append(cp["url"].strip())
+
+    candidate_urls = list(dict.fromkeys(candidate_urls))
+
+    # Pre-tokenize candidate URLs
+    tokenized_candidates = []
+    for u in candidate_urls:
+        parsed = urllib.parse.urlparse(u)
+        path = parsed.path.lower()
+        url_tokens = tokenize_text(path)
+        tokenized_candidates.append((u, path, url_tokens))
+
+    target_pages = []
+    target_types = []
+
+    stop_words = {'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'a', 'an', 'the', 'and', 'or', 'is', 'are', 'what', 'how', 'why', 'when', 'where', 'which', 'who', 'vs'}
+
+    for q in df_q['query']:
+        q_clean = str(q).strip().lower()
+        q_tokens = tokenize_text(q_clean)
+        meaningful_tokens = q_tokens - stop_words
+        if not meaningful_tokens:
+            meaningful_tokens = q_tokens
+
+        best_score = 0.0
+        best_url = ""
+
+        slug_clean = re.sub(r'[^a-z0-9]+', '-', q_clean).strip('-')
+
+        # Check candidate URLs
+        for u, path, url_tokens in tokenized_candidates:
+            if slug_clean and slug_clean in path:
+                best_score = 1.0
+                best_url = u
+                break
+
+            intersection = meaningful_tokens.intersection(url_tokens)
+            if intersection:
+                score = len(intersection) / len(meaningful_tokens)
+                if score > best_score:
+                    best_score = score
+                    best_url = u
+
+        if best_score >= 0.35 and best_url:
+            target_pages.append(best_url)
+            target_types.append("Existing Page")
+        else:
+            is_question = any(q_clean.startswith(w) for w in ['what', 'how', 'why', 'when', 'where', 'which', 'who', 'can', 'does', 'is', 'vs'])
+            prefix = "blog" if is_question else "products"
+            rec_url = f"{base_domain}/{prefix}/{slug_clean}"
+            target_pages.append(rec_url)
+            target_types.append("💡 Recommended: Create New Page")
+
+    df_q['target_page'] = target_pages
+    df_q['target_type'] = target_types
+    return df_q
+
+
+def call_ai_api(api_key: str, provider: str, model: str, system_prompt: str, user_prompt: str) -> str:
+    """Call Google Gemini, OpenAI, or Anthropic Claude API for GSC SEO suggestions."""
+    clean_model = model.split(" ")[0].strip() if " (" in model else model.strip()
+
+    if provider == "Google Gemini":
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        try:
+            response = client.models.generate_content(
+                model=clean_model,
+                contents=f"{system_prompt}\n\nUSER PROMPT:\n{user_prompt}"
+            )
+            return response.text or ""
+        except Exception as e:
+            err = str(e).lower()
+            if "404" in err or "not found" in err or "not_found" in err:
+                for fallback in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+                    try:
+                        response = client.models.generate_content(
+                            model=fallback,
+                            contents=f"{system_prompt}\n\nUSER PROMPT:\n{user_prompt}"
+                        )
+                        return response.text or ""
+                    except Exception:
+                        continue
+            raise e
+
+    elif provider == "ChatGPT (OpenAI)":
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=clean_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7
+        )
+        return response.choices[0].message.content or ""
+
+    elif provider == "Claude (Anthropic)":
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=clean_model,
+            max_tokens=4000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+        return response.content[0].text if response.content else ""
+
+    return ""
+
+
+def generate_algorithmic_seo_suggestions(query: str, target_page: str, target_type: str, position: float, ctr: float, category: str) -> Dict[str, str]:
+    """Generates deterministic, high-converting SEO titles, H1s, meta descriptions, and action plans."""
+    q_title = query.title()
+
+    if category == "Low-Hanging Fruit":
+        title = f"{q_title} - Price, Specs & Buying Guide [2026]"
+        if len(title) > 60: title = f"{q_title} [2026 Price & Specs]"
+        h1 = f"{q_title}: Industrial Specifications & Technical Guide"
+        meta = f"Looking for top-grade {query}? Explore verified technical specs, competitive prices, and fast dispatch. Request a quick quote today!"
+        action = f"Prime SERP rank (Pos {position:.1f}) but low CTR ({ctr*100:.1f}%). Revise title tag with brackets, pricing hints, and trust triggers to double click-through rate."
+    elif category == "Quick Win":
+        title = f"Best {q_title}: Top Models, Ratings & Reviews"
+        if len(title) > 60: title = f"{q_title} - Models & Reviews [2026]"
+        h1 = f"Complete Guide to {q_title}: Applications & Benefits"
+        meta = f"Discover everything about {query}. Learn operational benefits, technical standards, and expert maintenance tips. Read the complete breakdown."
+        action = f"Keyword ranks on Page 2 (Pos {position:.1f}). Add a dedicated H2 section on '{query}' on {target_page}, insert 2 internal links from top-traffic pages, and expand body copy by 300 words."
+    elif category == "Question":
+        title = f"{q_title}? Step-by-Step Answer & Guide"
+        if len(title) > 60: title = f"{q_title}? Answer & Guide"
+        h1 = f"{q_title}: Complete Technical Explanation"
+        meta = f"Need an answer to: {query}? Here is the complete step-by-step technical explanation and expert checklist. Find out more inside!"
+        action = f"Featured Snippet opportunity! Add an H2 with an exact 40-50 word direct answer block followed by bulleted steps, and apply FAQ Schema."
+    elif category == "Content Gap":
+        title = f"{q_title} Solutions - Manufacturer & Supplier"
+        if len(title) > 60: title = f"{q_title} Manufacturer & Supply"
+        h1 = f"{q_title}: Industrial Equipment Solutions"
+        meta = f"High-durability {query} engineered for demanding applications. Meets global quality standards. Contact our technical team for custom specs."
+        action = f"Keyword ranks at Pos {position:.1f}. Target this term with a dedicated landing page ({target_page}), complete product catalog, and downloadable spec sheets."
+    else:
+        title = f"{q_title} | Premium Solutions & Catalog"
+        if len(title) > 60: title = f"{q_title} | Expert Solutions"
+        h1 = f"{q_title}: Industrial Overview"
+        meta = f"Explore leading {query} options with proven performance and reliability. View specifications and request assistance from our specialists."
+        action = f"Top-performing query driving organic volume. Maintain rankings with periodic content refreshes and fresh internal links."
+
+    return {
+        "query": query,
+        "target_page": target_page,
+        "target_type": target_type,
+        "ai_title": title,
+        "ai_h1": h1,
+        "ai_meta_description": meta,
+        "action_plan": action
+    }
+
+
+def generate_ai_seo_action_plan(
+    items_to_process: List[Dict[str, Any]],
+    api_key: str = "",
+    provider: str = "Google Gemini",
+    model: str = "gemini-3.8-pro-preview"
+) -> List[Dict[str, Any]]:
+    """Generates complete SEO suggestions using Gemini/OpenAI/Claude with guaranteed fallback."""
+    results = []
+
+    # If no API key provided, generate high-quality programmatic recommendations instantly
+    if not api_key:
+        for it in items_to_process:
+            sug = generate_algorithmic_seo_suggestions(
+                query=it['query'],
+                target_page=it.get('target_page', ''),
+                target_type=it.get('target_type', 'Existing Page'),
+                position=float(it.get('position', 0)),
+                ctr=float(it.get('ctr', 0)),
+                category=it.get('category', 'Top Query')
+            )
+            it.update(sug)
+            results.append(it)
+        return results
+
+    # When API key is provided, batch items and prompt LLM
+    batch_size = 12
+    for i in range(0, len(items_to_process), batch_size):
+        batch = items_to_process[i:i+batch_size]
+
+        system_prompt = (
+            "You are a World-Class Enterprise SEO Strategist & Content Optimization Expert. "
+            "For each query and mapped target page provided, generate high-converting SEO metadata.\n"
+            "Return STRICTLY a valid JSON array of objects. Do not include markdown code block syntax if possible, or use standard ```json. "
+            "Each object must have these exact keys:\n"
+            "- query: the input query string\n"
+            "- target_page: the recommended target URL\n"
+            "- ai_title: CTR-optimized page title (50-60 characters max, include numbers, brackets, power words)\n"
+            "- ai_h1: clear, authoritative H1 tag\n"
+            "- ai_meta_description: compelling meta description (130-155 characters max with high-intent CTA)\n"
+            "- action_plan: specific actionable on-page advice (e.g. internal linking, schema markup, content expansion)"
+        )
+
+        user_prompt = "Generate SEO optimization recommendations for these Google Search Console queries:\n"
+        for idx, row in enumerate(batch):
+            user_prompt += (
+                f"{idx+1}. Query: '{row['query']}' | Category: '{row.get('category', 'General')}' | "
+                f"Position: {row.get('position', 0):.1f} | CTR: {row.get('ctr', 0)*100:.1f}% | "
+                f"Target Page: '{row.get('target_page', '')}' | Type: '{row.get('target_type', '')}'\n"
+            )
+
+        try:
+            raw_text = call_ai_api(api_key, provider, model, system_prompt, user_prompt)
+            clean_json = re.sub(r'^```json\s*', '', raw_text.strip(), flags=re.MULTILINE)
+            clean_json = re.sub(r'```$', '', clean_json.strip(), flags=re.MULTILINE).strip()
+            parsed_data = json.loads(clean_json)
+
+            lookup = {str(item.get('query', '')).strip().lower(): item for item in parsed_data if isinstance(item, dict)}
+            for row in batch:
+                q_key = str(row['query']).strip().lower()
+                ai_item = lookup.get(q_key)
+                if ai_item:
+                    row['ai_title'] = ai_item.get('ai_title', '')
+                    row['ai_h1'] = ai_item.get('ai_h1', '')
+                    row['ai_meta_description'] = ai_item.get('ai_meta_description', '')
+                    row['action_plan'] = ai_item.get('action_plan', '')
+                    results.append(row)
+                else:
+                    sug = generate_algorithmic_seo_suggestions(
+                        query=row['query'],
+                        target_page=row.get('target_page', ''),
+                        target_type=row.get('target_type', 'Existing Page'),
+                        position=float(row.get('position', 0)),
+                        ctr=float(row.get('ctr', 0)),
+                        category=row.get('category', 'Top Query')
+                    )
+                    row.update(sug)
+                    results.append(row)
+        except Exception:
+            # Fallback for this batch on any API failure
+            for row in batch:
+                sug = generate_algorithmic_seo_suggestions(
+                    query=row['query'],
+                    target_page=row.get('target_page', ''),
+                    target_type=row.get('target_type', 'Existing Page'),
+                    position=float(row.get('position', 0)),
+                    ctr=float(row.get('ctr', 0)),
+                    category=row.get('category', 'Top Query')
+                )
+                row.update(sug)
+                results.append(row)
+
+    return results
+
+
+def export_action_plan_to_excel(df: pd.DataFrame) -> bytes:
+    """Exports SEO Action Plan into a beautifully formatted Excel file with colored headers and auto column widths."""
+    output = io.BytesIO()
+
+    if not OPENPYXL_AVAILABLE:
+        # Fallback to basic excel if openpyxl is not available
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='SEO Action Plan')
+        return output.getvalue()
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='SEO Action Plan')
+        workbook = writer.book
+        worksheet = writer.sheets['SEO Action Plan']
+
+        # Modern Enterprise Styling
+        header_fill = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+        header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+        thin_border = Border(
+            left=Side(style='thin', color='E2E8F0'),
+            right=Side(style='thin', color='E2E8F0'),
+            top=Side(style='thin', color='E2E8F0'),
+            bottom=Side(style='thin', color='E2E8F0')
+        )
+
+        for col_idx in range(1, len(df.columns) + 1):
+            cell = worksheet.cell(row=1, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        for row in range(2, len(df) + 2):
+            for col_idx in range(1, len(df.columns) + 1):
+                cell = worksheet.cell(row=row, column=col_idx)
+                cell.border = thin_border
+                cell.alignment = Alignment(vertical="center", wrap_text=True)
+
+        # Set intelligent column widths
+        for col_idx, col_name in enumerate(df.columns, start=1):
+            col_letter = get_column_letter(col_idx)
+            max_len = max([len(str(val or '')) for val in df[col_name].dropna()] + [len(col_name)])
+            col_width = min(max(max_len + 3, 12), 45)
+            worksheet.column_dimensions[col_letter].width = col_width
+
+    return output.getvalue()
 
 
 def generate_sample_gsc_data() -> Dict[str, pd.DataFrame]:
@@ -267,8 +644,8 @@ def render_advance_gsc_analysis_page():
         <h1 style="font-size: 2.75rem; font-weight: 900; color: #FFFFFF; letter-spacing: -0.03em; margin: 0 0 0.6rem 0; line-height: 1.15;">
             Advance GSC Data Analysis
         </h1>
-        <p style="color: #94A3B8; font-size: 1.05rem; max-width: 740px; margin: 0 auto; line-height: 1.6;">
-            Deep-dive into your Google Search Console performance data. Uncover Page-2 striking distance quick wins, low-hanging fruit CTR fixes, question search intent, and algorithmic traffic potential projections.
+        <p style="color: #94A3B8; font-size: 1.05rem; max-width: 780px; margin: 0 auto; line-height: 1.6;">
+            Deep-dive into your Google Search Console performance data. Map every query to target URLs, uncover Page-2 quick wins, optimize low-hanging fruit CTR, and generate AI-powered Title, H1, Meta Descriptions, and complete action plan exports.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -327,7 +704,8 @@ def render_advance_gsc_analysis_page():
                 <span>✔ <b>Queries.csv</b> Analysis</span>
                 <span>✔ <b>Pages.csv</b> Analysis</span>
                 <span>✔ <b>Countries.csv</b> Analysis</span>
-                <span>✔ Striking Distance Quick Wins</span>
+                <span>✔ Target Page Mapping</span>
+                <span>✔ AI Meta & Complete File Export</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -352,7 +730,7 @@ def render_advance_gsc_analysis_page():
             countries_df = csv_files[k].copy()
             break
 
-    # If queries_df is still not resolved, take the first available DataFrame
+    # Fallback if queries_df is still not resolved
     if queries_df.empty and len(csv_files) > 0:
         first_key = list(csv_files.keys())[0]
         queries_df = csv_files[first_key].copy()
@@ -370,6 +748,13 @@ def render_advance_gsc_analysis_page():
     if not countries_df.empty:
         countries_df = sanitize_dataframe(countries_df, default_entity_type='country')
 
+    # Detect or configure website base domain for target page generation
+    auto_domain = extract_base_domain(pages_df, default="https://example.com")
+    saved_domain = st.session_state.get("gsc_target_domain", auto_domain)
+
+    # Map queries to target pages
+    queries_df = map_queries_to_pages(queries_df, pages_df, base_domain=saved_domain)
+
     # 3. High-Level KPI Summary Cards
     total_clicks = int(queries_df['clicks'].sum()) if 'clicks' in queries_df.columns else 0
     total_impressions = int(queries_df['impressions'].sum()) if 'impressions' in queries_df.columns else 0
@@ -379,7 +764,7 @@ def render_advance_gsc_analysis_page():
     total_pages = len(pages_df) if not pages_df.empty else 0
 
     st.markdown(f"""
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 1.8rem;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 1.5rem;">
         <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 1.2rem; text-align: center;">
             <div style="color: #94A3B8; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">Total Clicks</div>
             <div style="font-size: 1.9rem; font-weight: 900; color: #38BDF8;">{total_clicks:,}</div>
@@ -408,7 +793,152 @@ def render_advance_gsc_analysis_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # 4. Global Analysis Tuning Controls
+    # 4. Target Domain & Page Mapping Bar
+    with st.expander("🎯 Target Domain & URL Mapping Settings", expanded=False):
+        c_dom1, c_dom2 = st.columns([3, 1])
+        with c_dom1:
+            target_domain_input = st.text_input(
+                "Website Base Domain for Target URLs:",
+                value=saved_domain,
+                placeholder="https://example.com",
+                help="Used to construct full target URLs for new page recommendations."
+            )
+            if target_domain_input != saved_domain:
+                st.session_state["gsc_target_domain"] = target_domain_input
+                st.rerun()
+        with c_dom2:
+            existing_count = len(queries_df[queries_df['target_type'] == 'Existing Page']) if 'target_type' in queries_df.columns else 0
+            new_count = len(queries_df[queries_df['target_type'] != 'Existing Page']) if 'target_type' in queries_df.columns else 0
+            st.markdown("<div style='margin-top: 26px;'></div>", unsafe_allow_html=True)
+            st.caption(f"✔ **{existing_count}** Mapped to Existing Pages\n💡 **{new_count}** Suggested for New Pages")
+
+    # 5. AI Configuration Bar (Matching exact user screenshot)
+    st.markdown("""
+    <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 14px; padding: 1.2rem 1.4rem; margin-bottom: 1.5rem;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <span style="font-size: 1.1rem;">🤖</span>
+            <span style="font-weight: 800; font-size: 1.05rem; color: #F8FAFC;">AI SEO Optimization & Complete File Generator</span>
+            <span style="font-size: 0.75rem; background: rgba(139, 92, 246, 0.2); color: #C4B5FD; padding: 2px 8px; border-radius: 4px; font-weight: 700;">GEMINI / OPENAI / CLAUDE</span>
+        </div>
+        <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 14px; line-height: 1.5;">
+            Target each query to the exact page, then generate <b>CTR-Optimized Title Tags</b>, <b>H1 Headings</b>, <b>Meta Descriptions</b>, and <b>Action Plans</b>, and download a complete strategy file.
+        </div>
+    """, unsafe_allow_html=True)
+
+    c_prov, c_model, c_key = st.columns([1.2, 1.4, 2.0])
+
+    with c_prov:
+        ai_provider = st.selectbox(
+            "AI Provider",
+            options=["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"],
+            index=0,
+            key="gsc_ai_provider"
+        )
+
+    with c_model:
+        if ai_provider == "Google Gemini":
+            model_options = [
+                "gemini-3.8-pro-preview",
+                "gemini-3.8-flash",
+                "gemini-3.7-pro",
+                "gemini-3.7-flash",
+                "gemini-2.5-flash",
+                "gemini-2.5-pro",
+                "gemini-2.0-flash",
+                "Custom Model"
+            ]
+        elif ai_provider == "ChatGPT (OpenAI)":
+            model_options = [
+                "gpt-4o",
+                "gpt-4o-mini",
+                "gpt-4.1",
+                "o3-mini",
+                "Custom Model"
+            ]
+        else:
+            model_options = [
+                "claude-3-7-sonnet-20250219",
+                "claude-3-5-sonnet-20241022",
+                "claude-3-5-haiku-20241022",
+                "Custom Model"
+            ]
+
+        selected_model_choice = st.selectbox(
+            "AI Model",
+            options=model_options,
+            index=0,
+            key="gsc_ai_model_choice"
+        )
+        if selected_model_choice == "Custom Model":
+            selected_model = st.text_input(
+                "Custom Model Name",
+                placeholder="e.g. gemini-3.8-pro-preview",
+                key="gsc_custom_model_input"
+            ).strip()
+        else:
+            selected_model = selected_model_choice
+
+    with c_key:
+        if ai_provider == "Google Gemini":
+            key_label = "Google Gemini API Key (Free)"
+            key_placeholder = "Paste Gemini API key (AIzaSy...)"
+            help_url = "https://aistudio.google.com/apikey"
+            help_text = "Get free key from Google AI Studio →"
+        elif ai_provider == "ChatGPT (OpenAI)":
+            key_label = "OpenAI API Key"
+            key_placeholder = "sk-..."
+            help_url = "https://platform.openai.com/api-keys"
+            help_text = "Get OpenAI API key →"
+        else:
+            key_label = "Anthropic API Key"
+            key_placeholder = "sk-ant-..."
+            help_url = "https://console.anthropic.com/settings/keys"
+            help_text = "Get Anthropic key →"
+
+        saved_key = st.session_state.get(f"api_key_{ai_provider}", "")
+        api_key = st.text_input(
+            key_label,
+            value=saved_key,
+            type="password",
+            placeholder=key_placeholder,
+            key=f"gsc_input_key_{ai_provider}"
+        )
+        if api_key:
+            st.session_state[f"api_key_{ai_provider}"] = api_key
+
+        st.markdown(
+            f'<div style="font-size:0.75rem; margin-top:2px;"><a href="{help_url}" target="_blank" style="color:#38BDF8; text-decoration:none;">{help_text}</a></div>',
+            unsafe_allow_html=True
+        )
+
+    c_gen1, c_gen2, c_gen3 = st.columns([2.0, 1.2, 1.2])
+    with c_gen1:
+        gen_scope = st.selectbox(
+            "Scope for AI Optimization:",
+            options=[
+                "⚡ Priority Opportunities (Quick Wins + Low-Hanging CTR + Questions)",
+                "🍎 Low-Hanging Fruits Only (Top 3 Pos, Low CTR)",
+                "⚡ Page-2 Quick Wins Only (Striking Distance)",
+                "❓ Questions & Informational Queries Only",
+                "📊 Top 50 High-Volume Queries"
+            ],
+            index=0,
+            key="gsc_gen_scope"
+        )
+    with c_gen2:
+        max_ai_items = st.selectbox(
+            "Max Queries to Optimize:",
+            options=[15, 30, 50, 100],
+            index=1,
+            key="gsc_max_ai_items"
+        )
+    with c_gen3:
+        st.markdown("<div style='margin-top: 26px;'></div>", unsafe_allow_html=True)
+        btn_generate_ai = st.button("🚀 Generate AI Action Plan", use_container_width=True, type="primary")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 6. Global Analysis Tuning Controls
     with st.expander("⚙️ Analysis Parameters & Sensitivity Thresholds", expanded=False):
         c_p1, c_p2, c_p3 = st.columns(3)
         with c_p1:
@@ -431,17 +961,128 @@ def render_advance_gsc_analysis_page():
     def format_gsc_df_for_display(df: pd.DataFrame) -> pd.DataFrame:
         d = df.copy()
         if 'ctr' in d.columns:
-            d['ctr'] = d['ctr'].apply(lambda x: f"{x*100:.2f}%" if pd.notnull(x) else "0.00%")
+            d['ctr'] = d['ctr'].apply(lambda x: f"{float(x)*100:.2f}%" if pd.notnull(x) else "0.00%")
         if 'position' in d.columns:
-            d['position'] = d['position'].apply(lambda x: f"{x:.1f}" if pd.notnull(x) else "0.0")
+            d['position'] = d['position'].apply(lambda x: f"{float(x):.1f}" if pd.notnull(x) else "0.0")
         if 'clicks' in d.columns:
             d['clicks'] = d['clicks'].fillna(0).astype(int)
         if 'impressions' in d.columns:
             d['impressions'] = d['impressions'].fillna(0).astype(int)
         return d
 
-    # 5. Core Analytical Modules Tabs
-    tab_qw, tab_lh, tab_pot, tab_top, tab_quest, tab_opp, tab_cloud, tab_geo_page = st.tabs([
+    # Handle AI Generation trigger
+    if btn_generate_ai:
+        with st.spinner(f"✨ Generating AI Target Page Recommendations & Metadata using {selected_model}..."):
+            # Prepare candidates based on scope
+            candidates = []
+            if "Low-Hanging Fruits Only" in gen_scope:
+                lh_mask = (queries_df['position'] <= 3.5) & (queries_df['ctr'] < low_hanging_ctr_thresh) & (queries_df['impressions'] >= 5)
+                sub = queries_df[lh_mask].sort_values(['impressions', 'ctr'], ascending=[False, True]).head(max_ai_items)
+                for _, r in sub.iterrows():
+                    candidates.append({**r.to_dict(), 'category': 'Low-Hanging Fruit'})
+            elif "Page-2 Quick Wins Only" in gen_scope:
+                qw_mask = (queries_df['position'] >= min_pos_qw) & (queries_df['position'] <= max_pos_qw) & (queries_df['impressions'] >= min_impressions)
+                sub = queries_df[qw_mask].sort_values(['impressions', 'position'], ascending=[False, True]).head(max_ai_items)
+                for _, r in sub.iterrows():
+                    candidates.append({**r.to_dict(), 'category': 'Quick Win'})
+            elif "Questions" in gen_scope:
+                q_regex = r'\b(what|how|why|when|where|which|who|can|is|are|should|does|do)\b'
+                quest_mask = queries_df['query'].astype(str).str.lower().str.contains(q_regex, regex=True, na=False)
+                sub = queries_df[quest_mask].sort_values('impressions', ascending=False).head(max_ai_items)
+                for _, r in sub.iterrows():
+                    candidates.append({**r.to_dict(), 'category': 'Question'})
+            elif "Top 50" in gen_scope:
+                sub = queries_df.nlargest(min(max_ai_items, len(queries_df)), 'clicks')
+                for _, r in sub.iterrows():
+                    candidates.append({**r.to_dict(), 'category': 'Top Performer'})
+            else:
+                # Priority Opportunities blend
+                # 1. Low hanging
+                lh_mask = (queries_df['position'] <= 3.5) & (queries_df['ctr'] < low_hanging_ctr_thresh) & (queries_df['impressions'] >= 5)
+                sub_lh = queries_df[lh_mask].sort_values('impressions', ascending=False).head(max_ai_items // 2)
+                for _, r in sub_lh.iterrows():
+                    candidates.append({**r.to_dict(), 'category': 'Low-Hanging Fruit'})
+                # 2. Quick wins
+                qw_mask = (queries_df['position'] >= min_pos_qw) & (queries_df['position'] <= max_pos_qw)
+                sub_qw = queries_df[qw_mask].sort_values('impressions', ascending=False).head(max_ai_items // 2)
+                for _, r in sub_qw.iterrows():
+                    candidates.append({**r.to_dict(), 'category': 'Quick Win'})
+                # 3. Questions
+                q_regex = r'\b(what|how|why|when|where|which|who|can|is|are|should|does|do)\b'
+                quest_mask = queries_df['query'].astype(str).str.lower().str.contains(q_regex, regex=True, na=False)
+                sub_quest = queries_df[quest_mask].sort_values('impressions', ascending=False).head(10)
+                for _, r in sub_quest.iterrows():
+                    candidates.append({**r.to_dict(), 'category': 'Question'})
+
+            # Deduplicate by query
+            unique_candidates = []
+            seen_q = set()
+            for c in candidates:
+                q_txt = str(c.get('query', '')).strip().lower()
+                if q_txt and q_txt not in seen_q:
+                    seen_q.add(q_txt)
+                    unique_candidates.append(c)
+
+            unique_candidates = unique_candidates[:max_ai_items]
+
+            if not unique_candidates:
+                st.warning("No queries found matching the selected scope criteria. Generating from top impressions queries instead.")
+                sub = queries_df.nlargest(min(max_ai_items, len(queries_df)), 'impressions')
+                for _, r in sub.iterrows():
+                    unique_candidates.append({**r.to_dict(), 'category': 'Top Performer'})
+
+            ai_results = generate_ai_seo_action_plan(
+                unique_candidates,
+                api_key=api_key,
+                provider=ai_provider,
+                model=selected_model
+            )
+            st.session_state["gsc_ai_action_plan"] = ai_results
+            st.toast("✅ AI Action Plan & Metadata successfully generated!", icon="🎉")
+
+    # Display / Download AI Action Plan Banner if results are available
+    if "gsc_ai_action_plan" in st.session_state and st.session_state["gsc_ai_action_plan"]:
+        ai_df = pd.DataFrame(st.session_state["gsc_ai_action_plan"])
+        st.markdown(f"""
+        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 12px; padding: 1.1rem 1.4rem; margin-bottom: 1.2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <div style="font-weight: 800; font-size: 1.05rem; color: #34D399; margin-bottom: 2px;">
+                        ✨ Complete SEO Action Plan Ready ({len(ai_df)} Queries Optimized)
+                    </div>
+                    <div style="font-size: 0.84rem; color: #94A3B8;">
+                        Includes Target URLs, Clicks, Impressions, CTR, Positions, AI Title Tags, H1 Headings, Meta Descriptions, and Action Plans.
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_dl_xl, col_dl_csv = st.columns(2)
+        with col_dl_xl:
+            excel_bytes = export_action_plan_to_excel(ai_df)
+            st.download_button(
+                "📥 Download Complete SEO Action Plan (.XLSX)",
+                data=excel_bytes,
+                file_name="complete_seo_action_plan.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="btn_dl_ai_excel",
+                use_container_width=True
+            )
+        with col_dl_csv:
+            csv_bytes = ai_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "📥 Download Complete SEO Action Plan (.CSV)",
+                data=csv_bytes,
+                file_name="complete_seo_action_plan.csv",
+                mime="text/csv",
+                key="btn_dl_ai_csv",
+                use_container_width=True
+            )
+
+    # 7. Core Analytical Modules Tabs
+    tab_ai, tab_qw, tab_lh, tab_pot, tab_top, tab_quest, tab_opp, tab_cloud, tab_geo_page = st.tabs([
+        "🤖 AI SEO Action Plan",
         "⚡ Quick Wins (Pos 11-20)",
         "🍎 Low-Hanging Fruits (CTR)",
         "📈 Traffic Potential Estimator",
@@ -452,7 +1093,34 @@ def render_advance_gsc_analysis_page():
         "🌍 Countries & Pages"
     ])
 
-    query_cols = [c for c in ['query', 'clicks', 'impressions', 'ctr', 'position'] if c in queries_df.columns]
+    # Default query columns with target_page included
+    query_cols = [c for c in ['query', 'target_page', 'clicks', 'impressions', 'ctr', 'position'] if c in queries_df.columns]
+
+    # TAB 0: AI ACTION PLAN
+    with tab_ai:
+        if "gsc_ai_action_plan" in st.session_state and st.session_state["gsc_ai_action_plan"]:
+            plan_df = pd.DataFrame(st.session_state["gsc_ai_action_plan"])
+            plan_df.index = range(1, len(plan_df) + 1)
+
+            st.markdown("#### 🎯 AI Recommended Target Pages & Content Metadata")
+            disp_plan = plan_df.copy()
+            if 'ctr' in disp_plan.columns:
+                disp_plan['ctr'] = disp_plan['ctr'].apply(lambda x: f"{float(x)*100:.2f}%" if pd.notnull(x) else "0.00%")
+            if 'position' in disp_plan.columns:
+                disp_plan['position'] = disp_plan['position'].apply(lambda x: f"{float(x):.1f}" if pd.notnull(x) else "0.0")
+
+            display_cols = [c for c in ['query', 'target_page', 'target_type', 'ai_title', 'ai_h1', 'ai_meta_description', 'action_plan', 'clicks', 'impressions', 'ctr', 'position'] if c in disp_plan.columns]
+            st.dataframe(disp_plan[display_cols], use_container_width=True, height=450)
+        else:
+            st.markdown("""
+            <div style="background: rgba(15, 23, 42, 0.7); border: 1px dashed rgba(139, 92, 246, 0.4); border-radius: 14px; padding: 2rem; text-align: center;">
+                <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">🤖</div>
+                <h4 style="color: #F8FAFC; margin-bottom: 0.4rem;">No AI Action Plan Generated Yet</h4>
+                <p style="color: #94A3B8; font-size: 0.9rem; max-width: 580px; margin: 0 auto 1.2rem; line-height: 1.6;">
+                    Click the <b>'🚀 Generate AI Action Plan'</b> button in the AI configuration box above to create high-converting Page Titles, H1 tags, Meta Descriptions, and action plans for your queries.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
 
     # TAB 1: QUICK WINS
     with tab_qw:
@@ -460,7 +1128,7 @@ def render_advance_gsc_analysis_page():
         <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 1.1rem 1.4rem; margin-bottom: 1.2rem;">
             <div style="font-weight: 800; font-size: 1.05rem; color: #10B981; margin-bottom: 4px;">⚡ Page-2 Striking Distance Keywords (Position {min_pos_qw} - {max_pos_qw})</div>
             <div style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5;">
-                These keywords rank on <b>Page 2 of Google</b> with at least <b>{min_impressions} impressions</b>. Because Google already trusts your page for these terms, small on-page optimizations (adding keywords to H2s, improving internal links, and refreshing content) can push them into Page 1 and generate massive traffic spikes.
+                These keywords rank on <b>Page 2 of Google</b> with at least <b>{min_impressions} impressions</b>. Target these queries on the listed target URLs with small on-page optimizations (adding keywords to H2s, internal links, and content refreshes) to push them into Page 1.
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -498,7 +1166,7 @@ def render_advance_gsc_analysis_page():
         <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 1.1rem 1.4rem; margin-bottom: 1.2rem;">
             <div style="font-weight: 800; font-size: 1.05rem; color: #F59E0B; margin-bottom: 4px;">🍎 Low-Hanging Fruit Optimization (Top 3 Positions, CTR < {low_hanging_ctr_thresh*100:.0f}%)</div>
             <div style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5;">
-                These queries already hold prime real estate in the <b>Top 3 search results</b>, but searchers aren't clicking. By rewriting your <b>Page Titles and Meta Descriptions</b> to be more compelling, adding numbers, power words, and answering the searcher's intent, you can double your clicks without building a single backlink.
+                These queries already hold prime real estate in the <b>Top 3 search results</b>, but searchers aren't clicking. By rewriting your <b>Page Titles and Meta Descriptions</b> on the target pages to be more compelling, adding numbers, power words, and answering search intent, you can double your clicks without building a single backlink.
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -541,11 +1209,13 @@ def render_advance_gsc_analysis_page():
         </div>
         """, unsafe_allow_html=True)
 
-        top_10 = queries_df[queries_df['position'] <= 10.0] if 'position' in queries_df.columns else pd.DataFrame()
-        avg_ctr_top10 = top_10['ctr'].mean() if len(top_10) > 0 and 'ctr' in top_10.columns and top_10['ctr'].mean() > 0 else 0.045
+        top10_mask = queries_df['position'] <= 10.0
+        top10_clicks = queries_df[top10_mask]['clicks'].sum() if 'clicks' in queries_df.columns else 0
+        top10_impressions = queries_df[top10_mask]['impressions'].sum() if 'impressions' in queries_df.columns else 0
+        avg_ctr_top10 = (top10_clicks / top10_impressions) if top10_impressions > 0 else 0.035
 
         calc_df = queries_df.copy()
-        if 'clicks' in calc_df.columns and 'position' in calc_df.columns and 'impressions' in calc_df.columns:
+        if 'impressions' in calc_df.columns and 'clicks' in calc_df.columns and 'position' in calc_df.columns:
             calc_df['potential_clicks'] = calc_df.apply(
                 lambda r: r['clicks'] if r['position'] <= 10.0 else (r['impressions'] * avg_ctr_top10),
                 axis=1
@@ -570,7 +1240,7 @@ def render_advance_gsc_analysis_page():
         with pot_col4:
             st.metric("Projected Growth", f"+{gain_pct:.1f}%", f"+{int(gain_clicks_sum):,} extra clicks")
 
-        pot_target_cols = [c for c in ['query', 'position', 'clicks', 'potential_clicks', 'click_gain', 'impressions'] if c in calc_df.columns]
+        pot_target_cols = [c for c in ['query', 'target_page', 'position', 'clicks', 'potential_clicks', 'click_gain', 'impressions'] if c in calc_df.columns]
         potential_table = calc_df[
             (calc_df['click_gain'] > 1) &
             (calc_df['position'] > 10.0)
@@ -587,7 +1257,7 @@ def render_advance_gsc_analysis_page():
             if 'potential_clicks' in disp_pot.columns: disp_pot['potential_clicks'] = disp_pot['potential_clicks'].astype(int)
             if 'click_gain' in disp_pot.columns: disp_pot['click_gain'] = disp_pot['click_gain'].astype(int)
             if 'impressions' in disp_pot.columns: disp_pot['impressions'] = disp_pot['impressions'].astype(int)
-            if 'position' in disp_pot.columns: disp_pot['position'] = disp_pot['position'].apply(lambda x: f"{x:.1f}")
+            if 'position' in disp_pot.columns: disp_pot['position'] = disp_pot['position'].apply(lambda x: f"{float(x):.1f}")
 
             st.markdown("#### 🎯 Top Keywords Ranked by Click Gain Opportunity:")
             st.dataframe(disp_pot, use_container_width=True, height=350)
@@ -637,7 +1307,7 @@ def render_advance_gsc_analysis_page():
         <div style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 12px; padding: 1.1rem 1.4rem; margin-bottom: 1.2rem;">
             <div style="font-weight: 800; font-size: 1.05rem; color: #A78BFA; margin-bottom: 4px;">❓ Informational & Question Search Queries</div>
             <div style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5;">
-                These queries contain question modifiers (<i>what, how, why, when, where, which, can, is, are</i>). They represent <b>Featured Snippet opportunities</b>, FAQ sections, and high-converting educational blog topics.
+                These queries contain question modifiers (<i>what, how, why, when, where, which, can, is, are</i>). Target them with dedicated FAQ sections, Featured Snippets, and educational guides on the mapped URLs.
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -673,7 +1343,7 @@ def render_advance_gsc_analysis_page():
         <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 1.1rem 1.4rem; margin-bottom: 1.2rem;">
             <div style="font-weight: 800; font-size: 1.05rem; color: #EF4444; margin-bottom: 4px;">🎯 Content Gap Opportunities (Position > {max_pos_opp})</div>
             <div style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5;">
-                These keywords rank beyond <b>Position {max_pos_opp}</b> but already generate at least <b>{min_impressions} impressions</b>. They indicate that search engines associate your brand with the topic, but you lack a dedicated, authoritative landing page. Creating targeted content for these queries can unlock brand new rankings.
+                These keywords rank beyond <b>Position {max_pos_opp}</b> but already generate at least <b>{min_impressions} impressions</b>. Search engines associate your site with the topic, but you need a dedicated landing page. Target these with the recommended URLs below.
             </div>
         </div>
         """, unsafe_allow_html=True)
