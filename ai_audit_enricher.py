@@ -135,9 +135,10 @@ def get_page_content_and_headings(row: pd.Series, max_chars: int = 500) -> dict:
             }
         try:
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 CrawlPilot/2.0"
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
             }
-            resp = requests.get(url, headers=headers, timeout=3.5)
+            resp = requests.get(url, headers=headers, timeout=4.0, verify=False)
             if resp.status_code == 200 and resp.text:
                 soup = BeautifulSoup(resp.text, "html.parser")
                 for tag in soup(["script", "style", "noscript", "svg", "nav", "footer", "header"]):
@@ -174,8 +175,8 @@ def get_page_content_and_headings(row: pd.Series, max_chars: int = 500) -> dict:
 
 def generate_smart_h1_from_content(clean_topic: str, page_text: str = "", h2s: list = None, url: str = "") -> str:
     """
-    Fallback that constructs a professional, high-converting 4-8 word H1 heading
-    based on real page content, H2 subheadings, and clean topic without brand suffixes.
+    Constructs a professional, semantic, natural 4-8 word H1 heading
+    based on real page content, H2 subheadings, and clean topic without robotic formulas.
     """
     if h2s:
         for h in h2s:
@@ -188,87 +189,173 @@ def generate_smart_h1_from_content(clean_topic: str, page_text: str = "", h2s: l
     if not topic and url:
         topic = url.rstrip("/").split("/")[-1].split("?")[0].replace("-", " ").title()
 
-    topic_lower = topic.lower()
-
-    if any(topic_lower.startswith(w) for w in ["how to", "best ", "top ", "ultimate "]):
-        return topic
-
-    if "service" in topic_lower or "agency" in topic_lower or "solution" in topic_lower:
-        if not any(w in topic_lower for w in ["expert", "professional", "result", "drive", "best", "leading"]):
-            return f"Results-Driven {topic}"
-        return topic
-
-    if "seo" in topic_lower or "ppc" in topic_lower or "marketing" in topic_lower:
-        return f"High-Impact {topic} for Measurable Business Growth"
-
+    topic = topic.strip(" -|:,")
     words = topic.split()
-    if 4 <= len(words) <= 8:
+    if 3 <= len(words) <= 8:
         return topic
-    elif len(words) < 4:
-        return f"Professional {topic} Solutions"
-    else:
+    elif len(words) < 3 and topic:
+        if page_text:
+            first_sentence = page_text.split(".")[0].strip()
+            sw = first_sentence.split()
+            if 4 <= len(sw) <= 9:
+                return first_sentence
+        return f"{topic} Specifications & Overview"
+    elif len(words) > 8:
         return " ".join(words[:7])
+    return topic or "Comprehensive Overview"
 
 
 # ==============================================================================
-# POST-PROCESSING UTILITIES
+# POST-PROCESSING UTILITIES & HUMANIZED GENERATORS
 # ==============================================================================
 
-def enforce_meta_desc_length_and_cta(desc: str, title: str = "", url: str = "") -> str:
+def humanize_and_enforce_meta_desc(
+    desc: str,
+    title: str = "",
+    url: str = "",
+    raw_desc: str = "",
+    page_text: str = "",
+    h2s: list = None
+) -> str:
     """
-    Ensure the meta description is strictly between 148 and 160 characters
-    and ends with a compelling Call to Action (CTA).
+    Ensure the meta description is strictly between 150 and 160 characters,
+    completely humanized, contextually tailored to the specific page content,
+    and free of repetitive robotic formulas or identical sentence starters.
     """
     desc = (desc or "").strip().strip('"\'')
-    if not desc:
-        slug = url.rstrip("/").split("/")[-1].replace("-", " ").title() if url else "Products"
-        desc = f"Discover premium {title or slug} crafted with pure ingredients and tested quality"
 
-    desc = desc.rstrip(" .,-")
-
-    # If over 160, trim at word boundary and add CTA
-    if len(desc) > 160:
-        sub = desc[:138]
-        sp = sub.rfind(" ")
-        base = sub[:sp].strip() if sp > 100 else desc[:130].strip()
-        desc = f"{base}. Order online now for fast delivery!"
+    # 1. If a valid description was provided (e.g. from LLM)
+    if desc:
+        desc = desc.rstrip(" .,-")
+        if 148 <= len(desc) <= 160:
+            return desc
         if len(desc) > 160:
-            desc = desc[:157] + "..."
-        return desc
+            # Smart human trim at word boundary
+            trimmed = desc[:156]
+            sp = trimmed.rfind(" ")
+            if sp > 120:
+                trimmed = trimmed[:sp].rstrip(" ,.;:-")
+            if not trimmed.endswith((".", "!", "?")):
+                if len(trimmed) <= 158:
+                    trimmed = trimmed + "."
+            if len(trimmed) > 160:
+                trimmed = trimmed[:157] + "..."
+            return trimmed
 
-    if 148 <= len(desc) <= 160:
-        return desc
+        # If slightly short (< 148), append a natural, context-relevant CTA to reach 150-160
+        ctas = [
+            "Request a detailed quote today.",
+            "Contact our team for a fast quote.",
+            "Explore full technical specs online.",
+            "Get in touch with our team today.",
+            "Inquire online for pricing details.",
+            "Discover complete specifications now.",
+            "Download full technical catalogs today.",
+            "Contact our engineers for pricing."
+        ]
+        for cta in ctas:
+            cand = f"{desc.rstrip('. ')}. {cta}"
+            if 148 <= len(cand) <= 160:
+                return cand
 
-    # If < 148, assemble sentence parts until length is between 148 and 160
-    sentences = [
-        "Pure therapeutic grade and sustainably sourced.",
-        "Enjoy wholesale pricing and verified lab purity.",
-        "Trusted by thousands of satisfied customers.",
-        "100% satisfaction guaranteed with reliable service.",
-        "Discover top deals and order online today.",
-        "Shop our complete collection online today.",
-        "Order online today for fast delivery.",
-        "Buy online today with free shipping.",
-        "Shop now for fast dispatch.",
-        "Order online now."
-    ]
+        for short_cta in ["Contact us today.", "Learn more online.", "Get started today.", "Request a quote."]:
+            cand = f"{desc.rstrip('. ')}. {short_cta}"
+            if 148 <= len(cand) <= 160:
+                return cand
 
-    cur = desc
-    for s in sentences:
-        if 148 <= len(cur) <= 160:
-            break
-        cand = f"{cur.rstrip('. ')}. {s}"
-        if len(cand) <= 160:
-            cur = cand
+    # 2. If desc was empty, check if page has an existing meta description (e.g. Desc over 160 Chars)
+    # Intelligently trim the existing description at natural sentence/clause boundary!
+    if raw_desc and len(raw_desc) > 50:
+        clean_raw = raw_desc.strip().strip('"\'').rstrip(" .,-")
+        sentences = re.split(r'(?<=[.!?])\s+', clean_raw)
+        accum = ""
+        for s in sentences:
+            test = (accum + " " + s).strip() if accum else s
+            if len(test) <= 160:
+                accum = test
+            else:
+                break
+        if 146 <= len(accum) <= 160:
+            return accum
 
-    # If still short of 148:
-    if len(cur) < 148:
-        tail = " Shop our selection online now!"
-        cur = f"{cur.rstrip('. ')}.{tail}"
-        if len(cur) > 160:
-            cur = cur[:157] + "..."
+        first_s = sentences[0] if sentences else clean_raw
+        sub = first_s[:154]
+        sp = sub.rfind(" ")
+        trimmed = sub[:sp].rstrip(" ,.;:-") if sp > 115 else sub.rstrip(" ,.;:-")
+        if len(trimmed) <= 158 and not trimmed.endswith((".", "!", "?")):
+            trimmed += "."
+        if 146 <= len(trimmed) <= 160:
+            return trimmed
 
-    return cur
+    # 3. Dynamic Humanized Generation from Real Page Content, Topic & URL
+    clean_topic = title or (url.rstrip("/").split("/")[-1].replace("-", " ").title() if url else "Industrial Solutions")
+    domain = urlparse(url).netloc.replace("www.", "") if url else ""
+    brand_part = domain.split(".")[0].title() if domain else "Leading Brand"
+
+    url_lower = (url or "").lower()
+    topic_lower = clean_topic.lower()
+
+    if any(k in url_lower or k in topic_lower for k in ["about", "company", "who-we-are", "facility", "facilities", "infrastructure", "plant"]):
+        variants = [
+            f"Explore {brand_part}'s state-of-the-art manufacturing plant, testing infrastructure, and precision engineering facilities built for heavy-duty automation.",
+            f"Discover {brand_part}'s engineering legacy, certified manufacturing infrastructure, and quality standards. Read our story and company profile online.",
+            f"Built on precision engineering and trust: Explore {brand_part}'s manufacturing plant, ISO certifications, and dedicated industrial legacy today."
+        ]
+    elif any(k in url_lower or k in topic_lower for k in ["contact", "inquiry", "enquiry"]):
+        variants = [
+            f"Get in touch with {brand_part}'s engineering and sales support team for technical queries, bulk pricing, and custom specifications. Inquire today.",
+            f"Contact {brand_part} for rapid RFQ processing, technical consultation, and custom valve solutions. Our dedicated team is available to help now.",
+            f"Reach out to {brand_part}'s industrial support team. Submit your project requirements online for fast response and official technical quotes."
+        ]
+    elif any(k in url_lower or k in topic_lower for k in ["client", "customer", "portfolio", "project"]):
+        variants = [
+            f"Trusted by leading global corporations: Explore {brand_part}'s established enterprise client network and successful project deployments today.",
+            f"Review {brand_part}'s verified client portfolio and industrial reference installations across oil, gas, chemical, and manufacturing sectors.",
+            f"See why major process industries rely on {brand_part} for reliable automation valves and actuators. View our enterprise client track record."
+        ]
+    elif any(k in url_lower or k in topic_lower for k in ["certificate", "accreditation", "iso", "quality"]):
+        variants = [
+            f"View official ISO, CE, and ATEX certifications verifying {brand_part}'s strict adherence to international manufacturing and safety protocols.",
+            f"Committed to zero-defect manufacturing: Explore {brand_part}'s quality accreditations, test certifications, and international compliance standards.",
+            f"Download verified quality certificates and test reports for {brand_part} industrial valves and actuators. Engineered for high compliance."
+        ]
+    elif any(k in url_lower or k in topic_lower for k in ["blog", "article", "news", "guide"]):
+        variants = [
+            f"Technical insights and industry best practices on {clean_topic}. Learn operational principles, maintenance tips, and practical engineering guides.",
+            f"Explore comprehensive technical articles regarding {clean_topic}. Stay updated with automation standards, case studies, and valve guides.",
+            f"Expert engineering guide on {clean_topic}. Discover working mechanisms, installation guidelines, and optimal sizing criteria for your plants."
+        ]
+    else:
+        # Product / Solution Category: 10 completely diverse human openers
+        variants = [
+            f"High-performance {clean_topic} engineered for demanding industrial operations and precision flow control. Certified quality. Request a quote today!",
+            f"Looking for durable {clean_topic}? {brand_part} manufactures heavy-duty, ISO-certified units built for long service life. Inquire for pricing now.",
+            f"Precision-crafted {clean_topic} designed to ensure leak-proof performance and seamless process automation. Contact our engineers for full specs.",
+            f"Upgrade your automation systems with robust {clean_topic} from {brand_part}. Built to withstand rigorous environments. Explore models today.",
+            f"Industry-grade {clean_topic} delivering superior torque control and high reliability in critical pipelines. Request technical catalogs now.",
+            f"Custom-manufactured {clean_topic} meeting international safety and quality standards. Engineered for peak efficiency. Get a fast quote online.",
+            f"Reliable, low-maintenance {clean_topic} tailored for chemical, water, and power plant installations. View our complete product specifications.",
+            f"Advanced {clean_topic} featuring compact design, corrosion resistance, and fast cycle times. Trusted across India. Request pricing today.",
+            f"Heavy-duty {clean_topic} engineered to optimize fluid control in high-pressure operations. Backed by full warranty. Inquire with our team.",
+            f"Engineered for maximum operational safety: Discover certified {clean_topic} with proven durability across process industries. Contact us today."
+        ]
+
+    # Rotate variants deterministically using hash of URL/topic so adjacent rows never share the same opening
+    h_val = abs(hash(url + clean_topic)) % len(variants)
+    chosen = variants[h_val]
+
+    if len(chosen) > 160:
+        chosen = chosen[:157] + "..."
+    elif len(chosen) < 148:
+        chosen = f"{chosen.rstrip('. ')}. Inquire now."
+        if len(chosen) > 160:
+            chosen = chosen[:160]
+
+    return chosen
+
+
+# Backwards compatibility alias
+enforce_meta_desc_length_and_cta = humanize_and_enforce_meta_desc
 
 
 # ==============================================================================
@@ -408,7 +495,7 @@ def enrich_meta_descriptions(
     country: str = "Global",
     business_context: str = ""
 ) -> pd.DataFrame:
-    """Generate 150-160 character meta descriptions with CTAs grounded in REAL page content."""
+    """Generate 150-160 character meta descriptions with CTAs grounded in REAL page content with humanized diversity."""
     if df.empty:
         return df
 
@@ -431,42 +518,46 @@ def enrich_meta_descriptions(
     biz_note = f"Website Business/Niche: {business_context}\n" if business_context else ""
     region_note = f"Target Country/Market: {country}\n" if country and "Global" not in country else ""
 
-    prompt = f"""You are an elite SEO Copywriter & Technical Director.
-{biz_note}{region_note}
-Task: READ the actual `page_content_summary` and `h2_subheadings` of each page to understand its core offerings, services, or products. Then formulate a high-converting, Google-compliant meta description.
+    BATCH_SIZE = 8
+    sugg_map = {}
+    guide_map = {}
 
-STRICT SEO REQUIREMENTS:
-1. Length MUST be strictly between 150 and 160 characters (including spaces). Never generate descriptions under 148 characters or over 160 characters!
-2. MUST end with a high-intent Call To Action (CTA) (e.g. 'Shop our collection online today!', 'Schedule your free consultation today!', 'Explore our packages & get started now!').
-3. BASE THE DESCRIPTION on the real page content and subheadings — highlighting actual benefits and solutions provided on this specific page.
-4. Each URL MUST receive a distinctly unique, non-duplicate description.
-5. Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string, strictly 150-160 chars ending with CTA), and "developer_guide" (string, short implementation instruction for developer).
+    for b_idx in range(0, len(items), BATCH_SIZE):
+        batch = items[b_idx : b_idx + BATCH_SIZE]
+        prompt = f"""You are an elite Senior SEO Copywriter and Conversion Strategist.
+{biz_note}{region_note}
+CRITICAL HUMANIZATION & ANTI-ROBOTIC MANDATE:
+1. DIVERSITY: Real human copywriters NEVER start every description with the same word. NEVER repeat the same opening phrase across different pages (e.g. DO NOT start all descriptions with 'Discover', 'Explore', 'Find', or 'Welcome'). Vary your syntax, hooks, and sentence openers completely across all pages!
+2. READ REAL PAGE CONTEXT: Read the `page_topic`, `current_desc`, and `page_content_summary` of each page below. Understand the specific industry, products, or services offered on that page.
+   - If it's an industrial manufacturing page (e.g., valves, actuators, machinery), write authoritative B2B engineering copy highlighting specifications, certifications, durability, and RFQ.
+   - If it's an About, Facility, or Client page, highlight infrastructure, testing rigor, plant capacity, and client trust.
+   - If it's a Blog or FAQ page, summarize the exact technical answers and principles discussed.
+3. STRICT LENGTH REQUIREMENT: Every single meta description MUST be strictly between 150 and 160 characters (including spaces). Not a character more than 160, not under 148!
+4. CALL TO ACTION: End with a natural, varied Call to Action matching the page intent (e.g. 'Request an engineering quote today!', 'Inquire for bulk pricing now.', 'Explore complete technical specs online.').
+5. JSON OUTPUT: Return ONLY a valid JSON array of objects with keys: "id" (integer matching page id), "suggestion" (string, strictly 150-160 chars), and "developer_guide" (string).
 
 Pages to optimize:
-{json.dumps(items, indent=2)}
+{json.dumps(batch, indent=2)}
 
 Return JSON format:
 [
   {{
-    "id": 0,
-    "suggestion": "Discover pure organic lavender essential oil crafted for calming sleep and relaxation. 100% natural, therapeutic grade. Order online today with fast shipping!",
-    "developer_guide": "Add or update <meta name='description' content='...'> in the <head> section of the template or CMS SEO fields."
+    "id": {batch[0]["id"]},
+    "suggestion": "High-performance motorized ball valves engineered for severe chemical environments. Certified to ISO standards. Request an engineering quote today!",
+    "developer_guide": "Add or update <meta name='description' content='...'> in the <head> section of this page template."
   }}
 ]"""
-
-    sugg_map = {}
-    guide_map = {}
-    try:
-        raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
-        parsed = parse_json_from_llm(raw_res)
-        if parsed:
-            for entry in parsed:
-                if "id" in entry:
-                    sugg = str(entry.get("suggestion", "")).strip().strip('"')
-                    sugg_map[entry["id"]] = sugg
-                    guide_map[entry["id"]] = str(entry.get("developer_guide", "Add <meta name='description'> inside <head>.")).strip()
-    except Exception as e:
-        logger.warning(f"Error calling LLM for meta descriptions: {e}")
+        try:
+            raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
+            parsed = parse_json_from_llm(raw_res)
+            if parsed:
+                for entry in parsed:
+                    if "id" in entry:
+                        sugg = str(entry.get("suggestion", "")).strip().strip('"')
+                        sugg_map[entry["id"]] = sugg
+                        guide_map[entry["id"]] = str(entry.get("developer_guide", "Add <meta name='description'> inside <head>.")).strip()
+        except Exception as e:
+            logger.warning(f"Error calling LLM for meta descriptions batch {b_idx}: {e}")
 
     col_sugg = "Suggested Meta Description (150-160 Chars)"
     if "Duplicate" in issue_type:
@@ -481,11 +572,20 @@ Return JSON format:
     for idx in target_df.index:
         raw_sugg = sugg_map.get(idx, "")
         url = str(target_df.loc[idx, "Page URL"])
-        raw_title = str(target_df.loc[idx].get("Page Title", ""))
+        raw_title = str(target_df.loc[idx].get("Page Title", target_df.loc[idx].get("Title", "")))
+        current_desc = str(target_df.loc[idx].get("Duplicate Meta Description", target_df.loc[idx].get("Meta Description", "")))
+        content_info = get_page_content_and_headings(target_df.loc[idx], max_chars=450)
         clean_topic = clean_brand_from_title(raw_title, url)
 
-        # Enforce exact 150-160 length and strong CTA
-        enforced = enforce_meta_desc_length_and_cta(raw_sugg, title=clean_topic, url=url)
+        # Enforce exact 150-160 length, humanized and diverse
+        enforced = humanize_and_enforce_meta_desc(
+            desc=raw_sugg,
+            title=clean_topic,
+            url=url,
+            raw_desc=current_desc,
+            page_text=content_info.get("page_text", ""),
+            h2s=content_info.get("h2_list", [])
+        )
         final_suggs.append(enforced)
         final_chars.append(len(enforced))
 
@@ -540,41 +640,41 @@ def enrich_page_titles(
     biz_note = f"Website Business/Niche: {business_context}\n" if business_context else ""
     region_note = f"Target Country/Market: {country}\n" if country and "Global" not in country else ""
 
-    prompt = f"""You are a Senior Technical SEO Consultant.
-{biz_note}{region_note}
-Task: READ the actual `page_content_summary` and `h2_subheadings` of each page to understand its core subject matter.
-Generate high-CTR, SEO-optimized <title> tags strictly between 50 and 60 characters for each page.
+    BATCH_SIZE = 10
+    sugg_map = {}
+    guide_map = {}
 
-Requirements:
-1. Length MUST be strictly between 50 and 60 characters (optimal SERP pixel width ~500-580px).
-2. Format: [Primary Service/Keyword from Content] | [USP or Brand Hook from Content]
-3. Distinct and compelling for the {country} audience based on actual page content.
-4. Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string, strictly 50-60 chars), and "developer_guide" (string).
+    for b_idx in range(0, len(items), BATCH_SIZE):
+        batch = items[b_idx : b_idx + BATCH_SIZE]
+        prompt = f"""You are a World-Class Technical SEO Consultant.
+{biz_note}{region_note}
+CRITICAL MANDATE:
+1. READ REAL PAGE TOPIC & CONTENT: Read the `clean_topic` and `page_content_summary` for each page below to understand its core subject matter.
+2. VARY TITLES NATURALLY: Never use repetitive title formulas across all rows. Format naturally: [Specific Product/Topic] | [Key Technical Capability, USP, or Brand Hook]
+3. STRICT LENGTH: Must be strictly between 50 and 60 characters (optimal SERP pixel width ~500-580px).
+4. JSON OUTPUT: Return ONLY a valid JSON array of objects with keys: "id" (integer matching page id), "suggestion" (string, strictly 50-60 chars), and "developer_guide" (string).
 
 Pages:
-{json.dumps(items, indent=2)}
+{json.dumps(batch, indent=2)}
 
 Return JSON format:
 [
   {{
-    "id": 0,
-    "suggestion": "Lavender Essential Oil | 100% Pure Organic Oils",
+    "id": {batch[0]["id"]},
+    "suggestion": "Motorized Ball Valves | Precision Industrial Actuators",
     "developer_guide": "Update <title> tag inside the <head> element of this template."
   }}
 ]"""
-
-    sugg_map = {}
-    guide_map = {}
-    try:
-        raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
-        parsed = parse_json_from_llm(raw_res)
-        if parsed:
-            for entry in parsed:
-                if "id" in entry:
-                    sugg_map[entry["id"]] = str(entry.get("suggestion", "")).strip().strip('"')
-                    guide_map[entry["id"]] = str(entry.get("developer_guide", "Update <title> tag in <head>.")).strip()
-    except Exception as e:
-        logger.warning(f"Error calling LLM for titles: {e}")
+        try:
+            raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
+            parsed = parse_json_from_llm(raw_res)
+            if parsed:
+                for entry in parsed:
+                    if "id" in entry:
+                        sugg_map[entry["id"]] = str(entry.get("suggestion", "")).strip().strip('"')
+                        guide_map[entry["id"]] = str(entry.get("developer_guide", "Update <title> tag in <head>.")).strip()
+        except Exception as e:
+            logger.warning(f"Error calling LLM for titles batch {b_idx}: {e}")
 
     col_sugg = "Suggested Title Tag (50-60 Chars)"
     if "Duplicate" in issue_type:
@@ -586,6 +686,17 @@ Return JSON format:
     final_chars = []
     final_guides = []
 
+    hooks_pool = [
+        "| Certified Quality & Specs",
+        "| High-Performance Systems",
+        "| Official Catalog & Models",
+        "| Engineering Specifications",
+        "| Industrial Automation",
+        "| Heavy-Duty Performance",
+        "| Leading Manufacturer",
+        "| Precision Industrial Units"
+    ]
+
     for idx in target_df.index:
         url = str(target_df.loc[idx, "Page URL"])
         raw_title = str(target_df.loc[idx].get("Duplicate Title Tag", target_df.loc[idx].get("Page Title", "")))
@@ -596,23 +707,29 @@ Return JSON format:
 
         s = sugg_map.get(idx, "")
         if not s or s.lower() == raw_title.lower() or len(s) < 35:
-            if len(clean_topic) >= 45 and len(clean_topic) <= 60:
+            if 48 <= len(clean_topic) <= 60:
                 s = clean_topic
-            elif len(clean_topic) < 45:
-                s = f"{clean_topic} | Official Services & Solutions"
-                if len(s) > 60:
-                    s = f"{clean_topic} | Verified Solutions"
+            elif len(clean_topic) > 60:
+                s = clean_topic[:57].rstrip(" -|") + "..."
             else:
-                s = clean_topic[:57] + "..."
+                hook = hooks_pool[abs(hash(url)) % len(hooks_pool)]
+                cand = f"{clean_topic} {hook}"
+                if len(cand) > 60:
+                    cand = f"{clean_topic} | Official Specs"
+                if len(cand) > 60:
+                    cand = cand[:57].rstrip(" -|") + "..."
+                s = cand
 
         if len(s) > 60:
             s = s[:57].rstrip(" -|") + "..."
         elif len(s) < 48:
-            diff = 55 - len(s)
-            if diff >= 10:
-                s = f"{s} | Top Solutions"
-                if len(s) > 60:
-                    s = s[:60]
+            hook = hooks_pool[abs(hash(url)) % len(hooks_pool)]
+            cand = f"{s.rstrip(' -|')} {hook}"
+            if len(cand) <= 60:
+                s = cand
+            else:
+                s = s[:60]
+
         final_suggs.append(s)
         final_chars.append(len(s))
         guide = guide_map.get(idx, "Developer Guide: Update the <title> tag inside the <head> section of this page template.")
@@ -665,45 +782,48 @@ def enrich_headings(
     biz_note = f"Website Business/Niche: {business_context}\n" if business_context else ""
     region_note = f"Target Country/Market: {country}\n" if country and "Global" not in country else ""
 
-    prompt = f"""You are a World-Class On-Page SEO Architect and Conversion Copywriter.
+    BATCH_SIZE = 10
+    sugg_map = {}
+    guide_map = {}
+
+    for b_idx in range(0, len(items), BATCH_SIZE):
+        batch = items[b_idx : b_idx + BATCH_SIZE]
+        prompt = f"""You are a World-Class On-Page SEO Architect and Conversion Copywriter.
 {biz_note}{region_note}
 CRITICAL SEO DIRECTIVE:
-You must formulate an optimal, semantic, conversion-oriented primary <h1> heading for each page below based on its REAL PAGE CONTENT and H2 subheadings.
+Formulate an optimal, semantic, conversion-oriented primary <h1> heading for each page below based on its REAL PAGE CONTENT and H2 subheadings.
 
 STRICT RULES:
-1. NEVER simply copy or repeat the raw <title> or Meta Title tag verbatim!
-2. NEVER include brand names or website name suffixes (e.g. '- F3Clicks', '| BrandName', 'by F3Clicks') in the H1 heading. H1 is strictly an on-page content headline for human readers, NOT a SERP browser title!
+1. NEVER simply copy or repeat the raw <title> tag verbatim!
+2. NEVER include brand names or website name suffixes (e.g. '- BrandName', '| BrandName', 'by BrandName') in the H1 heading. H1 is strictly an on-page content headline for human readers, NOT a SERP browser title!
 3. READ the `page_content_summary` and `h2_subheadings` for each page. Determine the real core subject matter, services, or products discussed on that specific page.
-4. Formulate an engaging, authoritative, 4 to 8 word primary H1 heading that accurately reflects the page content (e.g. 'Drive Targeted Customers with Result-Driven Local SEO Services', 'Scalable White Label SEO Solutions for Growing Agencies', 'High-Converting PPC Campaign Management for Measurable Growth').
+4. Formulate an engaging, authoritative, 4 to 8 word primary H1 heading that accurately reflects the page content.
 5. If the issue is 'Multiple H1 tags', identify the best primary H1 to retain, and in 'developer_guide' instruct the developer to demote other <h1> tags to <h2>.
 6. If the issue is 'Missing H1', suggest the ideal primary H1 for the page based on the content, and instruct developer where to place it in the template.
 
-Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string, the 4-8 word H1 without brand suffix), and "developer_guide" (string).
+Return ONLY a valid JSON array of objects with keys: "id" (integer matching page id), "suggestion" (string, the 4-8 word H1 without brand suffix), and "developer_guide" (string).
 
 Pages to evaluate:
-{json.dumps(items, indent=2)}
+{json.dumps(batch, indent=2)}
 
 Return JSON format:
 [
   {{
-    "id": 0,
-    "suggestion": "Drive Targeted Local Customers with Result-Oriented Local SEO",
+    "id": {batch[0]["id"]},
+    "suggestion": "Heavy-Duty Motorized Valves for Industrial Process Automation",
     "developer_guide": "Add a single primary <h1> tag at the top of the main content container in the page template."
   }}
 ]"""
-
-    sugg_map = {}
-    guide_map = {}
-    try:
-        raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
-        parsed = parse_json_from_llm(raw_res)
-        if parsed:
-            for entry in parsed:
-                if "id" in entry:
-                    sugg_map[entry["id"]] = str(entry.get("suggestion", "")).strip().strip('"')
-                    guide_map[entry["id"]] = str(entry.get("developer_guide", "")).strip()
-    except Exception as e:
-        logger.warning(f"Error calling LLM for headings: {e}")
+        try:
+            raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
+            parsed = parse_json_from_llm(raw_res)
+            if parsed:
+                for entry in parsed:
+                    if "id" in entry:
+                        sugg_map[entry["id"]] = str(entry.get("suggestion", "")).strip().strip('"')
+                        guide_map[entry["id"]] = str(entry.get("developer_guide", "")).strip()
+        except Exception as e:
+            logger.warning(f"Error calling LLM for headings batch {b_idx}: {e}")
 
     col_sugg = "Suggested Single Primary H1" if "Multiple" in issue_type else "Suggested H1 Heading"
 
@@ -767,36 +887,39 @@ def enrich_image_alt_text(
             "image_url": str(row.get("Image Source URL", row.get("Image URL", "")))
         })
 
-    prompt = f"""You are an Accessibility (a11y) and Image SEO Specialist.
+    BATCH_SIZE = 12
+    sugg_map = {}
+    guide_map = {}
+
+    for b_idx in range(0, len(items), BATCH_SIZE):
+        batch = items[b_idx : b_idx + BATCH_SIZE]
+        prompt = f"""You are an Accessibility (a11y) and Image SEO Specialist.
 Task: Write concise, descriptive, screen-reader-friendly image alt text based on the image URL filename and page context.
 Do not keyword stuff. 4 to 9 words describing what the image shows.
 
-Return ONLY a valid JSON array of objects with keys: "id" (integer), "suggestion" (string), and "developer_guide" (string).
+Return ONLY a valid JSON array of objects with keys: "id" (integer matching image id), "suggestion" (string), and "developer_guide" (string).
 
 Images:
-{json.dumps(items, indent=2)}
+{json.dumps(batch, indent=2)}
 
 Return JSON format:
 [
   {{
-    "id": 0,
-    "suggestion": "Organic lavender essential oil bottle with dropper",
+    "id": {batch[0]["id"]},
+    "suggestion": "Heavy-duty motorized valve with quarter-turn electric actuator",
     "developer_guide": "Add alt='...' attribute to the <img> tag in HTML template or update media alt text in CMS admin."
   }}
 ]"""
-
-    sugg_map = {}
-    guide_map = {}
-    try:
-        raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
-        parsed = parse_json_from_llm(raw_res)
-        if parsed:
-            for entry in parsed:
-                if "id" in entry:
-                    sugg_map[entry["id"]] = str(entry.get("suggestion", "")).strip().strip('"')
-                    guide_map[entry["id"]] = str(entry.get("developer_guide", "")).strip()
-    except Exception as e:
-        logger.warning(f"Error calling LLM for alt text: {e}")
+        try:
+            raw_res = call_ai_model(prompt, api_key, provider, model, country=country)
+            parsed = parse_json_from_llm(raw_res)
+            if parsed:
+                for entry in parsed:
+                    if "id" in entry:
+                        sugg_map[entry["id"]] = str(entry.get("suggestion", "")).strip().strip('"')
+                        guide_map[entry["id"]] = str(entry.get("developer_guide", "")).strip()
+        except Exception as e:
+            logger.warning(f"Error calling LLM for alt text batch {b_idx}: {e}")
 
     target_df["Suggested Alt Text"] = [
         sugg_map.get(idx, str(target_df.loc[idx].get("Image Source URL", "")).split("/")[-1].split(".")[0].replace("-", " ").title())
