@@ -109,18 +109,19 @@ def standardize_columns(df: pd.DataFrame, default_entity_type: str = 'query') ->
     new_cols = []
     for col in df.columns:
         c = str(col).replace('\ufeff', '').strip().lower().replace(' ', '_').replace('-', '_')
-        if any(k in c for k in ['query', 'queries', 'keyword', 'consulta', 'suchanfrag', 'requêt']):
+        # Check CTR FIRST so 'click_through_rate' does NOT get matched to 'clicks'
+        if 'ctr' in c or 'click_through' in c or 'clickthrough' in c or 'klickrate' in c or 'taux' in c or '%' in c:
+            new_cols.append('ctr')
+        elif any(k in c for k in ['query', 'queries', 'keyword', 'consulta', 'suchanfrag', 'requêt']):
             new_cols.append('query')
         elif any(k in c for k in ['page', 'url', 'landing_page', 'seite', 'página']):
             new_cols.append('page')
         elif any(k in c for k in ['countr', 'land', 'pays', 'país']):
             new_cols.append('country')
-        elif any(k in c for k in ['click', 'clic', 'klick', 'clique']):
+        elif any(k in c for k in ['clicks', 'click', 'clics', 'clic', 'klicks', 'klick', 'cliques', 'clique']):
             new_cols.append('clicks')
         elif any(k in c for k in ['impress', 'view', 'vista', 'vue', 'impressionen']):
             new_cols.append('impressions')
-        elif 'ctr' in c or 'klickrate' in c or 'taux' in c or '%' in c:
-            new_cols.append('ctr')
         elif any(k in c for k in ['position', 'pos', 'rang', 'rank', 'platz']):
             new_cols.append('position')
         else:
@@ -156,6 +157,38 @@ def standardize_columns(df: pd.DataFrame, default_entity_type: str = 'query') ->
             df.rename(columns={df.columns[4]: 'position'}, inplace=True)
         else:
             df['position'] = 0.0
+
+    return df
+
+
+def sanitize_dataframe(df: pd.DataFrame, default_entity_type: str = 'query') -> pd.DataFrame:
+    """Standardizes, deduplicates, cleans CTR, and casts numeric columns safely without throwing TypeError."""
+    if df.empty:
+        return df
+
+    # Standardize column headers
+    df = standardize_columns(df, default_entity_type=default_entity_type)
+
+    # Deduplicate columns if any duplicate name exists
+    df = df.loc[:, ~df.columns.duplicated(keep='first')].copy()
+
+    # Clean CTR column
+    df = clean_ctr_column(df, 'ctr')
+
+    # Convert numeric columns safely (handling Series or 1D DataFrame)
+    for col in ['clicks', 'impressions']:
+        if col in df.columns:
+            series = df[col].iloc[:, 0] if isinstance(df[col], pd.DataFrame) else df[col]
+            df[col] = pd.to_numeric(series, errors='coerce').fillna(0).astype(int)
+        else:
+            df[col] = 0
+
+    for col in ['position', 'ctr']:
+        if col in df.columns:
+            series = df[col].iloc[:, 0] if isinstance(df[col], pd.DataFrame) else df[col]
+            df[col] = pd.to_numeric(series, errors='coerce').fillna(0.0).astype(float)
+        else:
+            df[col] = 0.0
 
     return df
 
@@ -328,31 +361,14 @@ def render_advance_gsc_analysis_page():
         st.error("❌ 'Queries.csv' was not found inside the uploaded ZIP. Please ensure your Google Search Console export contains Queries data.")
         return
 
-    # Standardize and clean with full column guarantees
-    queries_df = standardize_columns(queries_df, default_entity_type='query')
-    queries_df = clean_ctr_column(queries_df, 'ctr')
+    # Standardize, clean, and cast with full column guarantees & deduplication
+    queries_df = sanitize_dataframe(queries_df, default_entity_type='query')
 
     if not pages_df.empty:
-        pages_df = standardize_columns(pages_df, default_entity_type='page')
-        pages_df = clean_ctr_column(pages_df, 'ctr')
+        pages_df = sanitize_dataframe(pages_df, default_entity_type='page')
 
     if not countries_df.empty:
-        countries_df = standardize_columns(countries_df, default_entity_type='country')
-        countries_df = clean_ctr_column(countries_df, 'ctr')
-
-    # Ensure numeric columns are strictly typed and NaN-free
-    for df in [queries_df, pages_df, countries_df]:
-        if not df.empty:
-            for col in ['clicks', 'impressions']:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-                else:
-                    df[col] = 0
-            for col in ['position', 'ctr']:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(float)
-                else:
-                    df[col] = 0.0
+        countries_df = sanitize_dataframe(countries_df, default_entity_type='country')
 
     # 3. High-Level KPI Summary Cards
     total_clicks = int(queries_df['clicks'].sum()) if 'clicks' in queries_df.columns else 0
