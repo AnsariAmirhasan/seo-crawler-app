@@ -12,8 +12,9 @@ import threading
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 USER_AGENTS = {
-    "Chrome (Windows 11)": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Safari (macOS)": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
+    "Chrome (Windows 11)": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Safari (macOS)": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+    "Firefox (Windows)": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
     "Googlebot Desktop": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
     "Googlebot Smartphone": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
     "Screaming Frog Spider / SEO Bot": "Mozilla/5.0 (compatible; ScreamingFrogSEOSpider/19.0; +https://www.screamingfrog.co.uk/seo-spider/)",
@@ -164,20 +165,15 @@ class SEOSpider:
             "User-Agent": self.user_agent,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
-            "Sec-Ch-Ua": "\"Not A(Brand\";v=\"99\", \"Google Chrome\";v=\"124\", \"Chromium\";v=\"124\"",
-            "Sec-Ch-Ua-Mobile": "?0",
-            "Sec-Ch-Ua-Platform": "\"Windows\"",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
             "Upgrade-Insecure-Requests": "1"
         })
 
     def fetch_single_url(self, url: str):
-        """Fetch a single URL and measure latency, headers, status with smart SSL fallback and redirect chain/loop tracking."""
+        """Fetch a single URL and measure latency, headers, status with smart SSL fallback, WAF bypass, and redirect chain/loop tracking."""
         start_time = time.time()
         response = None
+        last_error = ""
+
         try:
             response = self.session.get(
                 url,
@@ -223,8 +219,8 @@ class SEOSpider:
                 "html": "",
                 "error": "Redirect Loop: Too Many Redirects (>=10 hops)"
             }
-        except requests.exceptions.SSLError:
-            # Fallback for sites with missing intermediate SSL certificates (e.g. cairnindia.com)
+        except (requests.exceptions.SSLError, requests.exceptions.ConnectionError) as e:
+            last_error = str(e)
             try:
                 response = self.session.get(
                     url,
@@ -232,71 +228,45 @@ class SEOSpider:
                     allow_redirects=True,
                     verify=False
                 )
-            except requests.exceptions.TooManyRedirects as e:
-                latency_ms = round((time.time() - start_time) * 1000, 2)
-                resp = getattr(e, "response", None)
-                hist = list(resp.history) + [resp] if resp is not None else []
-                status = resp.history[0].status_code if (resp is not None and resp.history) else 301
-                chain_urls = [r.url for r in hist] if hist else [url]
-                chain_items = [f"{r.url} ({r.status_code})" for r in hist] if hist else [f"{url} (310 Loop)"]
-                return {
-                    "url": url,
-                    "final_url": resp.url if resp is not None else url,
-                    "status_code": status,
-                    "final_status_code": status,
-                    "latency_ms": latency_ms,
-                    "content_type": "",
-                    "size_bytes": 0,
-                    "headers": dict(resp.headers) if resp is not None else {},
-                    "redirect_chain": chain_urls,
-                    "redirect_chain_str": " → ".join(chain_items),
-                    "redirect_hops": max(len(hist) - 1, 1) if hist else 1,
-                    "redirect_issue_type": "Redirect Loop",
-                    "redirect_severity": "Error",
-                    "is_redirect_chain": False,
-                    "is_redirect_loop": True,
-                    "html": "",
-                    "error": "Redirect Loop: Too Many Redirects"
-                }
-            except Exception as e:
-                return {
-                    "url": url,
-                    "final_url": url,
-                    "status_code": 0,
-                    "latency_ms": round((time.time() - start_time) * 1000, 2),
-                    "content_type": "",
-                    "size_bytes": 0,
-                    "headers": {},
-                    "redirect_chain": [],
-                    "redirect_chain_str": "",
-                    "redirect_hops": 0,
-                    "redirect_issue_type": "None",
-                    "redirect_severity": "None",
-                    "is_redirect_chain": False,
-                    "is_redirect_loop": False,
-                    "html": "",
-                    "error": f"SSL Certificate Error: {e}"
-                }
+            except Exception as e_ssl:
+                last_error = str(e_ssl)
         except requests.exceptions.Timeout:
-            return {
-                "url": url,
-                "final_url": url,
-                "status_code": 0,
-                "latency_ms": round((time.time() - start_time) * 1000, 2),
-                "content_type": "",
-                "size_bytes": 0,
-                "headers": {},
-                "redirect_chain": [],
-                "redirect_chain_str": "",
-                "redirect_hops": 0,
-                "redirect_issue_type": "None",
-                "redirect_severity": "None",
-                "is_redirect_chain": False,
-                "is_redirect_loop": False,
-                "html": "",
-                "error": "Request Timeout"
-            }
+            last_error = "Request Timeout"
         except Exception as e:
+            last_error = str(e)
+
+        # Smart WAF / Anti-Bot Bypass: if connection failed or server blocked with 403/429/503
+        if response is None or response.status_code in [403, 429, 503]:
+            waf_fallbacks = [
+                USER_AGENTS.get("Safari (macOS)"),
+                USER_AGENTS.get("Firefox (Windows)"),
+                USER_AGENTS.get("Googlebot Desktop"),
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+                "curl/8.7.1"
+            ]
+            for alt_ua in waf_fallbacks:
+                if not alt_ua or alt_ua == self.user_agent:
+                    continue
+                try:
+                    alt_resp = requests.get(
+                        url,
+                        headers={
+                            "User-Agent": alt_ua,
+                            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                            "Accept-Language": "en-US,en;q=0.9",
+                        },
+                        timeout=self.timeout,
+                        allow_redirects=True,
+                        verify=False
+                    )
+                    if alt_resp.status_code < 400 or (response is not None and alt_resp.status_code < response.status_code):
+                        response = alt_resp
+                        if response.status_code < 400:
+                            break
+                except Exception:
+                    continue
+
+        if response is None:
             return {
                 "url": url,
                 "final_url": url,
@@ -313,7 +283,7 @@ class SEOSpider:
                 "is_redirect_chain": False,
                 "is_redirect_loop": False,
                 "html": "",
-                "error": str(e)
+                "error": last_error or "Connection Failed"
             }
 
         latency_ms = round((time.time() - start_time) * 1000, 2)
