@@ -910,6 +910,7 @@ tab_overview, tab_issues, tab_minify, tab_pages, tab_responses, tab_canonicals, 
 ])
 
 results = st.session_state.get("crawl_results")
+active_crawl_site = (results.get("start_url", "") if isinstance(results, dict) else "") or st.session_state.get("cfg_target_url", "")
 
 # ==============================================================================
 # TAB 1: OVERVIEW & HEALTH AUDIT
@@ -1122,7 +1123,7 @@ with tab_overview:
         st.subheader("📥 Export Client-Ready Audit Reports")
         col_d1, col_d2, col_d3 = st.columns([1.2, 1.2, 1.6])
         with col_d1:
-            cur_site = results.get("start_url", "") or st.session_state.get("cfg_target_url", "")
+            cur_site = active_crawl_site
             excel_bytes = generate_excel_report(results, cur_site)
             st.download_button(
                 label="📊 Download Full Excel Report (.xlsx)",
@@ -1242,7 +1243,7 @@ with tab_issues:
                 st.download_button(
                     label=f"📥 Download Filtered Issues ({len(filtered_issues)})",
                     data=csv_iss,
-                    file_name=make_clean_export_filename("Audit_Issues_Filtered", target, "csv"),
+                    file_name=make_clean_export_filename("Audit_Issues_Filtered", active_crawl_site, "csv"),
                     mime="text/csv",
                     use_container_width=True
                 )
@@ -1353,7 +1354,7 @@ with tab_minify:
                 st.download_button(
                     label=f"📥 Download Minify CSV ({len(df_min_filtered)})",
                     data=csv_min,
-                    file_name=make_clean_export_filename("Unminified_Assets", target, "csv"),
+                    file_name=make_clean_export_filename("Unminified_Assets", active_crawl_site, "csv"),
                     mime="text/csv",
                     use_container_width=True
                 )
@@ -1639,7 +1640,7 @@ with tab_responses:
             st.download_button(
                 label=f"📥 Download Filtered ({len(df_resp_filtered)} URLs)",
                 data=csv_resp,
-                file_name=make_clean_export_filename(f"Response_Codes_{clean_slug}", target, "csv"),
+                file_name=make_clean_export_filename(f"Response_Codes_{clean_slug}", active_crawl_site, "csv"),
                 mime="text/csv",
                 use_container_width=True
             )
@@ -2040,7 +2041,7 @@ with tab_canonicals:
             st.download_button(
                 label=f"📥 Download Canonicals ({len(df_canon)} URLs)",
                 data=csv_canon,
-                file_name=make_clean_export_filename(f"Canonicals_{canon_filter.replace(' ', '_').lower()}", target, "csv"),
+                file_name=make_clean_export_filename(f"Canonicals_{canon_filter.replace(' ', '_').lower()}", active_crawl_site, "csv"),
                 mime="text/csv",
                 use_container_width=True
             )
@@ -2225,7 +2226,7 @@ with tab_titles:
             st.download_button(
                 label=f"📥 Download Filtered Titles ({len(df_filtered_t)} URLs)",
                 data=csv_t,
-                file_name=make_clean_export_filename(f"Page_Titles_{title_filter.replace(' ', '_').lower()}", target, "csv"),
+                file_name=make_clean_export_filename(f"Page_Titles_{title_filter.replace(' ', '_').lower()}", active_crawl_site, "csv"),
                 mime="text/csv",
                 use_container_width=True
             )
@@ -2455,7 +2456,7 @@ with tab_descriptions:
             st.download_button(
                 label=f"📥 Download Filtered Meta Descriptions ({len(df_filtered_d)} URLs)",
                 data=csv_d,
-                file_name=make_clean_export_filename(f"Meta_Descriptions_{desc_filter.replace(' ', '_').lower()}", target, "csv"),
+                file_name=make_clean_export_filename(f"Meta_Descriptions_{desc_filter.replace(' ', '_').lower()}", active_crawl_site, "csv"),
                 mime="text/csv",
                 use_container_width=True
             )
@@ -2695,7 +2696,7 @@ with tab_headings:
             st.download_button(
                 label=f"📥 Download Filtered Headings ({len(df_filtered_hd)} URLs)",
                 data=csv_hd,
-                file_name=make_clean_export_filename(f"Headings_{heading_filter.replace(' ', '_').lower()}", target, "csv"),
+                file_name=make_clean_export_filename(f"Headings_{heading_filter.replace(' ', '_').lower()}", active_crawl_site, "csv"),
                 mime="text/csv",
                 use_container_width=True
             )
@@ -2845,7 +2846,7 @@ with tab_links:
                 st.download_button(
                     label=f"📥 Download Filtered Links ({len(filtered_links)})",
                     data=csv_links,
-                    file_name=make_clean_export_filename("Discovered_Links_Filtered", target, "csv"),
+                    file_name=make_clean_export_filename("Discovered_Links_Filtered", active_crawl_site, "csv"),
                     mime="text/csv",
                     use_container_width=True
                 )
@@ -2976,7 +2977,7 @@ with tab_images:
                 st.download_button(
                     label=f"📥 Download Filtered Images ({len(df_filtered_img)} URLs)",
                     data=csv_img,
-                    file_name=make_clean_export_filename(f"Images_{img_filter.replace(' ', '_').lower()}", target, "csv"),
+                    file_name=make_clean_export_filename(f"Images_{img_filter.replace(' ', '_').lower()}", active_crawl_site, "csv"),
                     mime="text/csv",
                     use_container_width=True
                 )
@@ -3444,7 +3445,7 @@ with tab_extractor:
             agency_name="Technical SEO Intelligence"
         )
 
-        cur_audit_site = target_site or results.get("start_url", "") or st.session_state.get("cfg_target_url", "")
+        cur_audit_site = active_crawl_site
         if is_ai_enriched:
             col_btn1, col_btn2, col_btn3, col_btn4 = st.columns([1.3, 1.4, 1.5, 1.0])
             with col_btn1:
