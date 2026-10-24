@@ -425,7 +425,7 @@ def generate_social_content_studio(
     product_url: str,
     api_key: str = "",
     provider: str = "Google Gemini",
-    strategy_model: str = "gemini-2.5-flash",
+    strategy_model: str = "gemini-4-argon",
     image_model: str = "imagen-3.0-generate-002"
 ) -> Dict[str, Any]:
     """
@@ -520,7 +520,7 @@ Include:
 
     if api_key and provider == "Google Gemini":
         models_to_try = [strategy_model]
-        for m in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+        for m in ["gemini-4-argon", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
             if m not in models_to_try:
                 models_to_try.append(m)
 
@@ -3239,6 +3239,8 @@ def render_brand_first_content_page():
         with prov_col2:
             if ai_provider == "Google Gemini":
                 gemini_models = [
+                    "gemini-4-argon",
+                    "gemini-4-argon-thinking",
                     "gemini-3.8-flash",
                     "gemini-3.7-flash",
                     "gemini-3.6-flash",

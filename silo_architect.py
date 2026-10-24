@@ -116,7 +116,7 @@ def _call_ai_model(api_key: str, provider: str, model: str, system_prompt: str, 
         except Exception as e:
             err = str(e).lower()
             if "404" in err or "not found" in err or "not_found" in err:
-                for fallback_model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+                for fallback_model in ["gemini-4-argon", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
                     try:
                         response = client.models.generate_content(
                             model=fallback_model,
