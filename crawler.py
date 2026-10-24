@@ -163,8 +163,15 @@ class SEOSpider:
         self.session.mount("http://", adapter)
         self.session.headers.update({
             "User-Agent": self.user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
+            "Sec-Ch-Ua": '"Chromium";v="130", "Not?A_Brand";v="99", "Google Chrome";v="130"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
             "Upgrade-Insecure-Requests": "1"
         })
 
@@ -235,12 +242,18 @@ class SEOSpider:
         except Exception as e:
             last_error = str(e)
 
-        # Smart WAF / Anti-Bot Bypass: if connection failed or server blocked with 403/429/503
-        if response is None or response.status_code in [403, 429, 503]:
+        # Smart WAF / Anti-Bot Bypass: if connection failed or server blocked with 403/429/503 or served captcha challenge
+        is_captcha_challenge = False
+        if response is not None and getattr(response, "text", None):
+            resp_lower = response.text[:2500].lower()
+            if "sgcaptcha" in resp_lower or "robot challenge screen" in resp_lower or "cf-browser-verification" in resp_lower:
+                is_captcha_challenge = True
+
+        if response is None or response.status_code in [403, 429, 503] or is_captcha_challenge:
             waf_fallbacks = [
+                USER_AGENTS.get("Googlebot Desktop"),
                 USER_AGENTS.get("Safari (macOS)"),
                 USER_AGENTS.get("Firefox (Windows)"),
-                USER_AGENTS.get("Googlebot Desktop"),
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
                 "curl/8.7.1"
             ]
@@ -252,17 +265,25 @@ class SEOSpider:
                         url,
                         headers={
                             "User-Agent": alt_ua,
-                            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
                             "Accept-Language": "en-US,en;q=0.9",
+                            "Sec-Ch-Ua": '"Chromium";v="130", "Not?A_Brand";v="99", "Google Chrome";v="130"',
+                            "Sec-Ch-Ua-Mobile": "?0",
+                            "Sec-Ch-Ua-Platform": '"Windows"',
+                            "Sec-Fetch-Dest": "document",
+                            "Sec-Fetch-Mode": "navigate",
+                            "Sec-Fetch-Site": "none",
+                            "Sec-Fetch-User": "?1",
+                            "Upgrade-Insecure-Requests": "1"
                         },
                         timeout=self.timeout,
                         allow_redirects=True,
                         verify=False
                     )
-                    if alt_resp.status_code < 400 or (response is not None and alt_resp.status_code < response.status_code):
+                    alt_lower = alt_resp.text[:2500].lower() if getattr(alt_resp, "text", None) else ""
+                    if alt_resp.status_code < 400 and "sgcaptcha" not in alt_lower and "robot challenge screen" not in alt_lower:
                         response = alt_resp
-                        if response.status_code < 400:
-                            break
+                        break
                 except Exception:
                     continue
 
