@@ -16,6 +16,21 @@ from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
 import plotly.graph_objects as go
 
+
+def make_clean_export_filename(prefix: str, url_or_domain: str, ext: str) -> str:
+    """Generate descriptive filename: [Prefix]_[Clean_Domain]_[YYYY-MM-DD].[ext]"""
+    from datetime import datetime
+    raw_domain = ""
+    if url_or_domain:
+        parsed = urlparse(url_or_domain if "://" in url_or_domain else f"https://{url_or_domain}")
+        raw_domain = parsed.netloc or parsed.path or url_or_domain
+    raw_domain = re.sub(r"^www\.", "", str(raw_domain).lower())
+    clean_domain = re.sub(r"[^a-zA-Z0-9_-]", "_", raw_domain).strip("_") or "website"
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    clean_ext = ext.lstrip(".")
+    return f"{prefix}_{clean_domain}_{today_str}.{clean_ext}"
+
+
 FONT_FAMILY = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
 
 SILO_FRAMEWORKS = {
@@ -686,7 +701,7 @@ Please generate:
                     st.download_button(
                         "📥 Download Full Interlinking Plan (CSV)",
                         data=csv_data,
-                        file_name="silo_in_page_interlinking_plan.csv",
+                        file_name=make_clean_export_filename("Silo_In_Page_Interlinking_Plan", target_site, "csv"),
                         mime="text/csv",
                         key="dl_silo_csv"
                     )
@@ -803,7 +818,7 @@ Please generate:
                     st.download_button(
                         "📥 Download Blog Strategy (CSV)",
                         data=csv_b_data,
-                        file_name="cannibalization_free_blog_topics.csv",
+                        file_name=make_clean_export_filename("Cannibalization_Free_Blog_Topics", target_site, "csv"),
                         mime="text/csv",
                         key="dl_blogs_csv"
                     )

@@ -40,6 +40,20 @@ except ImportError:
     DOCX_AVAILABLE = False
 
 
+def make_clean_export_filename(prefix: str, url_or_domain: str, ext: str) -> str:
+    """Generate descriptive filename: [Prefix]_[Clean_Domain]_[YYYY-MM-DD].[ext]"""
+    from datetime import datetime
+    raw_domain = ""
+    if url_or_domain:
+        parsed = urllib.parse.urlparse(url_or_domain if "://" in url_or_domain else f"https://{url_or_domain}")
+        raw_domain = parsed.netloc or parsed.path or url_or_domain
+    raw_domain = re.sub(r"^www\.", "", str(raw_domain).lower())
+    clean_domain = re.sub(r"[^a-zA-Z0-9_-]", "_", raw_domain).strip("_") or "website"
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    clean_ext = ext.lstrip(".")
+    return f"{prefix}_{clean_domain}_{today_str}.{clean_ext}"
+
+
 def read_csv_robust(file_bytes_or_buffer) -> pd.DataFrame:
     """Robustly reads a CSV file trying different encodings, delimiters, and strip BOM."""
     if isinstance(file_bytes_or_buffer, bytes):
@@ -1396,7 +1410,7 @@ def render_advance_gsc_analysis_page():
             st.download_button(
                 "📄 Download Action Plan Document (.DOCX)",
                 data=docx_bytes,
-                file_name="complete_seo_action_plan.docx",
+                file_name=make_clean_export_filename("GSC_SEO_Action_Plan", saved_domain, "docx"),
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 key="btn_dl_ai_docx",
                 type="primary",
@@ -1407,7 +1421,7 @@ def render_advance_gsc_analysis_page():
             st.download_button(
                 "📊 Download Excel (.XLSX)",
                 data=excel_bytes,
-                file_name="complete_seo_action_plan.xlsx",
+                file_name=make_clean_export_filename("GSC_SEO_Action_Plan", saved_domain, "xlsx"),
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="btn_dl_ai_excel",
                 use_container_width=True
@@ -1417,7 +1431,7 @@ def render_advance_gsc_analysis_page():
             st.download_button(
                 "📥 Download CSV (.CSV)",
                 data=csv_bytes,
-                file_name="complete_seo_action_plan.csv",
+                file_name=make_clean_export_filename("GSC_SEO_Action_Plan", saved_domain, "csv"),
                 mime="text/csv",
                 key="btn_dl_ai_csv",
                 use_container_width=True
@@ -1450,7 +1464,7 @@ def render_advance_gsc_analysis_page():
                 st.download_button(
                     "📄 Download Full Strategy Document (.DOCX)",
                     data=export_action_plan_to_docx(plan_df, base_domain=saved_domain),
-                    file_name="seo_action_plan_with_solutions.docx",
+                    file_name=make_clean_export_filename("GSC_SEO_Action_Plan_With_Solutions", saved_domain, "docx"),
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     key="btn_dl_tab_ai_docx",
                     use_container_width=True
@@ -1459,7 +1473,7 @@ def render_advance_gsc_analysis_page():
                 st.download_button(
                     "📊 Download Excel (.XLSX)",
                     data=export_action_plan_to_excel(plan_df),
-                    file_name="seo_action_plan.xlsx",
+                    file_name=make_clean_export_filename("GSC_SEO_Action_Plan", saved_domain, "xlsx"),
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key="btn_dl_tab_ai_xl",
                     use_container_width=True
@@ -1554,7 +1568,7 @@ def render_advance_gsc_analysis_page():
             st.download_button(
                 "📥 Download Quick Wins Report (.CSV)",
                 data=qw_csv,
-                file_name="gsc_quick_wins_striking_distance.csv",
+                file_name=make_clean_export_filename("GSC_Quick_Wins_Striking_Distance", saved_domain, "csv"),
                 mime="text/csv",
                 key="btn_dl_qw"
             )
@@ -1592,7 +1606,7 @@ def render_advance_gsc_analysis_page():
             st.download_button(
                 "📥 Download Low-Hanging Fruits Report (.CSV)",
                 data=lh_csv,
-                file_name="gsc_low_hanging_fruits.csv",
+                file_name=make_clean_export_filename("GSC_Low_Hanging_Fruits", saved_domain, "csv"),
                 mime="text/csv",
                 key="btn_dl_lh"
             )
@@ -1667,7 +1681,7 @@ def render_advance_gsc_analysis_page():
             st.download_button(
                 "📥 Download Traffic Potential Report (.CSV)",
                 data=pot_csv,
-                file_name="gsc_traffic_potential_opportunities.csv",
+                file_name=make_clean_export_filename("GSC_Traffic_Potential_Opportunities", saved_domain, "csv"),
                 mime="text/csv",
                 key="btn_dl_pot"
             )
@@ -1731,7 +1745,7 @@ def render_advance_gsc_analysis_page():
             st.download_button(
                 "📥 Download Question Queries (.CSV)",
                 data=q_csv,
-                file_name="gsc_question_queries.csv",
+                file_name=make_clean_export_filename("GSC_Question_Queries", saved_domain, "csv"),
                 mime="text/csv",
                 key="btn_dl_quest"
             )
@@ -1768,7 +1782,7 @@ def render_advance_gsc_analysis_page():
             st.download_button(
                 "📥 Download Content Gap Opportunities (.CSV)",
                 data=opp_csv,
-                file_name="gsc_content_gap_opportunities.csv",
+                file_name=make_clean_export_filename("GSC_Content_Gap_Opportunities", saved_domain, "csv"),
                 mime="text/csv",
                 key="btn_dl_opp"
             )

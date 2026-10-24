@@ -38,6 +38,22 @@ from PIL import Image, ImageDraw, ImageFont
 from urllib.parse import urlparse, quote
 from typing import Optional, Dict, Any, List, Tuple
 
+
+def make_clean_export_filename(prefix: str, url_or_domain: str, ext: str) -> str:
+    """Generate descriptive filename: [Prefix]_[Clean_Slug]_[YYYY-MM-DD].[ext]"""
+    from datetime import datetime
+    raw_domain = ""
+    if url_or_domain:
+        parsed = urlparse(url_or_domain if "://" in url_or_domain else f"https://{url_or_domain}")
+        raw_domain = parsed.netloc or parsed.path or url_or_domain
+    raw_domain = re.sub(r"^www\.", "", str(raw_domain).lower())
+    clean_slug = re.sub(r"[^a-zA-Z0-9_-]", "_", raw_domain).strip("_") or "brand"
+    clean_slug = clean_slug[:30].strip("_")
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    clean_ext = ext.lstrip(".")
+    return f"{prefix}_{clean_slug}_{today_str}.{clean_ext}"
+
+
 # ==============================================================================
 # 1. COLOR EXTRACTION & BRAND COLOR SYSTEM UTILITIES (HEX, RGB, HSL)
 # ==============================================================================
@@ -3646,7 +3662,7 @@ def render_brand_first_content_page():
             st.download_button(
                 "💾 Download Pack (.JSON)",
                 data=pack_json,
-                file_name=f"{brand_name.lower().replace(' ', '_')}_content_pack.json",
+                file_name=make_clean_export_filename("Brand_Content_Pack", brand_name, "json"),
                 mime="application/json",
                 use_container_width=True
             )

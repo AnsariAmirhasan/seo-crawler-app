@@ -8,6 +8,23 @@ import streamlit as st
 import pandas as pd
 import re
 import time
+from urllib.parse import urlparse
+
+
+def make_clean_export_filename(prefix: str, url_or_domain: str, ext: str) -> str:
+    """Generate descriptive filename: [Prefix]_[Clean_Slug]_[YYYY-MM-DD].[ext]"""
+    from datetime import datetime
+    raw_domain = ""
+    if url_or_domain:
+        parsed = urlparse(url_or_domain if "://" in url_or_domain else f"https://{url_or_domain}")
+        raw_domain = parsed.netloc or parsed.path or url_or_domain
+    raw_domain = re.sub(r"^www\.", "", str(raw_domain).lower())
+    clean_slug = re.sub(r"[^a-zA-Z0-9_-]", "_", raw_domain).strip("_") or "query"
+    clean_slug = clean_slug[:30].strip("_")
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    clean_ext = ext.lstrip(".")
+    return f"{prefix}_{clean_slug}_{today_str}.{clean_ext}"
+
 
 COUNTRIES = [
     "🌐 Global (No specific region)",
@@ -488,7 +505,7 @@ def render_query_fanout_page():
             st.download_button(
                 "📥 Download Queries as CSV",
                 data=csv_data,
-                file_name=f"fanout_queries_{res['query'][:25].replace(' ', '_')}.csv",
+                file_name=make_clean_export_filename("Fanout_Queries", res.get("query", ""), "csv"),
                 mime="text/csv",
                 use_container_width=True,
                 key="dl_fanout_csv"

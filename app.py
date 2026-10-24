@@ -67,6 +67,19 @@ def get_asset_base64(filepath: str) -> str:
         pass
     return ""
 
+def make_clean_export_filename(prefix: str, url_or_domain: str, ext: str) -> str:
+    """Generate descriptive filename: [Prefix]_[Clean_Domain]_[YYYY-MM-DD].[ext]"""
+    from datetime import datetime
+    raw_domain = ""
+    if url_or_domain:
+        parsed = urlparse(url_or_domain if "://" in url_or_domain else f"https://{url_or_domain}")
+        raw_domain = parsed.netloc or parsed.path or url_or_domain
+    raw_domain = re.sub(r"^www\.", "", str(raw_domain).lower())
+    clean_domain = re.sub(r"[^a-zA-Z0-9_-]", "_", raw_domain).strip("_") or "website"
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    clean_ext = ext.lstrip(".")
+    return f"{prefix}_{clean_domain}_{today_str}.{clean_ext}"
+
 # 2. Modern Universal Theme Styling
 st.markdown("""
 <style>
@@ -581,7 +594,7 @@ def render_xml_sitemap_generator():
         st.subheader("📥 Download Your Sitemaps")
         st.caption("All files are fully compliant with Google Search Console, Bing Webmaster, and W3C XML schemas.")
 
-        d1, d2, d3, d4 = st.columns(4)
+        sm_site = results_data.get("domain", "") or "website"
         with d1:
             st.markdown("""
             <div style="background:rgba(30,41,59,0.7); border:1px solid #38BDF8; border-radius:12px; padding:16px; text-align:center; min-height:160px;">
@@ -593,7 +606,7 @@ def render_xml_sitemap_generator():
             st.download_button(
                 "📥 Download XML",
                 data=results_data["xml"],
-                file_name="sitemap.xml",
+                file_name=make_clean_export_filename("Sitemap", sm_site, "xml"),
                 mime="application/xml",
                 use_container_width=True,
                 key="dl_xml_btn"
@@ -610,7 +623,7 @@ def render_xml_sitemap_generator():
             st.download_button(
                 "🗜️ Download GZ",
                 data=results_data["gz"],
-                file_name="sitemap.xml.gz",
+                file_name=make_clean_export_filename("Sitemap", sm_site, "xml.gz"),
                 mime="application/gzip",
                 use_container_width=True,
                 key="dl_gz_btn"
@@ -627,7 +640,7 @@ def render_xml_sitemap_generator():
             st.download_button(
                 "📄 Download TXT",
                 data=results_data["txt"],
-                file_name="urllist.txt",
+                file_name=make_clean_export_filename("URL_List", sm_site, "txt"),
                 mime="text/plain",
                 use_container_width=True,
                 key="dl_txt_btn"
@@ -644,7 +657,7 @@ def render_xml_sitemap_generator():
             st.download_button(
                 "🌐 Download HTML",
                 data=results_data["html"],
-                file_name="sitemap.html",
+                file_name=make_clean_export_filename("Sitemap", sm_site, "html"),
                 mime="text/html",
                 use_container_width=True,
                 key="dl_html_btn"
@@ -1107,12 +1120,12 @@ with tab_overview:
         st.subheader("📥 Export Client-Ready Audit Reports")
         col_d1, col_d2, col_d3 = st.columns([1.2, 1.2, 1.6])
         with col_d1:
-            excel_bytes = generate_excel_report(results, results.get("start_url", ""))
-            domain_slug = urlparse(results.get("start_url","")).netloc or "audit"
+            cur_site = results.get("start_url", "") or st.session_state.get("cfg_target_url", "")
+            excel_bytes = generate_excel_report(results, cur_site)
             st.download_button(
                 label="📊 Download Full Excel Report (.xlsx)",
                 data=excel_bytes,
-                file_name=f"seo_audit_{domain_slug}.xlsx",
+                file_name=make_clean_export_filename("SEO_Audit_Report", cur_site, "xlsx"),
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
@@ -1121,7 +1134,7 @@ with tab_overview:
             st.download_button(
                 label="📑 Download All Pages (CSV)",
                 data=csv_pages,
-                file_name=f"crawled_pages_{domain_slug}.csv",
+                file_name=make_clean_export_filename("Crawled_Pages", cur_site, "csv"),
                 mime="text/csv",
                 use_container_width=True
             )
@@ -1227,7 +1240,7 @@ with tab_issues:
                 st.download_button(
                     label=f"📥 Download Filtered Issues ({len(filtered_issues)})",
                     data=csv_iss,
-                    file_name="audit_issues_filtered.csv",
+                    file_name=make_clean_export_filename("Audit_Issues_Filtered", target, "csv"),
                     mime="text/csv",
                     use_container_width=True
                 )
@@ -1338,7 +1351,7 @@ with tab_minify:
                 st.download_button(
                     label=f"📥 Download Minify CSV ({len(df_min_filtered)})",
                     data=csv_min,
-                    file_name="unminified_js_css_audit.csv",
+                    file_name=make_clean_export_filename("Unminified_Assets", target, "csv"),
                     mime="text/csv",
                     use_container_width=True
                 )
@@ -1624,7 +1637,7 @@ with tab_responses:
             st.download_button(
                 label=f"📥 Download Filtered ({len(df_resp_filtered)} URLs)",
                 data=csv_resp,
-                file_name=f"response_codes_{clean_slug}.csv",
+                file_name=make_clean_export_filename(f"Response_Codes_{clean_slug}", target, "csv"),
                 mime="text/csv",
                 use_container_width=True
             )
@@ -2025,7 +2038,7 @@ with tab_canonicals:
             st.download_button(
                 label=f"📥 Download Canonicals ({len(df_canon)} URLs)",
                 data=csv_canon,
-                file_name=f"canonicals_{canon_filter.replace(' ', '_').lower()}.csv",
+                file_name=make_clean_export_filename(f"Canonicals_{canon_filter.replace(' ', '_').lower()}", target, "csv"),
                 mime="text/csv",
                 use_container_width=True
             )
@@ -2210,7 +2223,7 @@ with tab_titles:
             st.download_button(
                 label=f"📥 Download Filtered Titles ({len(df_filtered_t)} URLs)",
                 data=csv_t,
-                file_name=f"page_titles_{title_filter.replace(' ', '_').lower()}.csv",
+                file_name=make_clean_export_filename(f"Page_Titles_{title_filter.replace(' ', '_').lower()}", target, "csv"),
                 mime="text/csv",
                 use_container_width=True
             )
@@ -2440,7 +2453,7 @@ with tab_descriptions:
             st.download_button(
                 label=f"📥 Download Filtered Meta Descriptions ({len(df_filtered_d)} URLs)",
                 data=csv_d,
-                file_name=f"meta_descriptions_{desc_filter.replace(' ', '_').lower()}.csv",
+                file_name=make_clean_export_filename(f"Meta_Descriptions_{desc_filter.replace(' ', '_').lower()}", target, "csv"),
                 mime="text/csv",
                 use_container_width=True
             )
@@ -2680,7 +2693,7 @@ with tab_headings:
             st.download_button(
                 label=f"📥 Download Filtered Headings ({len(df_filtered_hd)} URLs)",
                 data=csv_hd,
-                file_name=f"headings_{heading_filter.replace(' ', '_').lower()}.csv",
+                file_name=make_clean_export_filename(f"Headings_{heading_filter.replace(' ', '_').lower()}", target, "csv"),
                 mime="text/csv",
                 use_container_width=True
             )
@@ -2830,7 +2843,7 @@ with tab_links:
                 st.download_button(
                     label=f"📥 Download Filtered Links ({len(filtered_links)})",
                     data=csv_links,
-                    file_name="discovered_links_filtered.csv",
+                    file_name=make_clean_export_filename("Discovered_Links_Filtered", target, "csv"),
                     mime="text/csv",
                     use_container_width=True
                 )
@@ -2961,7 +2974,7 @@ with tab_images:
                 st.download_button(
                     label=f"📥 Download Filtered Images ({len(df_filtered_img)} URLs)",
                     data=csv_img,
-                    file_name=f"images_{img_filter.replace(' ', '_').lower()}.csv",
+                    file_name=make_clean_export_filename(f"Images_{img_filter.replace(' ', '_').lower()}", target, "csv"),
                     mime="text/csv",
                     use_container_width=True
                 )
@@ -3429,13 +3442,14 @@ with tab_extractor:
             agency_name="Technical SEO Intelligence"
         )
 
+        cur_audit_site = target_site or results.get("start_url", "") or st.session_state.get("cfg_target_url", "")
         if is_ai_enriched:
             col_btn1, col_btn2, col_btn3, col_btn4 = st.columns([1.3, 1.4, 1.5, 1.0])
             with col_btn1:
                 st.download_button(
                     label="📥 Download Audit Excel (.xlsx)",
                     data=excel_standard_bytes,
-                    file_name="seo_error_audit_report.xlsx",
+                    file_name=make_clean_export_filename("SEO_Error_Audit_Report", cur_audit_site, "xlsx"),
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
                     key="btn_dl_audit_excel_std"
@@ -3445,7 +3459,7 @@ with tab_extractor:
                 st.download_button(
                     label="✨ Download Suggested Audit Excel",
                     data=excel_suggested_bytes,
-                    file_name="seo_audit_report_with_suggested_fixes.xlsx",
+                    file_name=make_clean_export_filename("SEO_Audit_With_Suggested_Fixes", cur_audit_site, "xlsx"),
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary",
                     use_container_width=True,
@@ -3455,7 +3469,7 @@ with tab_extractor:
                 st.download_button(
                     label="📘 Download Client Audit Doc (.docx)",
                     data=docx_bytes,
-                    file_name="client_seo_audit_report.docx",
+                    file_name=make_clean_export_filename("Client_SEO_Audit_Report", cur_audit_site, "docx"),
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     type="primary",
                     use_container_width=True,
@@ -3475,7 +3489,7 @@ with tab_extractor:
                 st.download_button(
                     label="📄 Download Index CSV",
                     data=csv_index_bytes,
-                    file_name="seo_error_index.csv",
+                    file_name=make_clean_export_filename("SEO_Error_Index", cur_audit_site, "csv"),
                     mime="text/csv",
                     use_container_width=True,
                     key="btn_dl_audit_csv"
@@ -3486,7 +3500,7 @@ with tab_extractor:
                 st.download_button(
                     label="📥 Download Audit Excel (.xlsx)",
                     data=excel_standard_bytes,
-                    file_name="seo_error_audit_report.xlsx",
+                    file_name=make_clean_export_filename("SEO_Error_Audit_Report", cur_audit_site, "xlsx"),
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary",
                     use_container_width=True,
@@ -3496,7 +3510,7 @@ with tab_extractor:
                 st.download_button(
                     label="📘 Download Client Audit Doc (.docx)",
                     data=docx_bytes,
-                    file_name="client_seo_audit_report.docx",
+                    file_name=make_clean_export_filename("Client_SEO_Audit_Report", cur_audit_site, "docx"),
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     use_container_width=True,
                     key="btn_dl_audit_docx_std"
@@ -3510,7 +3524,7 @@ with tab_extractor:
                 st.download_button(
                     label="📄 Download Index CSV",
                     data=csv_index_bytes,
-                    file_name="seo_error_index.csv",
+                    file_name=make_clean_export_filename("SEO_Error_Index", cur_audit_site, "csv"),
                     mime="text/csv",
                     use_container_width=True,
                     key="btn_dl_audit_csv"
@@ -3582,7 +3596,7 @@ with tab_extractor:
                     st.download_button(
                         label=f"📥 Download {selected_sheet} CSV",
                         data=csv_sheet_bytes,
-                        file_name=f"{selected_sheet.replace(' ', '_').lower()}.csv",
+                        file_name=make_clean_export_filename(f"Audit_Sheet_{selected_sheet.replace(' ', '_')}", cur_audit_site, "csv"),
                         mime="text/csv",
                         use_container_width=True,
                         key="btn_dl_sheet_csv"
@@ -3709,9 +3723,9 @@ with tab_sitemap:
         html_from_crawl = build_html_sitemap(pages_records, target_site)
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.download_button("📥 sitemap.xml", data=xml_from_crawl, file_name="sitemap.xml", mime="application/xml", use_container_width=True, key="spider_dl_xml")
-        c2.download_button("🗜️ sitemap.xml.gz", data=gz_from_crawl, file_name="sitemap.xml.gz", mime="application/gzip", use_container_width=True, key="spider_dl_gz")
-        c3.download_button("📄 urllist.txt", data=txt_from_crawl, file_name="urllist.txt", mime="text/plain", use_container_width=True, key="spider_dl_txt")
-        c4.download_button("🌐 sitemap.html", data=html_from_crawl, file_name="sitemap.html", mime="text/html", use_container_width=True, key="spider_dl_html")
+        c1.download_button("📥 sitemap.xml", data=xml_from_crawl, file_name=make_clean_export_filename("Sitemap", target_site, "xml"), mime="application/xml", use_container_width=True, key="spider_dl_xml")
+        c2.download_button("🗜️ sitemap.xml.gz", data=gz_from_crawl, file_name=make_clean_export_filename("Sitemap", target_site, "xml.gz"), mime="application/gzip", use_container_width=True, key="spider_dl_gz")
+        c3.download_button("📄 urllist.txt", data=txt_from_crawl, file_name=make_clean_export_filename("URL_List", target_site, "txt"), mime="text/plain", use_container_width=True, key="spider_dl_txt")
+        c4.download_button("🌐 sitemap.html", data=html_from_crawl, file_name=make_clean_export_filename("Sitemap", target_site, "html"), mime="text/html", use_container_width=True, key="spider_dl_html")
     else:
         st.info("ℹ️ Run an audit from the sidebar to immediately export standard sitemaps, or select **'🗺️ XML Sitemap Generator'** in the sidebar to generate a sitemap on-demand.")
