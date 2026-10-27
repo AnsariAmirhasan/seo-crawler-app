@@ -91,13 +91,55 @@ html, body, [class*="css"] {
     font-family: 'Space Grotesk', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* Hide Fork, GitHub icon, and View Source menu from top header */
+/* Keep top header clean but preserve sidebar expand toggle button */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+}
+
 [data-testid="stHeaderActionElements"],
-[data-testid="stToolbar"],
+[data-testid="stToolbarActions"],
+.stDeployButton,
 #MainMenu,
 footer {
     display: none !important;
     visibility: hidden !important;
+}
+
+/* Futuristic Cyber HUD Styling for Sidebar Expand / Collapse Controls */
+[data-testid="stToolbar"] {
+    background: transparent !important;
+    visibility: visible !important;
+}
+button[data-testid="stExpandSidebarButton"],
+button[data-testid="stSidebarCollapseButton"],
+[data-testid="collapsedControl"] {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    color: #FFC107 !important;
+    background: rgba(14, 20, 34, 0.9) !important;
+    border: 1px solid rgba(245, 158, 11, 0.5) !important;
+    border-radius: 9px !important;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.3) !important;
+    cursor: pointer !important;
+    transition: all 0.22s ease !important;
+    z-index: 999999 !important;
+}
+button[data-testid="stExpandSidebarButton"]:hover,
+button[data-testid="stSidebarCollapseButton"]:hover,
+[data-testid="collapsedControl"]:hover {
+    background: rgba(245, 158, 11, 0.25) !important;
+    border-color: #FFC107 !important;
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.65) !important;
+    transform: scale(1.08) !important;
+}
+button[data-testid="stExpandSidebarButton"] svg,
+button[data-testid="stSidebarCollapseButton"] svg,
+[data-testid="collapsedControl"] svg {
+    fill: #FFC107 !important;
+    color: #FFC107 !important;
 }
 
 /* Futuristic Deep-Space Cyber Background */
