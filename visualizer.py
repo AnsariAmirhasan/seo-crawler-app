@@ -8,7 +8,7 @@ except ImportError:
 import math
 from urllib.parse import urlparse
 
-FONT_FAMILY = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+FONT_FAMILY = "'Space Grotesk', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
 
 def create_health_gauge(score: int):
     """Generate an interactive modern Gauge chart for the SEO Health Score."""
@@ -20,7 +20,7 @@ def create_health_gauge(score: int):
         number={'suffix': "/100", 'font': {'size': 36, 'color': '#FFFFFF', 'family': FONT_FAMILY, 'weight': 800}},
         gauge={
             'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#64748B", 'tickfont': {'color': '#94A3B8'}},
-            'bar': {'color': "#6366F1", 'thickness': 0.26},
+            'bar': {'color': "#F59E0B", 'thickness': 0.28},
             'bgcolor': "rgba(30, 41, 59, 0.6)",
             'borderwidth': 1.5,
             'bordercolor': "rgba(71, 85, 105, 0.4)",

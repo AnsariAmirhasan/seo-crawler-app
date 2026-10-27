@@ -82,13 +82,13 @@ def make_clean_export_filename(prefix: str, url_or_domain: str, ext: str) -> str
     clean_ext = ext.lstrip(".")
     return f"{prefix}_{clean_domain}_{today_str}.{clean_ext}"
 
-# 2. Modern Universal Theme Styling
+# 2. Futuristic Cyber HUD Theme Styling
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Space+Grotesk:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
 
 html, body, [class*="css"] {
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Space Grotesk', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 /* Hide Fork, GitHub icon, and View Source menu from top header */
@@ -100,33 +100,63 @@ footer {
     visibility: hidden !important;
 }
 
-/* Background overrides */
+/* Futuristic Deep-Space Cyber Background */
 .stApp {
-    background-color: #0B0E14 !important;
+    background-color: #06080F !important;
+    background-image: 
+        radial-gradient(ellipse 90% 50% at 50% -12%, rgba(245, 158, 11, 0.16) 0%, transparent 55%),
+        radial-gradient(ellipse 70% 40% at 95% 15%, rgba(6, 182, 212, 0.10) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 35% at 5% 85%, rgba(139, 92, 246, 0.08) 0%, transparent 45%),
+        linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px) !important;
+    background-size: 100% 100%, 100% 100%, 100% 100%, 36px 36px, 36px 36px !important;
+    color: #F8FAFC !important;
 }
 
-/* Sidebar Custom Styling */
+/* Cyber Cockpit Sidebar */
 section[data-testid="stSidebar"] {
-    background-color: #0D1118 !important;
-    border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+    background: rgba(7, 10, 18, 0.94) !important;
+    backdrop-filter: blur(28px) !important;
+    border-right: 1px solid rgba(245, 158, 11, 0.22) !important;
+    box-shadow: 12px 0 35px rgba(0, 0, 0, 0.75), inset -1px 0 0 rgba(255, 255, 255, 0.03) !important;
 }
 
-/* Radio Navigation Pills in Sidebar */
+/* Radio Navigation Pills in Sidebar - Futuristic HUD Modules */
 div[data-testid="stRadio"] div[role="radiogroup"] {
-    gap: 6px !important;
+    gap: 7px !important;
 }
 div[data-testid="stRadio"] div[role="radiogroup"] > label {
-    border-radius: 10px !important;
-    padding: 8px 14px !important;
-    margin-bottom: 3px !important;
-    background: transparent !important;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    border-radius: 11px !important;
+    padding: 10px 14px !important;
+    margin-bottom: 2px !important;
+    background: rgba(14, 20, 34, 0.55) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    backdrop-filter: blur(12px) !important;
+    position: relative !important;
+    overflow: hidden !important;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
     cursor: pointer !important;
-    border: 1px solid transparent !important;
+}
+div[data-testid="stRadio"] div[role="radiogroup"] > label::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 20%;
+    height: 60%;
+    width: 3px;
+    background: transparent;
+    border-radius: 0 4px 4px 0;
+    transition: all 0.2s ease;
 }
 div[data-testid="stRadio"] div[role="radiogroup"] > label:hover {
-    background: rgba(255, 193, 7, 0.08) !important;
-    border-color: rgba(255, 193, 7, 0.25) !important;
+    background: rgba(245, 158, 11, 0.12) !important;
+    border-color: rgba(245, 158, 11, 0.45) !important;
+    transform: translateX(4px) !important;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.18) !important;
+}
+div[data-testid="stRadio"] div[role="radiogroup"] > label:hover::before {
+    background: #FFC107;
+    box-shadow: 0 0 10px #FFC107;
 }
 div[data-testid="stRadio"] div[role="radiogroup"] > label:hover p,
 div[data-testid="stRadio"] div[role="radiogroup"] > label:hover span {
@@ -136,12 +166,16 @@ div[data-testid="stRadio"] div[role="radiogroup"] > label:hover span {
 div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child {
     display: none !important;
 }
-/* Active Radio Item - Solid Yellow Pill with Bold Black Text */
+/* Active Radio Item - Solid Cyber Amber HUD Glow */
 div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"],
 div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) {
-    background: #FFC107 !important;
-    box-shadow: 0 4px 18px rgba(255, 193, 7, 0.4) !important;
-    border-color: #FFC107 !important;
+    background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%) !important;
+    border-color: #FDE047 !important;
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.4) !important;
+    transform: translateX(5px) !important;
+}
+div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked)::before {
+    background: #000000;
 }
 div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"] p,
 div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) p,
@@ -149,68 +183,80 @@ div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"] s
 div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) span {
     color: #000000 !important;
     font-weight: 800 !important;
+    font-family: 'Space Grotesk', sans-serif !important;
 }
 
-/* Primary Button Styling - Cyber Golden Yellow */
+/* Primary Button Styling - Luminous Plasma Energy */
 button[kind="primary"],
 button[data-testid="baseButton-primary"] {
-    background: #FFC107 !important;
+    background: linear-gradient(135deg, #FFC107 0%, #D97706 100%) !important;
     color: #000000 !important;
+    font-family: 'Space Grotesk', sans-serif !important;
     font-weight: 800 !important;
-    border: none !important;
-    border-radius: 10px !important;
-    box-shadow: 0 4px 18px rgba(255, 193, 7, 0.35) !important;
-    transition: all 0.2s ease !important;
+    letter-spacing: 0.05em !important;
+    border: 1px solid #FDE047 !important;
+    border-radius: 11px !important;
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.5) !important;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    position: relative !important;
+    overflow: hidden !important;
 }
 button[kind="primary"]:hover,
 button[data-testid="baseButton-primary"]:hover {
-    background: #FFD54F !important;
-    transform: translateY(-1px) !important;
-    box-shadow: 0 6px 24px rgba(255, 193, 7, 0.5) !important;
+    transform: translateY(-2px) scale(1.02) !important;
+    box-shadow: 0 0 35px rgba(245, 158, 11, 0.75), 0 8px 25px rgba(0, 0, 0, 0.5) !important;
 }
 button[kind="secondary"],
 button[data-testid="baseButton-secondary"] {
-    background: rgba(18, 22, 32, 0.85) !important;
-    color: #CBD5E1 !important;
+    background: rgba(14, 20, 32, 0.75) !important;
+    color: #E2E8F0 !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-weight: 700 !important;
     border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-radius: 10px !important;
-    transition: all 0.2s ease !important;
+    border-radius: 11px !important;
+    backdrop-filter: blur(12px) !important;
+    transition: all 0.25s ease !important;
 }
 button[kind="secondary"]:hover,
 button[data-testid="baseButton-secondary"]:hover {
-    border-color: #FFC107 !important;
-    color: #FFC107 !important;
-    background: rgba(255, 193, 7, 0.08) !important;
+    border-color: #38BDF8 !important;
+    color: #38BDF8 !important;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.35) !important;
+    background: rgba(56, 189, 248, 0.12) !important;
+    transform: translateY(-1px) !important;
 }
 
-/* Modern Pill Tab Styling */
+/* Modern HUD Pill Tab Ribbon */
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px !important;
-    background-color: rgba(14, 18, 26, 0.95) !important;
-    padding: 7px 10px !important;
+    background: rgba(10, 14, 24, 0.9) !important;
+    padding: 8px 12px !important;
     border-radius: 14px !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    backdrop-filter: blur(14px) !important;
-    margin-bottom: 1.5rem !important;
+    border: 1px solid rgba(245, 158, 11, 0.22) !important;
+    backdrop-filter: blur(20px) !important;
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.65), 0 0 22px rgba(245, 158, 11, 0.1) !important;
+    margin-bottom: 1.6rem !important;
 }
 .stTabs [data-baseweb="tab"] {
     border-radius: 10px !important;
-    padding: 8px 16px !important;
+    padding: 9px 18px !important;
+    font-family: 'Space Grotesk', sans-serif !important;
     font-weight: 600 !important;
     font-size: 0.88rem !important;
     color: #94A3B8 !important;
     border: none !important;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .stTabs [data-baseweb="tab"]:hover {
     color: #FFFFFF !important;
-    background: rgba(255, 255, 255, 0.06) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.12) !important;
 }
 .stTabs [aria-selected="true"] {
-    background: #FFC107 !important;
+    background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%) !important;
     color: #000000 !important;
     font-weight: 800 !important;
-    box-shadow: 0 4px 16px rgba(255, 193, 7, 0.35) !important;
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.4) !important;
 }
 .stTabs [aria-selected="true"] p,
 .stTabs [aria-selected="true"] span {
@@ -218,51 +264,100 @@ button[data-testid="baseButton-secondary"]:hover {
     font-weight: 800 !important;
 }
 
-/* Input & Select Custom Styling */
+/* Input & Select Custom Styling - Futuristic Terminal Cockpit */
 div[data-baseweb="input"] {
-    background-color: #121620 !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-radius: 10px !important;
+    background-color: rgba(11, 16, 26, 0.92) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 11px !important;
+    backdrop-filter: blur(14px) !important;
+    transition: all 0.25s ease !important;
 }
 div[data-baseweb="input"]:focus-within {
     border-color: #FFC107 !important;
-    box-shadow: 0 0 0 1px #FFC107 !important;
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.4), inset 0 0 12px rgba(245, 158, 11, 0.1) !important;
+}
+div[data-baseweb="input"] input {
+    font-family: 'JetBrains Mono', 'Space Grotesk', monospace !important;
+    font-size: 0.92rem !important;
+    color: #F8FAFC !important;
 }
 div[data-baseweb="select"] > div {
-    background-color: #121620 !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-radius: 10px !important;
+    background-color: rgba(11, 16, 26, 0.92) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 11px !important;
+    backdrop-filter: blur(14px) !important;
+    transition: all 0.25s ease !important;
+}
+div[data-baseweb="select"] > div:focus-within {
+    border-color: #38BDF8 !important;
+    box-shadow: 0 0 22px rgba(56, 189, 248, 0.35) !important;
 }
 
-/* KPI Metric Cards (Gold Theme) */
+/* Cyber HUD KPI Metric Cards */
 .kpi-card-gold {
-    background: linear-gradient(180deg, rgba(22, 27, 36, 0.95) 0%, rgba(14, 18, 26, 0.98) 100%);
-    padding: 1.1rem 1.2rem;
+    background: linear-gradient(145deg, rgba(14, 20, 32, 0.88) 0%, rgba(8, 12, 20, 0.96) 100%);
+    padding: 1.25rem 1.3rem;
     border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
     position: relative;
-    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.kpi-card-gold::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 32px;
+    height: 2px;
+    background: linear-gradient(90deg, #FFC107, transparent);
+}
+.kpi-card-gold::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 32px;
+    height: 2px;
+    background: linear-gradient(270deg, #38BDF8, transparent);
 }
 .kpi-card-gold:hover {
-    transform: translateY(-2px);
-    border-color: rgba(255, 193, 7, 0.5);
-    box-shadow: 0 8px 25px rgba(255, 193, 7, 0.15);
+    transform: translateY(-4px) scale(1.01);
+    border-color: rgba(245, 158, 11, 0.55);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7), 0 0 25px rgba(245, 158, 11, 0.22);
+}
+
+/* Futuristic Pulsing Beacons */
+@keyframes hud-beacon-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.hud-beacon {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10B981;
+    animation: hud-beacon-pulse 2s infinite ease-in-out;
 }
 
 /* Hero Feature Cards */
 .feature-card {
-    background: linear-gradient(180deg, rgba(22, 27, 36, 0.7) 0%, rgba(14, 18, 26, 0.9) 100%);
+    background: linear-gradient(145deg, rgba(16, 22, 34, 0.8) 0%, rgba(9, 13, 20, 0.95) 100%);
     padding: 1.6rem;
     border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     height: 100%;
+    backdrop-filter: blur(16px);
     transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .feature-card:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 193, 7, 0.5);
-    box-shadow: 0 14px 28px -6px rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.55);
+    box-shadow: 0 14px 28px -6px rgba(255, 193, 7, 0.2);
 }
 .feature-icon-badge {
     width: 48px;
@@ -277,6 +372,7 @@ div[data-baseweb="select"] > div {
 .feature-title {
     font-size: 1.15rem;
     font-weight: 700;
+    font-family: 'Space Grotesk', sans-serif;
     color: #F8FAFC;
     margin-bottom: 0.5rem;
 }
@@ -287,87 +383,38 @@ div[data-baseweb="select"] > div {
     margin: 0;
 }
 
-/* SERP Google Preview Box */
-.serp-card {
-    background: #FFFFFF;
-    color: #202124;
-    padding: 1.35rem 1.6rem;
-    border-radius: 14px;
-    font-family: Roboto, Arial, sans-serif;
-    border: 1px solid #DADCE0;
-    box-shadow: 0 2px 10px rgba(32,33,36,0.1);
-    margin-top: 0.8rem;
-}
-.serp-card-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 4px;
-}
-.serp-favicon {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: #E8F0FE;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-}
-.serp-domain {
-    font-size: 0.88rem;
-    color: #202124;
-    font-weight: 500;
-}
-.serp-url-breadcrumb {
-    font-size: 0.78rem;
-    color: #5F6368;
-}
-.serp-title-link {
-    color: #1a0dab !important;
-    font-size: 1.28rem;
-    line-height: 1.35;
-    font-weight: 400;
-    margin-top: 3px;
-    margin-bottom: 4px;
-    cursor: pointer;
-}
-.serp-title-link:hover {
-    text-decoration: underline;
-}
-.serp-snippet {
-    color: #4d5156;
-    font-size: 0.9rem;
-    line-height: 1.5;
-}
-
-/* Status Chips */
+/* Status Chips with Neon Glow */
 .status-pill {
     display: inline-block;
     padding: 3px 10px;
     border-radius: 6px;
     font-size: 0.78rem;
     font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
 }
 .status-green {
     background: rgba(16, 185, 129, 0.15);
     color: #34D399;
     border: 1px solid rgba(16, 185, 129, 0.35);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
 }
 .status-purple {
     background: rgba(168, 85, 247, 0.15);
     color: #C084FC;
     border: 1px solid rgba(168, 85, 247, 0.35);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
 }
 .status-amber {
     background: rgba(245, 158, 11, 0.15);
     color: #FBBF24;
     border: 1px solid rgba(245, 158, 11, 0.35);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
 }
 .status-red {
     background: rgba(239, 68, 68, 0.15);
     color: #F87171;
     border: 1px solid rgba(239, 68, 68, 0.35);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -376,22 +423,29 @@ div[data-baseweb="select"] > div {
 with st.sidebar:
     app_icon_b64 = get_asset_base64(APP_ICON_PATH)
     st.markdown(f"""
-    <div style="padding: 0.2rem 0 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 1rem;">
+    <div style="padding: 0.4rem 0 1.2rem; border-bottom: 1px solid rgba(245, 158, 11, 0.2); margin-bottom: 1.2rem; position: relative;">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <img src="data:image/png;base64,{app_icon_b64}" width="48" height="48" style="border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.6), 0 0 14px rgba(255, 193, 7, 0.3); flex-shrink: 0;" />
+            <div style="position: relative; flex-shrink: 0;">
+                <img src="data:image/png;base64,{app_icon_b64}" width="52" height="52" style="border-radius: 14px; box-shadow: 0 0 20px rgba(245, 158, 11, 0.4), 0 4px 14px rgba(0,0,0,0.8); border: 1px solid rgba(255, 193, 7, 0.4);" />
+                <span class="hud-beacon" style="position: absolute; bottom: -2px; right: -2px;"></span>
+            </div>
             <div>
-                <div style="font-size: 1.48rem; font-weight: 900; line-height: 1.15; letter-spacing: -0.02em;">
-                    <span style="color: #FFFFFF;">Crawl</span><span style="color: #FFC107;">Pilot</span>
+                <div style="font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 1.55rem; font-weight: 900; line-height: 1.1; letter-spacing: -0.01em;">
+                    <span style="color: #FFFFFF; text-shadow: 0 0 15px rgba(255,255,255,0.4);">CRAWL</span><span style="color: #FFC107; text-shadow: 0 0 20px rgba(255, 193, 7, 0.6);">PILOT</span>
                 </div>
-                <div style="font-size: 0.55rem; color: #CBD5E1; font-weight: 800; letter-spacing: 0.12em; margin-top: 5px; text-transform: uppercase; white-space: nowrap;">
-                    CRAWL <span style="color: #FFC107;">•</span> ANALYZE <span style="color: #FFC107;">•</span> OPTIMIZE <span style="color: #FFC107;">•</span> RANK
+                <div style="font-size: 0.58rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: 0.16em; margin-top: 4px; text-transform: uppercase; white-space: nowrap;">
+                    QUANTUM TECHNICAL SEO
                 </div>
             </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 4px 8px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;">
+            <span style="color: #34D399; display: flex; align-items: center; gap: 6px;"><span class="hud-beacon"></span> CORE SYSTEM</span>
+            <span style="color: #94A3B8;">v2.4 [ACTIVE]</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<div style='font-size: 0.85rem; font-weight: 700; color: #94A3B8; margin-bottom: 6px;'>🧭 Tools & Modules</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family: \"JetBrains Mono\", monospace; font-size: 0.72rem; font-weight: 700; color: #64748B; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px;'>[ HUD_MODULES ]</div>", unsafe_allow_html=True)
     selected_tool = st.radio(
         "Select Active Tool",
         options=[
@@ -410,16 +464,20 @@ with st.sidebar:
     )
 
     st.markdown("""
-    <div style="background: rgba(18, 22, 32, 0.85); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 12px; padding: 1rem 1.1rem; margin-top: 1.2rem;">
-        <div style="font-weight: 800; color: #F8FAFC; margin-bottom: 10px; font-size: 0.86rem; display: flex; align-items: center; gap: 6px;">
-            <span style="color: #FFC107;">⚡</span> Crawl Engine Specs:
+    <div style="background: linear-gradient(145deg, rgba(14, 20, 32, 0.9) 0%, rgba(8, 12, 20, 0.95) 100%); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 14px; padding: 1.1rem; margin-top: 1.2rem; box-shadow: 0 8px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05); position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 0; right: 0; width: 45px; height: 45px; background: radial-gradient(circle at top right, rgba(245, 158, 11, 0.28), transparent 70%);"></div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px;">
+            <div style="font-weight: 800; color: #F8FAFC; font-size: 0.78rem; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; display: flex; align-items: center; gap: 7px;">
+                <span style="color: #FFC107;">⚡</span> ENGINE TELEMETRY
+            </div>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: #34D399; background: rgba(16, 185, 129, 0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.3);">ONLINE</span>
         </div>
-        <div style="font-size: 0.82rem; color: #CBD5E1; line-height: 1.85;">
-            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> <b>10,000 URLs</b> <span style="color: #64748B;">(Fixed Capacity)</span></div>
-            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Max 25 Click Depth (Deep Crawl)</div>
-            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> 12 Multi-Threaded Workers</div>
-            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Chrome Desktop (WAF Safe)</div>
-            <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Multi-Tab Excel Export</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #CBD5E1; line-height: 2.1;">
+            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">CAPACITY:</span> <b style="color: #FFC107;">10,000 URLs</b></div>
+            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">CLICK DEPTH:</span> <b style="color: #38BDF8;">25 Clicks (Deep)</b></div>
+            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">WORKERS:</span> <b style="color: #A78BFA;">12 Concurrent</b></div>
+            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">WAF SHIELD:</span> <b style="color: #34D399;">Active (Chrome v130)</b></div>
+            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">EXPORTS:</span> <b style="color: #F8FAFC;">Multi-Tab Excel+Doc</b></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -764,25 +822,42 @@ is_crawling_active = st.session_state.get("is_crawling", False)
 if not has_crawl_results and not is_crawling_active:
     spider_logo_b64 = get_asset_base64(SPIDER_LOGO_PATH)
     st.html(f"""
-    <div style="background: radial-gradient(130% 120% at 85% 30%, #1e1908 0%, #121622 55%, #0B0E14 100%); padding: 2.2rem 2.6rem; border-radius: 20px; border: 1px solid rgba(255, 193, 7, 0.25); margin-bottom: 1.5rem; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.7); position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+    <div style="background: radial-gradient(125% 120% at 85% 25%, rgba(245, 158, 11, 0.18) 0%, rgba(18, 24, 38, 0.9) 45%, rgba(6, 9, 16, 0.98) 100%); padding: 2.4rem 2.8rem; border-radius: 20px; border: 1px solid rgba(245, 158, 11, 0.35); margin-bottom: 1.6rem; box-shadow: 0 24px 50px -10px rgba(0,0,0,0.8), 0 0 35px rgba(245, 158, 11, 0.12); position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 24px; backdrop-filter: blur(20px);">
+        <!-- Ambient Cyber Glows -->
+        <div style="position: absolute; top: -40px; right: 15%; width: 220px; height: 180px; background: radial-gradient(circle, rgba(245, 158, 11, 0.25) 0%, transparent 70%); pointer-events: none;"></div>
+        <div style="position: absolute; bottom: -30px; left: 10%; width: 180px; height: 140px; background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 70%); pointer-events: none;"></div>
+        
         <div style="flex: 1.3; min-width: 320px; z-index: 2;">
-            <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 193, 7, 0.12); color: #FFC107; border: 1px solid rgba(255, 193, 7, 0.35); padding: 5px 14px; border-radius: 9999px; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1rem;">
-                <span>⚡</span> ENTERPRISE-READY TECHNICAL SEO ENGINE
+            <!-- Telemetry Status Pills -->
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem;">
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em; box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);">
+                    <span class="hud-beacon"></span> SYSTEM ONLINE
+                </div>
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(245, 158, 11, 0.1); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.3); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
+                    <span>⚡</span> QUANTUM SPIDER V2.4
+                </div>
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(6, 182, 212, 0.1); color: #38BDF8; border: 1px solid rgba(6, 182, 212, 0.3); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
+                    <span>🤖</span> AI: GEMINI 4 ARGON
+                </div>
             </div>
-            <h1 style="font-size: 3rem; font-weight: 900; margin: 0 0 0.25rem 0; line-height: 1.1; letter-spacing: -0.03em;">
-                <span style="color: #FFFFFF; text-shadow: 0 0 30px rgba(255,255,255,0.25);">Crawl</span><span style="color: #FFC107; text-shadow: 0 0 30px rgba(255,193,7,0.45);">Pilot</span>
+
+            <h1 style="font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 3.1rem; font-weight: 900; margin: 0 0 0.3rem 0; line-height: 1.08; letter-spacing: -0.02em;">
+                <span style="color: #FFFFFF; text-shadow: 0 0 35px rgba(255,255,255,0.4);">CRAWL</span><span style="background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 35px rgba(255,193,7,0.5);">PILOT</span>
             </h1>
-            <div style="font-size: 0.82rem; color: #E2E8F0; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 0.9rem;">
-                CRAWL <span style="color: #FFC107;">•</span> ANALYZE <span style="color: #FFC107;">•</span> OPTIMIZE <span style="color: #FFC107;">•</span> RANK
+            <div style="font-size: 0.76rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; margin-bottom: 0.95rem;">
+                CRAWL <span style="color: #FFC107;">•</span> ANALYZE <span style="color: #38BDF8;">•</span> OPTIMIZE <span style="color: #10B981;">•</span> DOMINATE
             </div>
-            <p style="color: #94A3B8; font-size: 1.05rem; max-width: 680px; margin: 0; line-height: 1.6;">
-                Enter any website URL to audit internal links, canonical tags, titles, headings, images and more up to 10,000 URLs. <b style="color: #FFC107;">Fast. Accurate. Actionable.</b>
+            <p style="color: #CBD5E1; font-size: 1.02rem; max-width: 660px; margin: 0; line-height: 1.65; font-family: 'Space Grotesk', sans-serif;">
+                High-precision autonomous technical SEO crawler. Deep audit internal links, canonical integrity, metadata, status codes, and Core Web Vitals up to 10,000 URLs with automated WAF bypass.
             </p>
         </div>
-        <div style="position: relative; text-align: center; z-index: 2; padding-right: 15px;">
-            <img src="data:image/png;base64,{spider_logo_b64}" width="185" style="filter: drop-shadow(0 10px 25px rgba(255, 193, 7, 0.35)); max-width: 100%;" />
-            <div style="font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif; font-size: 1.25rem; color: #FDE047; transform: rotate(-4deg); margin-top: 4px; text-shadow: 0 2px 8px rgba(0,0,0,0.8);">
-                Crawl • Analyze • Optimize • Rank
+
+        <div style="position: relative; text-align: center; z-index: 2; padding: 10px 20px;">
+            <div style="position: relative; display: inline-block; padding: 14px; background: rgba(10, 14, 24, 0.6); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 50%; box-shadow: 0 0 35px rgba(245, 158, 11, 0.25), inset 0 0 20px rgba(245, 158, 11, 0.15);">
+                <img src="data:image/png;base64,{spider_logo_b64}" width="165" style="filter: drop-shadow(0 0 25px rgba(255, 193, 7, 0.55)); display: block;" />
+            </div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #FCD34D; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 10px; text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);">
+                TARGET RADAR :: ARMED
             </div>
         </div>
     </div>
@@ -917,97 +992,111 @@ active_crawl_site = (results.get("start_url", "") if isinstance(results, dict) e
 # ==============================================================================
 with tab_overview:
     if not results:
-        # 6 KPI Metric Cards Showcase (Matching screenshot design)
+        # 6 Futuristic Cyber HUD Telemetry Cards Showcase
         st.html("""
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 1.4rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 1.6rem;">
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🔗</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↑ 12%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(255, 193, 7, 0.25);">🔗</div>
+                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↑ 12%</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Internal Links</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">2,458</div>
+                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Internal Links</div>
+                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">2,458</div>
+                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 78%; height: 100%; background: linear-gradient(90deg, #FFC107, transparent);"></div></div>
             </div>
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">📄</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↑ 8%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(99, 102, 241, 0.25);">📄</div>
+                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↑ 8%</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Pages Crawled</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">1,245</div>
+                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Pages Crawled</div>
+                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">1,245</div>
+                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 62%; height: 100%; background: linear-gradient(90deg, #818CF8, transparent);"></div></div>
             </div>
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">❗</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 24%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(239, 68, 68, 0.25);">❗</div>
+                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 24%</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Issues Found</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">186</div>
+                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Issues Found</div>
+                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #F87171; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(239, 68, 68, 0.3);">186</div>
+                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 45%; height: 100%; background: linear-gradient(90deg, #EF4444, transparent);"></div></div>
             </div>
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🏷️</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 40%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(245, 158, 11, 0.25);">🏷️</div>
+                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 40%</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Missing Titles</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">12</div>
+                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Missing Titles</div>
+                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">12</div>
+                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 25%; height: 100%; background: linear-gradient(90deg, #F59E0B, transparent);"></div></div>
             </div>
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🖼️</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 18%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(6, 182, 212, 0.12); border: 1px solid rgba(6, 182, 212, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(6, 182, 212, 0.25);">🖼️</div>
+                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 18%</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Missing Images Alt</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">34</div>
+                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Missing Images Alt</div>
+                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">34</div>
+                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 40%; height: 100%; background: linear-gradient(90deg, #06B6D4, transparent);"></div></div>
             </div>
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">⚡</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 28%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(255, 193, 7, 0.25);">⚡</div>
+                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 28%</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Avg. Response Time</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">312 ms</div>
+                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Avg. Latency</div>
+                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #38BDF8; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(56, 189, 248, 0.3);">312 ms</div>
+                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 85%; height: 100%; background: linear-gradient(90deg, #38BDF8, transparent);"></div></div>
             </div>
         </div>
         """)
 
-        # Zero Limitations Feature Showcase Card
+        # Quantum Capabilities Matrix Showcase Card
         st.html("""
-        <div style="background: linear-gradient(135deg, rgba(18, 22, 32, 0.95) 0%, rgba(11, 14, 20, 0.98) 100%); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 18px; padding: 2.2rem 2.4rem; margin-top: 0.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2rem; box-shadow: 0 16px 36px rgba(0,0,0,0.5);">
-            <div style="flex: 1.2; min-width: 280px;">
-                <h2 style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin: 0 0 0.6rem 0; letter-spacing: -0.02em;">
-                    Ready to Audit Any Website with <span style="color: #FFC107;">Zero Limitations</span>
+        <div style="background: linear-gradient(135deg, rgba(16, 22, 36, 0.92) 0%, rgba(9, 13, 22, 0.98) 100%); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 18px; padding: 2.4rem 2.6rem; margin-top: 0.8rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2rem; box-shadow: 0 20px 45px rgba(0,0,0,0.65), 0 0 30px rgba(245, 158, 11, 0.08); position: relative; overflow: hidden; backdrop-filter: blur(20px);">
+            <div style="position: absolute; top: -50px; left: -50px; width: 150px; height: 150px; background: radial-gradient(circle, rgba(245, 158, 11, 0.18) 0%, transparent 70%); pointer-events: none;"></div>
+            
+            <div style="flex: 1.2; min-width: 280px; position: relative; z-index: 2;">
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #FFC107; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 6px;">
+                    MISSION CONTROL • ZERO LIMITATIONS
+                </div>
+                <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; color: #FFFFFF; margin: 0 0 0.6rem 0; letter-spacing: -0.02em;">
+                    Autonomous Technical SEO <span style="background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Intelligence</span>
                 </h2>
-                <p style="color: #94A3B8; font-size: 0.96rem; line-height: 1.6; max-width: 520px; margin: 0 0 1.2rem 0;">
-                    Enter your target URL in the search bar, select your crawl mode, and click Start. The crawler will audit internal links, canonical tags, metadata, status codes, images, and headings up to 10,000 URLs.
+                <p style="color: #94A3B8; font-size: 0.98rem; line-height: 1.65; max-width: 520px; margin: 0; font-family: 'Space Grotesk', sans-serif;">
+                    Input target URL, select crawl depth, and engage. The multi-threaded quantum engine analyzes HTTP response codes, canonical directives, metadata anomalies, and image sizes at warp speed.
                 </p>
             </div>
-            <div style="flex: 1; min-width: 260px;">
-                <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.88rem; color: #CBD5E1;">
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Fast & Accurate Crawling</div>
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Detailed Issue Reports</div>
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Actionable SEO Insights</div>
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Export to Excel</div>
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">✔</span> Built for SEOs, Agencies & Businesses</div>
+
+            <div style="flex: 1; min-width: 260px; position: relative; z-index: 2;">
+                <div style="display: flex; flex-direction: column; gap: 11px; font-size: 0.88rem; color: #CBD5E1; font-family: 'Space Grotesk', sans-serif;">
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #34D399; font-weight: 800;">⚡</span> <b>High-Speed Multi-Thread Crawler</b> (10,000 URLs)</div>
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #38BDF8; font-weight: 800;">⚡</span> <b>Automated SiteGround / Cloudflare WAF Bypass</b></div>
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">⚡</span> <b>AI Action Plan Generation</b> (Gemini 4 Argon)</div>
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #A78BFA; font-weight: 800;">⚡</span> <b>Client-Ready Excel (.XLSX) & Word (.DOCX) Reports</b></div>
                 </div>
             </div>
-            <div style="flex: 0.8; min-width: 220px; text-align: center; position: relative;">
-                <div style="background: rgba(14, 18, 26, 0.95); border: 1px solid rgba(255, 193, 7, 0.35); border-radius: 14px; padding: 16px 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); text-align: left;">
-                    <div style="display: flex; align-items: center; gap: 8px; color: #FFFFFF; font-weight: 700; font-size: 0.88rem; margin-bottom: 8px;">
-                        <span>🔍</span> Crawl
+
+            <div style="flex: 0.8; min-width: 220px; text-align: center; position: relative; z-index: 2;">
+                <div style="background: rgba(8, 12, 22, 0.95); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 14px; padding: 18px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.7), inset 0 0 15px rgba(245, 158, 11, 0.05); text-align: left;">
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #94A3B8; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.1em;">
+                        EXECUTION PIPELINE
                     </div>
-                    <div style="display: flex; align-items: center; gap: 8px; color: #CBD5E1; font-weight: 600; font-size: 0.88rem; margin-bottom: 8px;">
-                        <span>📊</span> Analyze
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 700; color: #FFFFFF;">
+                            <span>01. CRAWL</span> <span style="color: #34D399; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(16,185,129,0.1); padding: 2px 6px; border-radius: 4px;">ARMED</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 600; color: #CBD5E1;">
+                            <span>02. ANALYZE</span> <span style="color: #38BDF8; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px;">READY</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 600; color: #CBD5E1;">
+                            <span>03. FIX</span> <span style="color: #FFC107; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(255,193,7,0.1); padding: 2px 6px; border-radius: 4px;">AUTO</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 700; color: #FFC107;">
+                            <span>04. DOMINATE</span> <span style="color: #A78BFA; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(167,139,250,0.1); padding: 2px 6px; border-radius: 4px;">TARGET</span>
+                        </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 8px; color: #CBD5E1; font-weight: 600; font-size: 0.88rem; margin-bottom: 8px;">
-                        <span>🔧</span> Fix
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px; color: #FFC107; font-weight: 700; font-size: 0.88rem;">
-                        <span>🏆</span> Rank
-                    </div>
-                </div>
-                <div style="font-family: 'Brush Script MT', 'Caveat', cursive, sans-serif; font-size: 1.15rem; color: #FCD34D; transform: rotate(8deg); margin-top: 8px;">
-                    Audit Optimize Dominate
                 </div>
             </div>
         </div>
@@ -1037,71 +1126,89 @@ with tab_overview:
         total_crawled_val = summary.get('total_crawled', len(df_pages))
         issues_val = summary.get('critical_errors', 0) + summary.get('warnings', 0)
 
-        # Target Quick Status Strip
+        # Futuristic Target Quick Status Strip
         st.html(f"""
-        <div style="background:rgba(18,22,32,0.85); border:1px solid rgba(255,193,7,0.25); border-radius:12px; padding:12px 18px; margin-bottom:1.2rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-            <div>
-                <span style="color:#94A3B8; font-size:0.85rem; font-weight:600; text-transform:uppercase;">Audited Website:</span>
-                <span style="color:#FFC107; font-weight:800; margin-left:8px; font-size:1.05rem;">{target}</span>
+        <div style="background: linear-gradient(135deg, rgba(8, 12, 22, 0.95), rgba(13, 19, 33, 0.9)); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; padding: 14px 20px; margin-bottom: 1.4rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span class="hud-beacon"></span>
+                <div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #38BDF8; letter-spacing: 0.1em; text-transform: uppercase;">
+                        TARGET FLIGHT TELEMETRY
+                    </div>
+                    <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.1rem; font-weight: 800; color: #FFC107;">
+                        {target}
+                    </div>
+                </div>
             </div>
-            <div style="display:flex; gap:16px; font-size:0.85rem; color:#94A3B8;">
-                <span>⏱️ Crawl Time: <b style="color:#CBD5E1;">{elapsed}s</b></span>
-                <span>⚡ Avg Latency: <b style="color:#CBD5E1;">{avg_latency} ms</b></span>
-                <span>🔒 HTTPS Pages: <b style="color:#CBD5E1;">{https_count} / {len(df_pages)}</b></span>
+            <div style="display: flex; gap: 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #94A3B8; flex-wrap: wrap;">
+                <span style="background: rgba(255,255,255,0.04); padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">⏱️ SCAN: <b style="color: #F8FAFC;">{elapsed}s</b></span>
+                <span style="background: rgba(255,255,255,0.04); padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">⚡ LATENCY: <b style="color: #38BDF8;">{avg_latency} ms</b></span>
+                <span style="background: rgba(255,255,255,0.04); padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">🔒 SSL PROTOCOL: <b style="color: #34D399;">{https_count}/{len(df_pages)} SECURE</b></span>
             </div>
         </div>
         """)
 
-        # 6 KPI Metric Cards with Live Data
+        # 6 Futuristic Cyber HUD KPI Cards with Live Crawl Data
         st.html(f"""
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 1.4rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 1.6rem;">
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🔗</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↑ 12%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; box-shadow: 0 0 12px rgba(245, 158, 11, 0.15);">🔗</div>
+                    <span style="background: rgba(16, 185, 129, 0.14); color: #34D399; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">LIVE</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Internal Links</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{total_links_val:,}</div>
+                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">INTERNAL LINKS</div>
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 30%, #CBD5E1 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-top: 4px; letter-spacing: -0.02em;">{total_links_val:,}</div>
+                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #F59E0B, #FFC107);"></div>
             </div>
+
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">📄</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↑ 8%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(56, 189, 248, 0.14); border: 1px solid rgba(56, 189, 248, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);">📄</div>
+                    <span style="background: rgba(16, 185, 129, 0.14); color: #34D399; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">TOTAL</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Pages Crawled</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{total_crawled_val:,}</div>
+                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">PAGES CRAWLED</div>
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 30%, #38BDF8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-top: 4px; letter-spacing: -0.02em;">{total_crawled_val:,}</div>
+                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #0284C7, #38BDF8);"></div>
             </div>
+
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">❗</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 24%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; box-shadow: 0 0 12px rgba(239, 68, 68, 0.15);">❗</div>
+                    <span style="background: rgba(239, 68, 68, 0.14); color: #F87171; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.25);">ANOMALIES</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Issues Found</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{issues_val:,}</div>
+                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">ISSUES DETECTED</div>
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 30%, #EF4444 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-top: 4px; letter-spacing: -0.02em;">{issues_val:,}</div>
+                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #DC2626, #F87171);"></div>
             </div>
+
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🏷️</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 40%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">🏷️</div>
+                    <span style="background: rgba(245, 158, 11, 0.14); color: #FBBF24; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.25);">META</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Missing Titles</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{missing_titles_cnt:,}</div>
+                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">MISSING TITLES</div>
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{missing_titles_cnt:,}</div>
+                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #D97706, #FBBF24);"></div>
             </div>
+
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">🖼️</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 18%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(6, 182, 212, 0.14); border: 1px solid rgba(6, 182, 212, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">🖼️</div>
+                    <span style="background: rgba(6, 182, 212, 0.14); color: #22D3EE; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(6, 182, 212, 0.25);">ASSETS</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Missing Images Alt</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{missing_alt_cnt:,}</div>
+                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">MISSING ALT</div>
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{missing_alt_cnt:,}</div>
+                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #0891B2, #22D3EE);"></div>
             </div>
+
             <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                    <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">⚡</div>
-                    <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 9999px;">↓ 28%</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(16, 185, 129, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">⚡</div>
+                    <span style="background: rgba(16, 185, 129, 0.14); color: #34D399; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">WARP</span>
                 </div>
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em;">Avg. Response Time</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{avg_latency} ms</div>
+                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">AVG LATENCY</div>
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 30%, #34D399 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-top: 4px; letter-spacing: -0.02em;">{avg_latency} <span style="font-size: 1rem; color: #94A3B8;">ms</span></div>
+                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #059669, #34D399);"></div>
             </div>
         </div>
         """)
