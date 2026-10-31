@@ -77,7 +77,13 @@ from full_site_seo_audit import (
     get_date_bounds,
     clean_ctr_val,
     read_csv_robust,
-    parse_gsc_and_ga4_upload
+    parse_gsc_and_ga4_upload,
+    fetch_live_gsc_search_analytics
+)
+
+from ga4_gsc_intelligence_engine import (
+    fetch_live_ga4_datasets,
+    generate_sample_ga4_datasets
 )
 
 from gsc_advanced_analyzer import (
@@ -85,7 +91,8 @@ from gsc_advanced_analyzer import (
     extract_brand_tokens,
     is_brand_query,
     export_action_plan_to_excel,
-    export_action_plan_to_docx
+    export_action_plan_to_docx,
+    generate_sample_gsc_data
 )
 
 
@@ -633,8 +640,515 @@ def add_insight_to_task_board(task_title: str, target_url: str, priority: str, i
 # MAIN PAGE RENDERER & INTERACTIVE DASHBOARD
 # ==============================================================================
 
+def load_complete_industrial_demo():
+    """
+    Loads unified, comprehensive industrial GSC + GA4 demo dataset and
+    populates ALL session state keys so that every tab (15-Tab suite,
+    Future Roadmap, Money Pages, Striking Distance, Cannibalization,
+    Revenue Simulator, etc.) is immediately fully populated without any
+    re-authentication prompts.
+    """
+    demo_queries = pd.DataFrame([
+        # Striking Distance (Pos 8-20, high impressions)
+        {"query": "cpvc butterfly valve price list", "page": "https://www.airaindia.com/product/cpvc-butterfly-valve/", "clicks": 115, "impressions": 12500, "ctr": 0.0092, "position": 9.4, "prev_clicks": 90, "prev_impressions": 11000},
+        {"query": "motorized ball valve 2 inch", "page": "https://www.airaindia.com/product/electrical-actuator-operated-valve/", "clicks": 88, "impressions": 9800, "ctr": 0.0090, "position": 11.2, "prev_clicks": 70, "prev_impressions": 8500},
+        {"query": "flanged ball valve dimensions chart", "page": "https://www.airaindia.com/product-category/ball-valve/", "clicks": 74, "impressions": 8400, "ctr": 0.0088, "position": 13.5, "prev_clicks": 60, "prev_impressions": 7200},
+        {"query": "pvc non return valve suppliers", "page": "https://www.airaindia.com/product-category/non-return-valve/", "clicks": 62, "impressions": 7600, "ctr": 0.0081, "position": 14.8, "prev_clicks": 55, "prev_impressions": 6900},
+        {"query": "high pressure solenoid valve india", "page": "https://www.airaindia.com/product-category/solenoid-valve/", "clicks": 54, "impressions": 6900, "ctr": 0.0078, "position": 12.1, "prev_clicks": 45, "prev_impressions": 6100},
+        {"query": "knife gate valve installation guide", "page": "https://www.airaindia.com/knife-edge-gate-valve/", "clicks": 450, "impressions": 12600, "ctr": 0.0357, "position": 12.4, "prev_clicks": 380, "prev_impressions": 10500},
+        {"query": "pneumatic actuator vs electric actuator", "page": "https://www.airaindia.com/product/pneumatic-actuator-butterfly-valve/", "clicks": 320, "impressions": 11400, "ctr": 0.0281, "position": 14.2, "prev_clicks": 270, "prev_impressions": 9900},
+        {"query": "ansi 150 valve pressure ratings", "page": "https://www.airaindia.com/technical-specs/valve-torque-calculator", "clicks": 180, "impressions": 15400, "ctr": 0.0117, "position": 18.2, "prev_clicks": 150, "prev_impressions": 13200},
+        {"query": "high temperature butterfly valve specs", "page": "https://www.airaindia.com/double-off-set-disc-wafer-type-butterfly-valve/", "clicks": 140, "impressions": 16800, "ctr": 0.0083, "position": 21.4, "prev_clicks": 120, "prev_impressions": 14500},
+
+        # CTR Opportunities (Pos <= 5, CTR < Expected Benchmark)
+        {"query": "industrial valves manufacturer", "page": "https://www.airaindia.com/", "clicks": 48, "impressions": 7800, "ctr": 0.0062, "position": 3.2, "prev_clicks": 42, "prev_impressions": 7200},
+        {"query": "upvc valve supplier in india", "page": "https://www.airaindia.com/", "clicks": 32, "impressions": 5400, "ctr": 0.0059, "position": 2.8, "prev_clicks": 30, "prev_impressions": 5100},
+        {"query": "pneumatic actuator butterfly valve", "page": "https://www.airaindia.com/product/pneumatic-actuator-butterfly-valve/", "clicks": 25, "impressions": 4200, "ctr": 0.0060, "position": 4.1, "prev_clicks": 22, "prev_impressions": 3900},
+        {"query": "best industrial valves", "page": "https://www.airaindia.com/products/", "clicks": 1420, "impressions": 18500, "ctr": 0.0768, "position": 4.2, "prev_clicks": 1250, "prev_impressions": 17200},
+        {"query": "electric actuator valve manufacturer", "page": "https://www.airaindia.com/product/electrical-actuator-operated-valve/", "clicks": 980, "impressions": 14200, "ctr": 0.0690, "position": 3.8, "prev_clicks": 860, "prev_impressions": 13100},
+
+        # Cannibalization (Multiple URLs splitting exact query)
+        {"query": "upvc butterfly valve manufacturer", "page": "https://www.airaindia.com/product/cpvc-butterfly-valve/", "clicks": 90, "impressions": 4600, "ctr": 0.0195, "position": 5.8, "prev_clicks": 85, "prev_impressions": 4200},
+        {"query": "upvc butterfly valve manufacturer", "page": "https://www.airaindia.com/products/", "clicks": 45, "impressions": 3800, "ctr": 0.0118, "position": 7.4, "prev_clicks": 40, "prev_impressions": 3400},
+        {"query": "upvc butterfly valve manufacturer", "page": "https://www.airaindia.com/", "clicks": 12, "impressions": 2100, "ctr": 0.0057, "position": 12.2, "prev_clicks": 10, "prev_impressions": 1900},
+
+        # Questions & Informational Queries
+        {"query": "how does a knife gate valve work", "page": "https://www.airaindia.com/knife-edge-gate-valve/", "clicks": 290, "impressions": 9800, "ctr": 0.0296, "position": 11.8, "prev_clicks": 250, "prev_impressions": 8900},
+        {"query": "what is an industrial valve actuator", "page": "https://www.airaindia.com/product/electrical-actuator-operated-valve/", "clicks": 260, "impressions": 8900, "ctr": 0.0292, "position": 13.5, "prev_clicks": 230, "prev_impressions": 8100},
+        {"query": "how does a pneumatic actuator valve work", "page": "https://www.airaindia.com/product/pneumatic-actuator-butterfly-valve/", "clicks": 85, "impressions": 6400, "ctr": 0.0132, "position": 6.8, "prev_clicks": 75, "prev_impressions": 5800},
+        {"query": "what is the difference between upvc and cpvc valve", "page": "https://www.airaindia.com/product/cpvc-butterfly-valve/", "clicks": 140, "impressions": 8900, "ctr": 0.0157, "position": 4.2, "prev_clicks": 120, "prev_impressions": 8100},
+        {"query": "which valve is best for chemical slurry", "page": "https://www.airaindia.com/product-category/ball-valve/", "clicks": 38, "impressions": 4100, "ctr": 0.0092, "position": 9.5, "prev_clicks": 32, "prev_impressions": 3700},
+
+        # Brand queries
+        {"query": "aira", "page": "https://www.airaindia.com/", "clicks": 107, "impressions": 5818, "ctr": 0.0184, "position": 3.4, "prev_clicks": 95, "prev_impressions": 5200},
+        {"query": "aira euro", "page": "https://www.airaindia.com/", "clicks": 96, "impressions": 628, "ctr": 0.1529, "position": 1.1, "prev_clicks": 90, "prev_impressions": 590},
+        {"query": "aira valves", "page": "https://www.airaindia.com/", "clicks": 88, "impressions": 445, "ctr": 0.1978, "position": 1.2, "prev_clicks": 82, "prev_impressions": 410}
+    ])
+
+    demo_pages = pd.DataFrame([
+        {"page": "https://www.airaindia.com/", "clicks": 2450, "impressions": 32400, "ctr": 0.0756, "position": 1.4, "prev_clicks": 3400, "prev_imp": 78000},
+        {"page": "https://www.airaindia.com/products/", "clicks": 1120, "impressions": 18200, "ctr": 0.0615, "position": 3.2, "prev_clicks": 2100, "prev_imp": 54000},
+        {"page": "https://www.airaindia.com/product/cpvc-butterfly-valve/", "clicks": 710, "impressions": 19000, "ctr": 0.0374, "position": 4.8, "prev_clicks": 620, "prev_imp": 16500},
+        {"page": "https://www.airaindia.com/product-category/ball-valve/", "clicks": 1450, "impressions": 38000, "ctr": 0.0382, "position": 5.2, "prev_clicks": 1800, "prev_imp": 42000},
+        {"page": "https://www.airaindia.com/product/pneumatic-actuator-butterfly-valve/", "clicks": 890, "impressions": 24000, "ctr": 0.0371, "position": 6.1, "prev_clicks": 1150, "prev_imp": 29000},
+        {"page": "https://www.airaindia.com/product/electrical-actuator-operated-valve/", "clicks": 620, "impressions": 16500, "ctr": 0.0376, "position": 5.9, "prev_clicks": 540, "prev_imp": 14200},
+        {"page": "https://www.airaindia.com/double-off-set-disc-wafer-type-butterfly-valve/", "clicks": 420, "impressions": 8900, "ctr": 0.0472, "position": 1.8, "prev_clicks": 390, "prev_imp": 8100},
+        {"page": "https://www.airaindia.com/knife-edge-gate-valve/", "clicks": 380, "impressions": 7400, "ctr": 0.0514, "position": 1.6, "prev_clicks": 350, "prev_imp": 6800},
+        {"page": "https://www.airaindia.com/technical-specs/valve-torque-calculator", "clicks": 85, "impressions": 34500, "ctr": 0.0025, "position": 65.4, "prev_clicks": 70, "prev_imp": 31000},
+        {"page": "https://www.airaindia.com/old-discontinued-valve-1999/", "clicks": 0, "impressions": 12, "ctr": 0.0, "position": 85.0, "prev_clicks": 0, "prev_imp": 12}
+    ])
+
+    demo_ga4 = pd.DataFrame([
+        {"norm_path": "/", "sessions": 4850, "engaged_sessions": 3420, "engagement_rate": 0.705, "avg_engagement_time_sec": 84.0, "conversions": 142, "conversion_rate": 0.029, "sessions_delta_pct": 5.4, "conversions_delta_pct": 8.1},
+        {"norm_path": "/products", "sessions": 2650, "engaged_sessions": 880, "engagement_rate": 0.332, "avg_engagement_time_sec": 24.0, "conversions": 0, "conversion_rate": 0.000, "sessions_delta_pct": -8.5, "conversions_delta_pct": 0.0},
+        {"norm_path": "/product/cpvc-butterfly-valve", "sessions": 1240, "engaged_sessions": 980, "engagement_rate": 0.790, "avg_engagement_time_sec": 110.0, "conversions": 48, "conversion_rate": 0.038, "sessions_delta_pct": 22.0, "conversions_delta_pct": 31.0},
+        {"norm_path": "/product-category/ball-valve", "sessions": 1100, "engaged_sessions": 720, "engagement_rate": 0.654, "avg_engagement_time_sec": 65.0, "conversions": 28, "conversion_rate": 0.025, "sessions_delta_pct": -34.2, "conversions_delta_pct": -28.0},
+        {"norm_path": "/product/pneumatic-actuator-butterfly-valve", "sessions": 740, "engaged_sessions": 510, "engagement_rate": 0.689, "avg_engagement_time_sec": 78.0, "conversions": 22, "conversion_rate": 0.029, "sessions_delta_pct": -38.5, "conversions_delta_pct": -30.0},
+        {"norm_path": "/product/electrical-actuator-operated-valve", "sessions": 380, "engaged_sessions": 310, "engagement_rate": 0.815, "avg_engagement_time_sec": 135.0, "conversions": 19, "conversion_rate": 0.050, "sessions_delta_pct": 14.5, "conversions_delta_pct": 26.0},
+        {"norm_path": "/double-off-set-disc-wafer-type-butterfly-valve", "sessions": 450, "engaged_sessions": 330, "engagement_rate": 0.733, "avg_engagement_time_sec": 72.0, "conversions": 14, "conversion_rate": 0.031, "sessions_delta_pct": 8.2, "conversions_delta_pct": 12.0},
+        {"norm_path": "/knife-edge-gate-valve", "sessions": 410, "engaged_sessions": 305, "engagement_rate": 0.744, "avg_engagement_time_sec": 68.0, "conversions": 16, "conversion_rate": 0.039, "sessions_delta_pct": 6.5, "conversions_delta_pct": 10.0},
+        {"norm_path": "/technical-specs/valve-torque-calculator", "sessions": 120, "engaged_sessions": 95, "engagement_rate": 0.792, "avg_engagement_time_sec": 145.0, "conversions": 5, "conversion_rate": 0.042, "sessions_delta_pct": 15.0, "conversions_delta_pct": 20.0},
+        {"norm_path": "/old-discontinued-valve-1999", "sessions": 2, "engaged_sessions": 0, "engagement_rate": 0.000, "avg_engagement_time_sec": 3.0, "conversions": 0, "conversion_rate": 0.000, "sessions_delta_pct": 0.0, "conversions_delta_pct": 0.0}
+    ])
+
+    demo_countries = pd.DataFrame([
+        {"country": "India", "clicks": 3450, "impressions": 42500, "ctr": 0.0812, "position": 5.2},
+        {"country": "United States", "clicks": 1240, "impressions": 32100, "ctr": 0.0386, "position": 9.8},
+        {"country": "United Arab Emirates", "clicks": 820, "impressions": 14800, "ctr": 0.0554, "position": 7.1},
+        {"country": "United Kingdom", "clicks": 540, "impressions": 12400, "ctr": 0.0435, "position": 11.2},
+        {"country": "Germany", "clicks": 410, "impressions": 9600, "ctr": 0.0427, "position": 12.5},
+        {"country": "Saudi Arabia", "clicks": 380, "impressions": 8900, "ctr": 0.0427, "position": 8.9}
+    ])
+
+    ga4_cached_dict = generate_sample_ga4_datasets("https://www.airaindia.com", demo_pages)
+
+    st.session_state["master_dataset"] = {
+        "queries": demo_queries,
+        "pages": demo_pages,
+        "ga4": demo_ga4,
+        "property_gsc": "https://www.airaindia.com",
+        "property_ga4": "Aira Euro Industrial GA4 (Demo)",
+        "date_range": "Last 28 Days (Industrial Demo)",
+        "is_mock": True
+    }
+
+    st.session_state["gsc_cached_data"] = {
+        "queries": demo_queries,
+        "pages": demo_pages,
+        "countries": demo_countries
+    }
+
+    st.session_state["ga4_cached_data"] = ga4_cached_dict
+    st.session_state["gsc_target_domain"] = "https://www.airaindia.com"
+    st.session_state["gsc_use_sample"] = True
+
+
+def sync_unified_data_state():
+    """Keeps master_dataset and gsc_cached_data / ga4_cached_data 100% synchronized in session state."""
+    master = st.session_state.get("master_dataset")
+    gsc = st.session_state.get("gsc_cached_data")
+
+    # If master has data but gsc does not
+    if master and isinstance(master, dict) and master.get("queries") is not None and not master["queries"].empty:
+        if not gsc or not isinstance(gsc, dict) or gsc.get("queries") is None or gsc["queries"].empty:
+            q_df = master["queries"].copy()
+            p_df = master.get("pages", pd.DataFrame()).copy()
+            c_df = pd.DataFrame([
+                {"country": "India", "clicks": int(q_df['clicks'].sum() * 0.70), "impressions": int(q_df['impressions'].sum() * 0.70), "ctr": 0.05, "position": 5.0},
+                {"country": "United States", "clicks": int(q_df['clicks'].sum() * 0.20), "impressions": int(q_df['impressions'].sum() * 0.20), "ctr": 0.04, "position": 8.0},
+                {"country": "United Arab Emirates", "clicks": int(q_df['clicks'].sum() * 0.10), "impressions": int(q_df['impressions'].sum() * 0.10), "ctr": 0.045, "position": 6.5}
+            ])
+            st.session_state["gsc_cached_data"] = {
+                "queries": q_df,
+                "pages": p_df,
+                "countries": c_df
+            }
+            if not st.session_state.get("gsc_target_domain"):
+                st.session_state["gsc_target_domain"] = master.get("property_gsc", "https://www.airaindia.com")
+
+    # If gsc has data but master does not
+    elif gsc and isinstance(gsc, dict) and gsc.get("queries") is not None and not gsc["queries"].empty:
+        if not master or not isinstance(master, dict) or master.get("queries") is None or master["queries"].empty:
+            q_df = gsc["queries"].copy()
+            p_df = gsc.get("pages", pd.DataFrame()).copy()
+            ga4_cached = st.session_state.get("ga4_cached_data", {})
+            ga4_df = ga4_cached.get("organic_landing", pd.DataFrame()) if isinstance(ga4_cached, dict) else pd.DataFrame()
+            if 'page' not in q_df.columns and not p_df.empty and 'page' in p_df.columns:
+                q_df['page'] = p_df['page'].iloc[0] if len(p_df) > 0 else "https://example.com/"
+
+            st.session_state["master_dataset"] = {
+                "queries": q_df,
+                "pages": p_df,
+                "ga4": ga4_df,
+                "property_gsc": st.session_state.get("gsc_target_domain", "Connected Domain"),
+                "property_ga4": ga4_cached.get("property_id", "GA4 Production") if isinstance(ga4_cached, dict) else "None",
+                "date_range": "Active Period",
+                "is_mock": st.session_state.get("gsc_use_sample", False)
+            }
+
+
+def has_active_seo_data() -> bool:
+    master = st.session_state.get("master_dataset")
+    if master and isinstance(master, dict) and master.get("queries") is not None and not master["queries"].empty:
+        return True
+    gsc = st.session_state.get("gsc_cached_data")
+    if gsc and isinstance(gsc, dict) and gsc.get("queries") is not None and not gsc["queries"].empty:
+        return True
+    return False
+
+
+def _render_data_ingestion_options(active_creds, client_id, client_secret, redirect_uri):
+    """Sub-panel to connect Google, load demo, or upload files."""
+    tab_demo, tab_oauth, tab_upload = st.tabs([
+        "🧪 1-Click Load Full Demo",
+        "🔑 Connect Live Google Account",
+        "📁 Upload GSC ZIP / CSV"
+    ])
+
+    with tab_demo:
+        st.markdown(
+            '<div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 10px; line-height: 1.5;">'
+            'Instantly explore all 15 SEO tabs, 30-Day Future Roadmap, Striking Distance, Cannibalization, and Revenue Simulation with rich industrial valve manufacturer dataset.'
+            '</div>',
+            unsafe_allow_html=True
+        )
+        if st.button("🚀 Load Full GSC + GA4 Industrial Demo (Instant Access to All Modules)", type="primary", use_container_width=True, key="hud_btn_load_demo_sub"):
+            load_complete_industrial_demo()
+            st.toast("✅ Full Industrial Demo Loaded across all modules!", icon="🚀")
+            st.rerun()
+
+    with tab_oauth:
+        if not GOOGLE_OAUTH_LIBS_AVAILABLE:
+            st.warning(f"⚠️ Google OAuth libraries installing. Details: `{GOOGLE_OAUTH_IMPORT_ERROR}`.")
+        elif active_creds:
+            with st.spinner("Auto-detecting verified Search Console & GA4 properties..."):
+                gsc_properties = fetch_live_gsc_properties(active_creds)
+                ga4_properties = fetch_live_ga4_properties(active_creds)
+
+            c_gsc, c_ga4, c_dt = st.columns([1.6, 1.8, 1.2])
+            with c_gsc:
+                selected_gsc_prop = st.selectbox("Select GSC Property", options=gsc_properties, key="hud_sel_gsc") if gsc_properties else st.text_input("GSC Site URL (e.g. sc-domain:example.com)", key="hud_in_gsc")
+            with c_ga4:
+                ga4_opts = ["None (Skip GA4)"] + [p["label"] for p in ga4_properties]
+                selected_ga4_lbl = st.selectbox("Select GA4 Property", options=ga4_opts, key="hud_sel_ga4")
+                selected_ga4_id = None
+                if selected_ga4_lbl != "None (Skip GA4)":
+                    for gp in ga4_properties:
+                        if gp["label"] == selected_ga4_lbl:
+                            selected_ga4_id = gp["id"]
+                            break
+            with c_dt:
+                date_choice = st.selectbox("Date Range", options=["Last 28 Days", "Last 3 Months", "Last 6 Months"], key="hud_sel_dates")
+
+            c_fetch, c_disc = st.columns([3.2, 1.2])
+            with c_fetch:
+                btn_fetch = st.button("🚀 Fetch & Join GSC + GA4 Intelligence", type="primary", use_container_width=True, key="hud_btn_fetch_live")
+            with c_disc:
+                if st.button("🚪 Disconnect Google", use_container_width=True, key="hud_btn_disc_google"):
+                    st.session_state.pop("g_oauth_creds", None)
+                    st.rerun()
+
+            if btn_fetch and selected_gsc_prop:
+                with st.spinner(f"Querying GSC & GA4 APIs for {selected_gsc_prop}..."):
+                    try:
+                        c_start, c_end, p_start, p_end = get_date_bounds(date_choice)
+                        q_live, p_live = fetch_live_gsc_search_analytics(
+                            active_creds, selected_gsc_prop, c_start, c_end, p_start, p_end
+                        )
+                        if selected_ga4_id:
+                            ga4_live = fetch_live_ga4_datasets(
+                                active_creds, selected_ga4_id, c_start, c_end, p_start, p_end
+                            )
+                            live_ga4_df = fetch_comprehensive_ga4_url_metrics(
+                                active_creds, selected_ga4_id, c_start, c_end, p_start, p_end
+                            )
+                        else:
+                            ga4_live = {"organic_landing": pd.DataFrame(), "lookup": {}, "has_ga4": False}
+                            live_ga4_df = pd.DataFrame()
+
+                        st.session_state["gsc_cached_data"] = {
+                            "queries": q_live,
+                            "pages": p_live
+                        }
+                        st.session_state["ga4_cached_data"] = ga4_live
+                        st.session_state["master_dataset"] = {
+                            "queries": q_live,
+                            "pages": p_live,
+                            "ga4": live_ga4_df,
+                            "property_gsc": selected_gsc_prop,
+                            "property_ga4": selected_ga4_id or "None",
+                            "date_range": f"{c_start} to {c_end}",
+                            "is_mock": False
+                        }
+                        st.session_state["gsc_target_domain"] = selected_gsc_prop
+                        st.session_state["gsc_use_sample"] = False
+                        st.toast(f"✅ Synchronized {len(q_live):,} rows across all modules!", icon="🚀")
+                        st.rerun()
+                    except Exception as ex:
+                        st.error(f"Error querying live Google APIs: {ex}")
+        else:
+            with st.expander("⚙️ Configure Google OAuth Credentials", expanded=(not client_id or not client_secret)):
+                ui_cid = st.text_input("Client ID", value=client_id, placeholder="xxxx.apps.googleusercontent.com", key="hud_oauth_cid")
+                ui_csec = st.text_input("Client Secret", value=client_secret, type="password", placeholder="GOCSPX-xxxx", key="hud_oauth_csec")
+                ui_ruri = st.text_input("Authorized Redirect URI", value=redirect_uri, key="hud_oauth_ruri")
+                if ui_cid:
+                    st.session_state["oauth_custom_client_id"] = ui_cid.strip()
+                    client_id = ui_cid.strip()
+                if ui_csec:
+                    st.session_state["oauth_custom_client_secret"] = ui_csec.strip()
+                    client_secret = ui_csec.strip()
+                if ui_ruri:
+                    st.session_state["oauth_custom_redirect_uri"] = ui_ruri.strip()
+                    redirect_uri = ui_ruri.strip()
+
+            if client_id and client_secret and create_oauth_flow:
+                try:
+                    auth_flow = create_oauth_flow(client_id, client_secret, redirect_uri)
+                    auth_url, _ = auth_flow.authorization_url(
+                        prompt="select_account consent",
+                        access_type="offline",
+                        include_granted_scopes="true"
+                    )
+                    st.link_button("🔐 Sign In With Google", url=auth_url, use_container_width=True, type="primary")
+                    st.markdown(
+                        f'<div style="text-align: center; margin-top: 6px;">'
+                        f'<a href="{auth_url}" target="_blank" rel="noopener noreferrer" style="color: #38BDF8; font-size: 0.85rem; text-decoration: underline; font-weight: 600;">'
+                        f'↗ Open Google Sign-In in a new tab'
+                        f'</a></div>',
+                        unsafe_allow_html=True
+                    )
+                except Exception as ex:
+                    st.warning(f"Notice initializing Google OAuth: {ex}")
+
+    with tab_upload:
+        uploaded_files = st.file_uploader(
+            "Upload Google Search Console Export (ZIP / CSV) & Optional GA4 Export:",
+            type=["zip", "csv"],
+            accept_multiple_files=True,
+            key="hud_uploader_files"
+        )
+        if uploaded_files:
+            parsed = parse_gsc_and_ga4_upload(uploaded_files)
+            if not parsed["queries"].empty:
+                st.session_state["master_dataset"] = {
+                    "queries": parsed["queries"],
+                    "pages": parsed["pages"],
+                    "ga4": parsed.get("ga4", pd.DataFrame()),
+                    "property_gsc": "Uploaded Files",
+                    "property_ga4": "None",
+                    "date_range": "Uploaded Period",
+                    "is_mock": False
+                }
+                st.session_state["gsc_cached_data"] = {
+                    "queries": parsed["queries"],
+                    "pages": parsed["pages"],
+                    "countries": pd.DataFrame()
+                }
+                st.session_state["gsc_use_sample"] = False
+                st.toast("✅ Files processed and synchronized across all modules!", icon="🚀")
+                st.rerun()
+
+
+def render_unified_master_control_hud():
+    """
+    Renders the unified top-level Master Control Bar that bridges:
+    1. Google Connection / Data Source Selection (OAuth 2.0, Demo, CSV/ZIP)
+    2. Global AI Setup (Gemini, OpenAI, Claude with shared API Key)
+    Across ALL tabs and modules in the entire studio.
+    """
+    client_id, client_secret, redirect_uri = get_oauth_config()
+
+    # 1. Process incoming OAuth callback code if present
+    auth_code = st.query_params.get("code")
+    if auth_code and client_id and client_secret and create_oauth_flow:
+        with st.spinner("Exchanging OAuth authorization code with Google Cloud..."):
+            try:
+                flow = create_oauth_flow(client_id, client_secret, redirect_uri)
+                flow.fetch_token(code=auth_code)
+                flow_creds = flow.credentials
+                st.session_state["g_oauth_creds"] = {
+                    "token": flow_creds.token,
+                    "refresh_token": flow_creds.refresh_token,
+                    "token_uri": flow_creds.token_uri,
+                    "client_id": flow_creds.client_id,
+                    "client_secret": flow_creds.client_secret,
+                    "scopes": flow_creds.scopes
+                }
+                st.query_params.clear()
+                st.success("✅ Successfully connected to Google Account!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Authentication token exchange failed: {e}")
+
+    sync_unified_data_state()
+    is_active = has_active_seo_data()
+    active_creds = get_authenticated_credentials()
+
+    # Master Control Card HTML Header
+    hud_card_html = (
+        '<div style="background: linear-gradient(135deg, rgba(14, 24, 44, 0.95) 0%, rgba(8, 14, 28, 0.98) 100%); '
+        'border: 1px solid rgba(0, 240, 255, 0.28); border-radius: 18px; padding: 1.4rem 1.8rem; margin-bottom: 1.4rem; '
+        'box-shadow: 0 15px 35px rgba(0,0,0,0.65), 0 0 25px rgba(0, 240, 255, 0.08); backdrop-filter: blur(20px);">'
+        '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px;">'
+        '<div style="display: flex; align-items: center; gap: 10px;">'
+        '<span style="font-size: 1.3rem;">⚡</span>'
+        '<div>'
+        '<span style="font-family: \'Orbitron\', sans-serif; font-size: 1.05rem; font-weight: 800; color: #FFFFFF; letter-spacing: 0.04em;">CRAWLPILOT GLOBAL MASTER CONTROL</span>'
+        '<span style="color: #94A3B8; font-size: 0.8rem; margin-left: 10px; font-family: \'Space Grotesk\', sans-serif;">Unified Data Acquisition & AI Intelligence Bridge</span>'
+        '</div>'
+        '</div>'
+        '<div style="display: flex; align-items: center; gap: 8px;">'
+        '<span class="hud-beacon"></span>'
+        '<span style="font-size: 0.75rem; font-family: \'JetBrains Mono\', monospace; color: #00F0FF; font-weight: 700;">SYNCHRONIZED STATE</span>'
+        '</div>'
+        '</div>'
+    )
+    st.markdown(hud_card_html, unsafe_allow_html=True)
+
+    col_data_hud, col_ai_hud = st.columns([1.6, 1.4], gap="medium")
+
+    # --------------------------------------------------------------------------
+    # LEFT COLUMN: GLOBAL DATA SOURCE & GOOGLE CONNECT
+    # --------------------------------------------------------------------------
+    with col_data_hud:
+        st.markdown(
+            '<div style="font-family: \'Space Grotesk\', sans-serif; font-weight: 700; color: #38BDF8; font-size: 0.95rem; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">'
+            '<span>🌐</span> 1. Global Data Engine (Search Console & GA4)'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+        if is_active:
+            master_data = st.session_state.get("master_dataset", {})
+            q_cnt = len(master_data.get("queries", pd.DataFrame()))
+            p_cnt = len(master_data.get("pages", pd.DataFrame()))
+            prop_name = master_data.get("property_gsc", "Active Dataset")
+            is_mock = master_data.get("is_mock", False)
+            source_badge_text = "Industrial Sample Dataset" if is_mock else "Live Google API"
+
+            st.markdown(f"""
+            <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                    <div>
+                        <div style="color: #34D399; font-weight: 800; font-size: 0.98rem; font-family: 'Space Grotesk', sans-serif;">
+                            🟢 Active: {prop_name}
+                        </div>
+                        <div style="color: #94A3B8; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;">
+                            {q_cnt:,} Queries • {p_cnt:,} URLs • {source_badge_text}
+                        </div>
+                    </div>
+                    <span style="background: rgba(16, 185, 129, 0.2); color: #6EE7B7; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.72rem; padding: 2px 8px; border-radius: 9999px; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
+                        DATA LINK READY
+                    </span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            c_act1, c_act2, c_act3 = st.columns([1.5, 1.3, 1.2])
+            with c_act1:
+                show_reconnect = st.toggle("🔄 Switch / Reconnect", value=False, key="hud_toggle_reconnect")
+            with c_act2:
+                if st.button("🧪 Reload Demo", use_container_width=True, key="hud_btn_reload_demo"):
+                    load_complete_industrial_demo()
+                    st.toast("✅ Industrial Demo Data Reloaded across all modules!", icon="🧪")
+                    st.rerun()
+            with c_act3:
+                if st.button("🚪 Disconnect", use_container_width=True, key="hud_btn_disconnect"):
+                    st.session_state.pop("master_dataset", None)
+                    st.session_state.pop("gsc_cached_data", None)
+                    st.session_state.pop("ga4_cached_data", None)
+                    st.session_state.pop("g_oauth_creds", None)
+                    st.session_state.pop("gsc_use_sample", None)
+                    st.session_state.pop("gsc_ai_action_plan", None)
+                    st.rerun()
+
+            if show_reconnect:
+                _render_data_ingestion_options(active_creds, client_id, client_secret, redirect_uri)
+
+        else:
+            _render_data_ingestion_options(active_creds, client_id, client_secret, redirect_uri)
+
+    # --------------------------------------------------------------------------
+    # RIGHT COLUMN: GLOBAL AI SETUP (ONE-TIME SETUP)
+    # --------------------------------------------------------------------------
+    with col_ai_hud:
+        st.markdown(
+            '<div style="font-family: \'Space Grotesk\', sans-serif; font-weight: 700; color: #A78BFA; font-size: 0.95rem; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">'
+            '<span>🤖</span> 2. Global AI SEO Intelligence (One-Time Setup)'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+        global_ai_key = st.session_state.get("global_ai_api_key", "").strip() or st.session_state.get("api_key_Google Gemini", "").strip() or st.session_state.get("api_key_ChatGPT (OpenAI)", "").strip() or st.session_state.get("api_key_Claude (Anthropic)", "").strip()
+        saved_provider = st.session_state.get("global_ai_provider", "Google Gemini")
+        saved_model = st.session_state.get("global_ai_model", "gemini-2.5-flash")
+
+        c_a1, c_a2 = st.columns([1.1, 1.4])
+        with c_a1:
+            global_provider = st.selectbox(
+                "AI Provider",
+                options=["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"],
+                index=["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"].index(saved_provider) if saved_provider in ["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"] else 0,
+                key="global_hud_provider"
+            )
+        with c_a2:
+            if global_provider == "Google Gemini":
+                m_opts = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-2.5-pro", "gemini-2.0-flash", "Custom Model"]
+            elif global_provider == "ChatGPT (OpenAI)":
+                m_opts = ["gpt-4o-mini", "gpt-4o", "gpt-4.1", "o3-mini", "Custom Model"]
+            else:
+                m_opts = ["claude-3-5-sonnet-20241022", "claude-3-7-sonnet-20250219", "claude-3-5-haiku-20241022", "Custom Model"]
+
+            sel_model_choice = st.selectbox(
+                "Model",
+                options=m_opts,
+                index=m_opts.index(saved_model) if saved_model in m_opts else 0,
+                key="global_hud_model_choice"
+            )
+            if sel_model_choice == "Custom Model":
+                global_model = st.text_input("Model Name", value=saved_model, key="global_hud_custom_m").strip()
+            else:
+                global_model = sel_model_choice
+
+        key_label = "Google Gemini API Key (Free)" if global_provider == "Google Gemini" else f"{global_provider} API Key"
+        key_placeholder = "Paste Gemini API key (AIzaSy...)" if global_provider == "Google Gemini" else "Paste API key..."
+        input_key = st.text_input(
+            key_label,
+            value=global_ai_key,
+            type="password",
+            placeholder=key_placeholder,
+            key="global_hud_api_key_input",
+            help="Configured once here, this key powers all 15 SEO tabs, AI Action Plans, Keyword Mapper, and Silo Architect."
+        )
+
+        if input_key:
+            st.session_state["global_ai_api_key"] = input_key.strip()
+            st.session_state["global_ai_provider"] = global_provider
+            st.session_state["global_ai_model"] = global_model
+            st.session_state[f"api_key_{global_provider}"] = input_key.strip()
+
+        if st.session_state.get("global_ai_api_key"):
+            st.markdown(f"""
+            <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; padding: 6px 12px; margin-top: 4px; display: flex; align-items: center; justify-content: space-between;">
+                <span style="color: #34D399; font-size: 0.78rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
+                    🟢 AI READY: {global_provider} ({global_model})
+                </span>
+                <span style="color: #94A3B8; font-size: 0.72rem;">Shared across all tabs</span>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            if global_provider == "Google Gemini":
+                st.markdown(
+                    '<div style="font-size:0.75rem; margin-top:3px;"><a href="https://aistudio.google.com/apikey" target="_blank" style="color:#38BDF8; text-decoration:none;">Get free key from Google AI Studio →</a></div>',
+                    unsafe_allow_html=True
+                )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_unified_gsc_ga4_studio():
     """Renders the complete Unified GSC + GA4 Intelligence & Opportunity Engine."""
+    sync_unified_data_state()
 
     # 1. Cockpit Hero Banner matching CrawlPilot Cyber Cockpit Theme (clean unindented HTML)
     hero_html = (
@@ -662,6 +1176,10 @@ def render_unified_gsc_ga4_studio():
     )
     st.markdown(hero_html, unsafe_allow_html=True)
 
+    # 2. Universal Master Control HUD at Top (Data Connection & Global AI Setup)
+    render_unified_master_control_hud()
+
+    # 3. Two Studio Views
     tab_suite, tab_opps = st.tabs([
         "🧭 15-Tab Full SEO Intelligence Suite & Future Roadmap",
         "⚡ Striking Distance, Cannibalization & Revenue Modules"
@@ -669,7 +1187,7 @@ def render_unified_gsc_ga4_studio():
 
     with tab_suite:
         from gsc_advanced_analyzer import render_advance_gsc_analysis_page
-        render_advance_gsc_analysis_page(standalone_header=False)
+        render_advance_gsc_analysis_page(standalone_header=False, show_connection_hud=False)
 
     with tab_opps:
         _render_unified_opportunity_modules()
@@ -677,284 +1195,6 @@ def render_unified_gsc_ga4_studio():
 
 def _render_unified_opportunity_modules():
     """Renders the 6 deep-dive conversion, cannibalization, decay & revenue modules."""
-
-    # 2. Ingestion Options (OAuth 2.0 vs Manual Upload)
-    data_source_mode = st.radio(
-        "Select Acquisition Engine",
-        options=[
-            "🔗 Connect Live Google Account (Auto-Detect GSC & GA4 - Zero Manual Work)",
-            "📁 Manual CSV / ZIP Upload (With 1-Click Demo Dataset)"
-        ],
-        horizontal=True,
-        key="master_studio_ingest_mode"
-    )
-
-    client_id, client_secret, redirect_uri = get_oauth_config()
-
-    # --------------------------------------------------------------------------
-    # DATA SOURCE: LIVE GOOGLE OAUTH
-    # --------------------------------------------------------------------------
-    if "Connect Live Google Account" in data_source_mode:
-        if not GOOGLE_OAUTH_LIBS_AVAILABLE:
-            st.warning(f"⚠️ Google OAuth packages installing. Details: `{GOOGLE_OAUTH_IMPORT_ERROR}`. Switch to 'Manual CSV / ZIP' above to use exports or demo data.")
-        else:
-            auth_code = st.query_params.get("code")
-            if auth_code and client_id and client_secret:
-                with st.spinner("Exchanging OAuth authorization code with Google Cloud..."):
-                    try:
-                        flow = create_oauth_flow(client_id, client_secret, redirect_uri)
-                        flow.fetch_token(code=auth_code)
-                        flow_creds = flow.credentials
-                        st.session_state["g_oauth_creds"] = {
-                            "token": flow_creds.token,
-                            "refresh_token": flow_creds.refresh_token,
-                            "token_uri": flow_creds.token_uri,
-                            "client_id": flow_creds.client_id,
-                            "client_secret": flow_creds.client_secret,
-                            "scopes": flow_creds.scopes
-                        }
-                        st.query_params.clear()
-                        st.success("✅ Successfully connected to Google Account!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Authentication token exchange failed: {e}")
-
-            active_creds = get_authenticated_credentials()
-
-            if active_creds:
-                st.markdown(
-                    '<div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 12, 24, 0.9) 100%); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 14px; padding: 1.1rem 1.6rem; margin-bottom: 1.3rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: gap: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">'
-                    '<div style="display: flex; align-items: center; gap: 12px;">'
-                    '<span class="hud-beacon"></span>'
-                    '<div>'
-                    '<div style="color: #34D399; font-weight: 800; font-size: 1.05rem; font-family: \'Space Grotesk\', sans-serif;">Live Google Account Connected</div>'
-                    '<div style="color: #94A3B8; font-size: 0.82rem; font-family: \'Space Grotesk\', sans-serif;">Direct API link active. Select properties to join GSC & GA4 performance data.</div>'
-                    '</div></div></div>',
-                    unsafe_allow_html=True
-                )
-
-                with st.spinner("Auto-detecting verified Search Console & GA4 properties..."):
-                    gsc_properties = fetch_live_gsc_properties(active_creds)
-                    ga4_properties = fetch_live_ga4_properties(active_creds)
-
-                col_p1, col_p2, col_p3 = st.columns([1.8, 1.8, 1.2])
-                with col_p1:
-                    selected_gsc_property = st.selectbox("Select GSC Property", options=gsc_properties) if gsc_properties else None
-                with col_p2:
-                    ga4_options_labels = ["None (Skip GA4)"] + [p["label"] for p in ga4_properties]
-                    selected_ga4_label = st.selectbox("Select GA4 Property", options=ga4_options_labels)
-                    selected_ga4_id = None
-                    if selected_ga4_label != "None (Skip GA4)":
-                        for gp in ga4_properties:
-                            if gp["label"] == selected_ga4_label:
-                                selected_ga4_id = gp["id"]
-                                break
-                with col_p3:
-                    date_choice = st.selectbox("Date Range", options=["Last 28 Days", "Last 3 Months", "Last 6 Months", "Custom"])
-
-                custom_start, custom_end = None, None
-                if date_choice == "Custom":
-                    col_d1, col_d2 = st.columns(2)
-                    with col_d1:
-                        custom_start = st.date_input("Start Date", value=datetime.now() - timedelta(days=28))
-                    with col_d2:
-                        custom_end = st.date_input("End Date", value=datetime.now() - timedelta(days=3))
-
-                btn_f1, btn_f2 = st.columns([3.5, 1.2])
-                with btn_f1:
-                    btn_run = st.button("🚀 Fetch & Join GSC + GA4 Intelligence", type="primary", use_container_width=True)
-                with btn_f2:
-                    if st.button("🔌 Disconnect Google", use_container_width=True):
-                        st.session_state["g_oauth_creds"] = None
-                        st.session_state["master_dataset"] = None
-                        st.rerun()
-
-                if btn_run and selected_gsc_property:
-                    c_start, c_end, p_start, p_end = get_date_bounds(date_choice, custom_start, custom_end)
-                    with st.spinner(f"Querying GSC & GA4 APIs ({c_start} to {c_end}) with period comparison..."):
-                        try:
-                            # 1. Fetch GSC
-                            gsc_service = build('searchconsole', 'v1', credentials=active_creds, cache_discovery=False)
-                            q_res = gsc_service.searchanalytics().query(
-                                siteUrl=selected_gsc_property,
-                                body={'startDate': c_start, 'endDate': c_end, 'dimensions': ['query', 'page'], 'rowLimit': 25000}
-                            ).execute()
-                            queries_list = [{
-                                'query': str(r.get('keys', ['', ''])[0]),
-                                'page': str(r.get('keys', ['', ''])[1]),
-                                'clicks': int(r.get('clicks', 0)),
-                                'impressions': int(r.get('impressions', 0)),
-                                'ctr': float(r.get('ctr', 0.0)),
-                                'position': round(float(r.get('position', 0.0)), 1)
-                            } for r in q_res.get('rows', [])]
-                            live_queries_df = pd.DataFrame(queries_list)
-
-                            # Fetch previous period pages
-                            p_prev_res = gsc_service.searchanalytics().query(
-                                siteUrl=selected_gsc_property,
-                                body={'startDate': p_start, 'endDate': p_end, 'dimensions': ['page'], 'rowLimit': 10000}
-                            ).execute()
-                            prev_pages_df = pd.DataFrame([{
-                                'page': str(r['keys'][0]),
-                                'prev_clicks': int(r.get('clicks', 0)),
-                                'prev_imp': int(r.get('impressions', 0))
-                            } for r in p_prev_res.get('rows', []) if r.get('keys')])
-
-                            # 2. Fetch GA4
-                            live_ga4_df = fetch_comprehensive_ga4_url_metrics(
-                                active_creds, selected_ga4_id, c_start, c_end, p_start, p_end
-                            )
-
-                            st.session_state["master_dataset"] = {
-                                "queries": live_queries_df,
-                                "pages": prev_pages_df,
-                                "ga4": live_ga4_df,
-                                "property_gsc": selected_gsc_property,
-                                "property_ga4": selected_ga4_id or "None",
-                                "date_range": f"{c_start} to {c_end}",
-                                "is_mock": False
-                            }
-                            st.success(f"✅ Merged Data Successfully! Fetched {len(live_queries_df):,} query-page rows.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error executing API calls: {e}")
-
-            else:
-                # Login Banner
-                st.markdown(
-                    '<div style="background: linear-gradient(135deg, rgba(11, 20, 38, 0.92) 0%, rgba(6, 12, 24, 0.98) 100%); border: 1px solid rgba(0, 240, 255, 0.22); border-radius: 16px; padding: 1.6rem 2rem; margin-bottom: 1.3rem; box-shadow: 0 15px 35px rgba(0,0,0,0.65), 0 0 25px rgba(0, 240, 255, 0.08); backdrop-filter: blur(20px);">'
-                    '<div style="font-family: \'Space Grotesk\', sans-serif; font-weight: 800; color: #FFFFFF; font-size: 1.25rem; margin-bottom: 6px; display: flex; align-items: center; gap: 10px;">'
-                    '<span style="color: #00F0FF; font-size: 1.3rem;">🔗</span> Connect Your Google Account'
-                    '</div>'
-                    '<div style="color: #94A3B8; font-size: 0.92rem; line-height: 1.6; font-family: \'Space Grotesk\', sans-serif;">'
-                    'One-click sign in via Google OAuth 2.0 to access your verified Search Console domains and GA4 properties.'
-                    '</div></div>',
-                    unsafe_allow_html=True
-                )
-
-                with st.expander("⚙️ Configure Google OAuth Credentials", expanded=(not client_id or not client_secret)):
-                    ui_cid = st.text_input("Client ID", value=client_id, placeholder="xxxx.apps.googleusercontent.com", key="m_oauth_cid")
-                    ui_csec = st.text_input("Client Secret", value=client_secret, type="password", placeholder="GOCSPX-xxxx", key="m_oauth_csec")
-                    ui_ruri = st.text_input("Authorized Redirect URI", value=redirect_uri, key="m_oauth_ruri")
-                    if ui_cid:
-                        st.session_state["oauth_custom_client_id"] = ui_cid.strip()
-                        client_id = ui_cid.strip()
-                    if ui_csec:
-                        st.session_state["oauth_custom_client_secret"] = ui_csec.strip()
-                        client_secret = ui_csec.strip()
-                    if ui_ruri:
-                        st.session_state["oauth_custom_redirect_uri"] = ui_ruri.strip()
-                        redirect_uri = ui_ruri.strip()
-
-                if client_id and client_secret:
-                    try:
-                        auth_flow = create_oauth_flow(client_id, client_secret, redirect_uri)
-                        auth_url, _ = auth_flow.authorization_url(prompt='select_account consent', access_type='offline', include_granted_scopes='true')
-                        st.link_button("🔗 Sign In With Google (Connect GSC & GA4)", url=auth_url, use_container_width=True, type="primary")
-                        st.markdown(
-                            f'<div style="text-align: center; margin-top: 8px; margin-bottom: 8px;">'
-                            f'<a href="{auth_url}" target="_blank" rel="noopener noreferrer" style="color: #38BDF8; font-size: 0.88rem; text-decoration: underline; font-weight: 600;">'
-                            f'↗ Open Google Sign-In in a new tab'
-                            f'</a></div>',
-                            unsafe_allow_html=True
-                        )
-                    except Exception as flow_err:
-                        st.error(f"Could not initialize Google OAuth flow: {flow_err}")
-
-    # --------------------------------------------------------------------------
-    # DATA SOURCE: MANUAL UPLOAD & DEMO DATASET
-    # --------------------------------------------------------------------------
-    else:
-        col_up1, col_up2 = st.columns([3.5, 1.5])
-        with col_up1:
-            uploaded_files = st.file_uploader(
-                "Upload Google Search Console Export (ZIP / CSV) & Optional GA4 Export:",
-                type=["zip", "csv"],
-                accept_multiple_files=True
-            )
-        with col_up2:
-            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("🧪 Load Industrial Demo Dataset", use_container_width=True, help="Load complete simulated industrial GSC + GA4 dataset to test all 6 modules immediately"):
-                demo_queries = pd.DataFrame([
-                    # Striking Distance (Pos 8-20, high impressions)
-                    {"query": "cpvc butterfly valve price list", "page": "https://yukonvalve.com/product/cpvc-butterfly-valve/", "clicks": 115, "impressions": 12500, "ctr": 0.0092, "position": 9.4},
-                    {"query": "motorized ball valve 2 inch", "page": "https://yukonvalve.com/product/electrical-actuator-operated-valve/", "clicks": 88, "impressions": 9800, "ctr": 0.0090, "position": 11.2},
-                    {"query": "flanged ball valve dimensions chart", "page": "https://yukonvalve.com/product-category/ball-valve/", "clicks": 74, "impressions": 8400, "ctr": 0.0088, "position": 13.5},
-                    {"query": "pvc non return valve suppliers", "page": "https://yukonvalve.com/product-category/non-return-valve/", "clicks": 62, "impressions": 7600, "ctr": 0.0081, "position": 14.8},
-                    {"query": "high pressure solenoid valve india", "page": "https://yukonvalve.com/product-category/solenoid-valve/", "clicks": 54, "impressions": 6900, "ctr": 0.0078, "position": 12.1},
-                    {"query": "pneumatic actuated ball valve price", "page": "https://yukonvalve.com/product/pneumatic-actuator-butterfly-valve/", "clicks": 48, "impressions": 5800, "ctr": 0.0082, "position": 16.4},
-
-                    # CTR Opportunities (Pos <= 5, CTR < Expected Benchmark)
-                    {"query": "industrial valves manufacturer", "page": "https://yukonvalve.com/", "clicks": 48, "impressions": 7800, "ctr": 0.0062, "position": 3.2},
-                    {"query": "upvc valve supplier in india", "page": "https://yukonvalve.com/", "clicks": 32, "impressions": 5400, "ctr": 0.0059, "position": 2.8},
-                    {"query": "pneumatic actuator butterfly valve", "page": "https://yukonvalve.com/product/pneumatic-actuator-butterfly-valve/", "clicks": 25, "impressions": 4200, "ctr": 0.0060, "position": 4.1},
-                    {"query": "industrial plastic ball valves catalog", "page": "https://yukonvalve.com/shop/", "clicks": 18, "impressions": 3900, "ctr": 0.0046, "position": 4.8},
-
-                    # Cannibalization (Multiple URLs splitting exact query)
-                    {"query": "upvc butterfly valve manufacturer", "page": "https://yukonvalve.com/product/upvc-butterfly-valve/", "clicks": 90, "impressions": 4600, "ctr": 0.0195, "position": 5.8},
-                    {"query": "upvc butterfly valve manufacturer", "page": "https://yukonvalve.com/product-category/butterfly-valve/", "clicks": 45, "impressions": 3800, "ctr": 0.0118, "position": 7.4},
-                    {"query": "upvc butterfly valve manufacturer", "page": "https://yukonvalve.com/shop/", "clicks": 12, "impressions": 2100, "ctr": 0.0057, "position": 12.2},
-
-                    # Questions
-                    {"query": "how does a pneumatic actuator valve work", "page": "https://yukonvalve.com/product/pneumatic-actuator-butterfly-valve/", "clicks": 85, "impressions": 6400, "ctr": 0.0132, "position": 6.8},
-                    {"query": "what is the difference between upvc and cpvc valve", "page": "https://yukonvalve.com/product/cpvc-butterfly-valve/", "clicks": 140, "impressions": 8900, "ctr": 0.0157, "position": 4.2},
-                    {"query": "which valve is best for chemical slurry", "page": "https://yukonvalve.com/product-category/ball-valve/", "clicks": 38, "impressions": 4100, "ctr": 0.0092, "position": 9.5},
-
-                    # High Performers
-                    {"query": "yukon industrial valves catalogue", "page": "https://yukonvalve.com/shop/", "clicks": 320, "impressions": 850, "ctr": 0.376, "position": 1.2},
-                    {"query": "yukon valves india", "page": "https://yukonvalve.com/", "clicks": 480, "impressions": 1100, "ctr": 0.436, "position": 1.1}
-                ])
-
-                demo_pages = pd.DataFrame([
-                    {"page": "https://yukonvalve.com/product-category/ball-valve/", "prev_clicks": 1450, "prev_imp": 38000},
-                    {"page": "https://yukonvalve.com/product/pneumatic-actuator-butterfly-valve/", "prev_clicks": 890, "prev_imp": 24000},
-                    {"page": "https://yukonvalve.com/product-category/gate-valve/", "prev_clicks": 620, "prev_imp": 16500},
-                    {"page": "https://yukonvalve.com/shop/", "prev_clicks": 2100, "prev_imp": 54000},
-                    {"page": "https://yukonvalve.com/", "prev_clicks": 3400, "prev_imp": 78000},
-                    {"page": "https://yukonvalve.com/product/cpvc-butterfly-valve/", "prev_clicks": 710, "prev_imp": 19000},
-                    {"page": "https://yukonvalve.com/old-discontinued-valve-1999/", "prev_clicks": 0, "prev_imp": 12}
-                ])
-
-                demo_ga4 = pd.DataFrame([
-                    {"norm_path": "/", "sessions": 4850, "engaged_sessions": 3420, "engagement_rate": 0.705, "avg_engagement_time_sec": 84.0, "conversions": 142, "conversion_rate": 0.029, "sessions_delta_pct": 5.4, "conversions_delta_pct": 8.1},
-                    {"norm_path": "/shop", "sessions": 2650, "engaged_sessions": 880, "engagement_rate": 0.332, "avg_engagement_time_sec": 24.0, "conversions": 0, "conversion_rate": 0.000, "sessions_delta_pct": -8.5, "conversions_delta_pct": 0.0},
-                    {"norm_path": "/product/cpvc-butterfly-valve", "sessions": 1240, "engaged_sessions": 980, "engagement_rate": 0.790, "avg_engagement_time_sec": 110.0, "conversions": 48, "conversion_rate": 0.038, "sessions_delta_pct": 22.0, "conversions_delta_pct": 31.0},
-                    {"norm_path": "/product-category/ball-valve", "sessions": 1100, "engaged_sessions": 720, "engagement_rate": 0.654, "avg_engagement_time_sec": 65.0, "conversions": 28, "conversion_rate": 0.025, "sessions_delta_pct": -34.2, "conversions_delta_pct": -28.0},
-                    {"norm_path": "/product/pneumatic-actuator-butterfly-valve", "sessions": 740, "engaged_sessions": 510, "engagement_rate": 0.689, "avg_engagement_time_sec": 78.0, "conversions": 22, "conversion_rate": 0.029, "sessions_delta_pct": -38.5, "conversions_delta_pct": -30.0},
-                    {"norm_path": "/product-category/gate-valve", "sessions": 510, "engaged_sessions": 340, "engagement_rate": 0.666, "avg_engagement_time_sec": 60.0, "conversions": 12, "conversion_rate": 0.023, "sessions_delta_pct": -32.0, "conversions_delta_pct": -25.0},
-                    {"norm_path": "/product/electrical-actuator-operated-valve", "sessions": 380, "engaged_sessions": 310, "engagement_rate": 0.815, "avg_engagement_time_sec": 135.0, "conversions": 19, "conversion_rate": 0.050, "sessions_delta_pct": 14.5, "conversions_delta_pct": 26.0},
-                    {"norm_path": "/old-discontinued-valve-1999", "sessions": 2, "engaged_sessions": 0, "engagement_rate": 0.000, "avg_engagement_time_sec": 3.0, "conversions": 0, "conversion_rate": 0.000, "sessions_delta_pct": 0.0, "conversions_delta_pct": 0.0}
-                ])
-
-                st.session_state["master_dataset"] = {
-                    "queries": demo_queries,
-                    "pages": demo_pages,
-                    "ga4": demo_ga4,
-                    "property_gsc": "https://yukonvalve.com",
-                    "property_ga4": "Yukon Valve Global GA4",
-                    "date_range": "Last 28 Days (Demo Mode)",
-                    "is_mock": True
-                }
-                st.rerun()
-
-        if uploaded_files:
-            parsed = parse_gsc_and_ga4_upload(uploaded_files)
-            if not parsed["queries"].empty:
-                st.session_state["master_dataset"] = {
-                    "queries": parsed["queries"],
-                    "pages": parsed["pages"],
-                    "ga4": pd.DataFrame(),
-                    "property_gsc": "Uploaded Files",
-                    "property_ga4": "None",
-                    "date_range": "Uploaded Period",
-                    "is_mock": False
-                }
-                st.success("✅ Files processed successfully!")
-                st.rerun()
-
-    # --------------------------------------------------------------------------
-    # CHECK DATASET STATE
-    # --------------------------------------------------------------------------
     master_data = st.session_state.get("master_dataset")
     if not master_data or master_data.get("queries") is None or master_data["queries"].empty:
         st.markdown(
@@ -962,7 +1202,7 @@ def _render_unified_opportunity_modules():
             '<div style="font-size: 3rem; margin-bottom: 0.8rem;">⚡</div>'
             '<h3 style="color: #FFFFFF; font-weight: 800; margin-bottom: 0.5rem; font-family: \'Space Grotesk\', sans-serif;">Awaiting GSC & GA4 Data</h3>'
             '<p style="color: #94A3B8; font-size: 0.98rem; max-width: 620px; margin: 0 auto 1.5rem; line-height: 1.6; font-family: \'Space Grotesk\', sans-serif;">'
-            'Click <b>\'Sign In With Google\'</b> above for instant automatic fetching, or click <b>\'Load Industrial Demo Dataset\'</b> to inspect all 6 modules immediately.'
+            'Please use the <b>Master Control Bar at the top of the page</b> to either connect your live Google Account or click <b>Load Industrial Demo</b>. All 6 opportunity modules will populate automatically!'
             '</p></div>',
             unsafe_allow_html=True
         )

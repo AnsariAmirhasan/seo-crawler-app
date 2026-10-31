@@ -1013,7 +1013,7 @@ def generate_sample_gsc_data() -> Dict[str, pd.DataFrame]:
     }
 
 
-def render_advance_gsc_analysis_page(standalone_header: bool = True):
+def render_advance_gsc_analysis_page(standalone_header: bool = True, show_connection_hud: bool = True):
     """Main Streamlit renderer for the Advance GSC data Analysis service."""
 
     # 1. Header Banner
@@ -1033,195 +1033,221 @@ def render_advance_gsc_analysis_page(standalone_header: bool = True):
             unsafe_allow_html=True
         )
 
-    # 2. Connection Area: Google OAuth Direct API / File Upload / Interactive Demo
-    tab_conn_oauth, tab_conn_upload, tab_conn_sample = st.tabs([
-        "🔑 Live Google OAuth (GSC + GA4 Direct API)",
-        "📤 Upload GSC Export (ZIP or CSV)",
-        "🧪 Interactive Demo (Industrial Sample Data)"
-    ])
+    uploaded_file = None
+    load_sample = False
+    has_active_data = bool(
+        "gsc_cached_data" in st.session_state 
+        and isinstance(st.session_state["gsc_cached_data"], dict)
+        and st.session_state["gsc_cached_data"].get("queries") is not None
+        and not st.session_state["gsc_cached_data"]["queries"].empty
+    )
 
-    # Check for incoming OAuth redirect code
-    auth_code = st.query_params.get("code")
-    client_id, client_secret, redirect_uri = get_oauth_config() if get_oauth_config else ("", "", "")
+    # 2. Connection Area: Only render when show_connection_hud is True
+    if show_connection_hud:
+        # Check for incoming OAuth redirect code
+        auth_code = st.query_params.get("code")
+        client_id, client_secret, redirect_uri = get_oauth_config() if get_oauth_config else ("", "", "")
 
-    if auth_code and client_id and client_secret and create_oauth_flow:
-        with st.spinner("Exchanging OAuth authorization code with Google..."):
-            try:
-                flow = create_oauth_flow(client_id, client_secret, redirect_uri)
-                flow.fetch_token(code=auth_code)
-                flow_creds = flow.credentials
-                st.session_state["g_oauth_creds"] = {
-                    "token": flow_creds.token,
-                    "refresh_token": flow_creds.refresh_token,
-                    "token_uri": flow_creds.token_uri,
-                    "client_id": flow_creds.client_id,
-                    "client_secret": flow_creds.client_secret,
-                    "scopes": flow_creds.scopes
-                }
-                st.query_params.clear()
-                st.success("✅ Successfully authenticated Google Account with GSC + GA4 scopes!")
-                st.rerun()
-            except Exception as e_token:
-                st.error(f"Authentication token exchange failed: {e_token}")
-
-    active_creds = get_authenticated_credentials() if get_authenticated_credentials else None
-
-    # TAB A: Live Google OAuth
-    with tab_conn_oauth:
-        if active_creds:
-            st.markdown("""
-            <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 0.9rem 1.2rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 1.3rem;">🟢</span>
-                    <div>
-                        <div style="color: #34D399; font-weight: 800; font-size: 0.95rem;">Google Account Connected</div>
-                        <div style="color: #94A3B8; font-size: 0.78rem;">Scopes: Google Search Console API + Google Analytics 4 Data API (v1beta)</div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            gsc_props = fetch_live_gsc_properties(active_creds) if fetch_live_gsc_properties else []
-            ga4_props = fetch_live_ga4_properties(active_creds) if fetch_live_ga4_properties else []
-
-            col_gsc_sel, col_ga4_sel, col_date_sel = st.columns([1.6, 1.8, 1.3])
-            with col_gsc_sel:
-                if gsc_props:
-                    selected_gsc_site = st.selectbox("Select GSC Verified Site:", options=gsc_props, key="sel_gsc_site_oauth")
-                else:
-                    selected_gsc_site = st.text_input("Enter GSC Site URL (e.g. sc-domain:example.com):", key="in_gsc_site_oauth")
-
-            with col_ga4_sel:
-                ga4_options = ["None / GSC Only"] + [p["label"] for p in ga4_props]
-                selected_ga4_label = st.selectbox("Select GA4 Property (Data API v1beta):", options=ga4_options, key="sel_ga4_prop_oauth")
-                selected_ga4_id = None
-                if selected_ga4_label != "None / GSC Only":
-                    selected_ga4_id = next((p["id"] for p in ga4_props if p["label"] == selected_ga4_label), None)
-
-            with col_date_sel:
-                date_choice = st.selectbox(
-                    "Comparison Period:",
-                    options=[
-                        "Last 28 Days",
-                        "Last 3 Months",
-                        "Last 6 Months"
-                    ],
-                    index=0,
-                    key="sel_date_oauth",
-                    help="Compares the selected period vs. the preceding period to power the 30-Day Trend Radar & Content Decay."
-                )
-
-            col_btn_fetch, col_btn_logout = st.columns([3.5, 1])
-            with col_btn_fetch:
-                btn_fetch_live = st.button("🚀 Fetch Live GSC + GA4 Intelligence", type="primary", use_container_width=True, key="btn_fetch_live_api")
-            with col_btn_logout:
-                if st.button("🚪 Disconnect", use_container_width=True, key="btn_disc_oauth"):
-                    st.session_state.pop("g_oauth_creds", None)
-                    st.rerun()
-
-            if btn_fetch_live and selected_gsc_site:
-                with st.spinner(f"🚀 Fetching real-time GSC and GA4 metrics for {selected_gsc_site}..."):
-                    curr_start, curr_end, prev_start, prev_end = get_date_bounds(date_choice)
-                    q_live, p_live = fetch_live_gsc_search_analytics(
-                        active_creds, selected_gsc_site, curr_start, curr_end, prev_start, prev_end
-                    )
-                    if selected_ga4_id:
-                        ga4_live = fetch_live_ga4_datasets(
-                            active_creds, selected_ga4_id, curr_start, curr_end, prev_start, prev_end
-                        )
-                    else:
-                        ga4_live = {"organic_landing": pd.DataFrame(), "lookup": {}, "has_ga4": False}
-
-                    st.session_state["gsc_cached_data"] = {
-                        "queries": q_live,
-                        "pages": p_live
-                    }
-                    st.session_state["ga4_cached_data"] = ga4_live
-                    st.session_state["gsc_target_domain"] = selected_gsc_site
-                    st.session_state["gsc_use_sample"] = False
-                    st.toast("✅ Live GSC + GA4 Intelligence successfully synchronized!", icon="🚀")
-                    st.rerun()
-        else:
-            # Login card
-            st.markdown("""
-            <div style="background: rgba(15, 23, 42, 0.7); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 14px; padding: 1.8rem; text-align: center; margin-bottom: 0.8rem;">
-                <div style="font-size: 2.4rem; margin-bottom: 0.6rem;">🔑</div>
-                <h3 style="color: #FFFFFF; font-weight: 800; margin-bottom: 0.4rem;">Connect Google Search Console & GA4</h3>
-                <p style="color: #94A3B8; font-size: 0.92rem; max-width: 620px; margin: 0 auto 1.4rem; line-height: 1.6;">
-                    Authenticate with Google to pull verified Search Console rankings and GA4 behavioral metrics directly without downloading or uploading CSVs.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # OAuth Configuration Expander
-            with st.expander("⚙️ Configure Google OAuth Credentials", expanded=(not client_id or not client_secret)):
-                ui_cid = st.text_input("Client ID", value=client_id, placeholder="xxxx.apps.googleusercontent.com", key="gsc_oauth_cid")
-                ui_csec = st.text_input("Client Secret", value=client_secret, type="password", placeholder="GOCSPX-xxxx", key="gsc_oauth_csec")
-                ui_ruri = st.text_input("Authorized Redirect URI", value=redirect_uri, key="gsc_oauth_ruri")
-                if ui_cid:
-                    st.session_state["oauth_custom_client_id"] = ui_cid.strip()
-                    client_id = ui_cid.strip()
-                if ui_csec:
-                    st.session_state["oauth_custom_client_secret"] = ui_csec.strip()
-                    client_secret = ui_csec.strip()
-                if ui_ruri:
-                    st.session_state["oauth_custom_redirect_uri"] = ui_ruri.strip()
-                    redirect_uri = ui_ruri.strip()
-
-            if client_id and client_secret and create_oauth_flow:
+        if auth_code and client_id and client_secret and create_oauth_flow:
+            with st.spinner("Exchanging OAuth authorization code with Google..."):
                 try:
                     flow = create_oauth_flow(client_id, client_secret, redirect_uri)
-                    auth_url, _ = flow.authorization_url(
-                        access_type="offline",
-                        include_granted_scopes="true",
-                        prompt="select_account consent"
-                    )
-                    st.link_button(
-                        "🔐 Sign In with Google",
-                        url=auth_url,
-                        use_container_width=True,
-                        type="primary"
-                    )
-                    st.markdown(
-                        f'<div style="text-align: center; margin-top: 8px; margin-bottom: 8px;">'
-                        f'<a href="{auth_url}" target="_blank" rel="noopener noreferrer" style="color: #38BDF8; font-size: 0.88rem; text-decoration: underline; font-weight: 600;">'
-                        f'↗ Open Google Sign-In in a new tab'
-                        f'</a>'
-                        f'<div style="color: #94A3B8; font-size: 0.78rem; margin-top: 4px;">'
-                        f'Tip: Opens account chooser outside the iframe to prevent 403 multi-account conflicts.'
-                        f'</div></div>',
-                        unsafe_allow_html=True
-                    )
-                except Exception as e_url:
-                    st.warning(f"OAuth URL initialization notice: {e_url}")
-            else:
-                st.info("💡 Google OAuth credentials not found. Configure them above, or use the **'📤 Upload GSC Export'** or **'🧪 Interactive Demo'** tabs right now!")
+                    flow.fetch_token(code=auth_code)
+                    flow_creds = flow.credentials
+                    st.session_state["g_oauth_creds"] = {
+                        "token": flow_creds.token,
+                        "refresh_token": flow_creds.refresh_token,
+                        "token_uri": flow_creds.token_uri,
+                        "client_id": flow_creds.client_id,
+                        "client_secret": flow_creds.client_secret,
+                        "scopes": flow_creds.scopes
+                    }
+                    st.query_params.clear()
+                    st.success("✅ Successfully authenticated Google Account with GSC + GA4 scopes!")
+                    st.rerun()
+                except Exception as e_token:
+                    st.error(f"Authentication token exchange failed: {e_token}")
 
-    # TAB B: Manual CSV / ZIP Upload
-    with tab_conn_upload:
-        col_up_box, col_up_help = st.columns([3, 1.5])
-        with col_up_box:
-            uploaded_file = st.file_uploader(
-                "Upload Google Search Console Export (ZIP or CSV format):",
-                type=['zip', 'csv'],
-                help="In Google Search Console, click 'Export' ➔ 'Download ZIP' (or upload Queries.csv directly).",
-                key="uploader_gsc_zip_csv"
+        active_creds = get_authenticated_credentials() if get_authenticated_credentials else None
+
+        if has_active_data:
+            st.markdown(
+                '<div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 0.8rem 1.2rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">'
+                '<div style="display: flex; align-items: center; gap: 8px;">'
+                '<span style="font-size: 1.2rem;">🟢</span>'
+                '<div>'
+                '<div style="color: #34D399; font-weight: 800; font-size: 0.95rem;">Search Console & GA4 Dataset Synchronized</div>'
+                '<div style="color: #94A3B8; font-size: 0.78rem;">Active data loaded. To change properties or reconnect, open the configuration below.</div>'
+                '</div></div></div>',
+                unsafe_allow_html=True
             )
-        with col_up_help:
-            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            st.caption("Upload Queries.csv directly or the full ZIP file from GSC. If you have a GA4 landing page export, you can analyze both.")
+            conn_container = st.expander("🔄 Switch Data Source or Reconnect Google Account", expanded=False)
+        else:
+            conn_container = st.container()
 
-    # TAB C: Interactive Demo
-    with tab_conn_sample:
-        st.markdown("""
-        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 12px; padding: 1.2rem; margin-bottom: 0.8rem;">
-            <div style="font-weight: 800; color: #C4B5FD; font-size: 1rem; margin-bottom: 4px;">🧪 Industrial Demo Dataset (GSC + GA4 Combined)</div>
-            <div style="color: #94A3B8; font-size: 0.85rem; line-height: 1.5;">
-                Instantly explore all 15 analytical modules, 30-Day Future SEO Roadmap, Money Pages, Traffic Leaks, Mobile UX checks, and AI Citation Trackers using pre-configured industrial data.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        load_sample = st.button("🧪 Load Full GSC + GA4 Industrial Demo", use_container_width=True, key="btn_load_sample_full")
+        with conn_container:
+            tab_conn_oauth, tab_conn_upload, tab_conn_sample = st.tabs([
+                "🔑 Live Google OAuth (GSC + GA4 Direct API)",
+                "📤 Upload GSC Export (ZIP or CSV)",
+                "🧪 Interactive Demo (Industrial Sample Data)"
+            ])
+
+            # TAB A: Live Google OAuth
+            with tab_conn_oauth:
+                if active_creds:
+                    st.markdown("""
+                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 0.9rem 1.2rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.3rem;">🟢</span>
+                            <div>
+                                <div style="color: #34D399; font-weight: 800; font-size: 0.95rem;">Google Account Connected</div>
+                                <div style="color: #94A3B8; font-size: 0.78rem;">Scopes: Google Search Console API + Google Analytics 4 Data API (v1beta)</div>
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    gsc_props = fetch_live_gsc_properties(active_creds) if fetch_live_gsc_properties else []
+                    ga4_props = fetch_live_ga4_properties(active_creds) if fetch_live_ga4_properties else []
+
+                    col_gsc_sel, col_ga4_sel, col_date_sel = st.columns([1.6, 1.8, 1.3])
+                    with col_gsc_sel:
+                        if gsc_props:
+                            selected_gsc_site = st.selectbox("Select GSC Verified Site:", options=gsc_props, key="sel_gsc_site_oauth")
+                        else:
+                            selected_gsc_site = st.text_input("Enter GSC Site URL (e.g. sc-domain:example.com):", key="in_gsc_site_oauth")
+
+                    with col_ga4_sel:
+                        ga4_options = ["None / GSC Only"] + [p["label"] for p in ga4_props]
+                        selected_ga4_label = st.selectbox("Select GA4 Property (Data API v1beta):", options=ga4_options, key="sel_ga4_prop_oauth")
+                        selected_ga4_id = None
+                        if selected_ga4_label != "None / GSC Only":
+                            selected_ga4_id = next((p["id"] for p in ga4_props if p["label"] == selected_ga4_label), None)
+
+                    with col_date_sel:
+                        date_choice = st.selectbox(
+                            "Comparison Period:",
+                            options=[
+                                "Last 28 Days",
+                                "Last 3 Months",
+                                "Last 6 Months"
+                            ],
+                            index=0,
+                            key="sel_date_oauth",
+                            help="Compares the selected period vs. the preceding period to power the 30-Day Trend Radar & Content Decay."
+                        )
+
+                    col_btn_fetch, col_btn_logout = st.columns([3.5, 1])
+                    with col_btn_fetch:
+                        btn_fetch_live = st.button("🚀 Fetch Live GSC + GA4 Intelligence", type="primary", use_container_width=True, key="btn_fetch_live_api")
+                    with col_btn_logout:
+                        if st.button("🚪 Disconnect", use_container_width=True, key="btn_disc_oauth"):
+                            st.session_state.pop("g_oauth_creds", None)
+                            st.rerun()
+
+                    if btn_fetch_live and selected_gsc_site:
+                        with st.spinner(f"🚀 Fetching real-time GSC and GA4 metrics for {selected_gsc_site}..."):
+                            curr_start, curr_end, prev_start, prev_end = get_date_bounds(date_choice)
+                            q_live, p_live = fetch_live_gsc_search_analytics(
+                                active_creds, selected_gsc_site, curr_start, curr_end, prev_start, prev_end
+                            )
+                            if selected_ga4_id:
+                                ga4_live = fetch_live_ga4_datasets(
+                                    active_creds, selected_ga4_id, curr_start, curr_end, prev_start, prev_end
+                                )
+                            else:
+                                ga4_live = {"organic_landing": pd.DataFrame(), "lookup": {}, "has_ga4": False}
+
+                            st.session_state["gsc_cached_data"] = {
+                                "queries": q_live,
+                                "pages": p_live
+                            }
+                            st.session_state["ga4_cached_data"] = ga4_live
+                            st.session_state["gsc_target_domain"] = selected_gsc_site
+                            st.session_state["gsc_use_sample"] = False
+                            st.toast("✅ Live GSC + GA4 Intelligence successfully synchronized!", icon="🚀")
+                            st.rerun()
+                else:
+                    # Login card
+                    st.markdown("""
+                    <div style="background: rgba(15, 23, 42, 0.7); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 14px; padding: 1.8rem; text-align: center; margin-bottom: 0.8rem;">
+                        <div style="font-size: 2.4rem; margin-bottom: 0.6rem;">🔑</div>
+                        <h3 style="color: #FFFFFF; font-weight: 800; margin-bottom: 0.4rem;">Connect Google Search Console & GA4</h3>
+                        <p style="color: #94A3B8; font-size: 0.92rem; max-width: 620px; margin: 0 auto 1.4rem; line-height: 1.6;">
+                            Authenticate with Google to pull verified Search Console rankings and GA4 behavioral metrics directly without downloading or uploading CSVs.
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # OAuth Configuration Expander
+                    with st.expander("⚙️ Configure Google OAuth Credentials", expanded=(not client_id or not client_secret)):
+                        ui_cid = st.text_input("Client ID", value=client_id, placeholder="xxxx.apps.googleusercontent.com", key="gsc_oauth_cid")
+                        ui_csec = st.text_input("Client Secret", value=client_secret, type="password", placeholder="GOCSPX-xxxx", key="gsc_oauth_csec")
+                        ui_ruri = st.text_input("Authorized Redirect URI", value=redirect_uri, key="gsc_oauth_ruri")
+                        if ui_cid:
+                            st.session_state["oauth_custom_client_id"] = ui_cid.strip()
+                            client_id = ui_cid.strip()
+                        if ui_csec:
+                            st.session_state["oauth_custom_client_secret"] = ui_csec.strip()
+                            client_secret = ui_csec.strip()
+                        if ui_ruri:
+                            st.session_state["oauth_custom_redirect_uri"] = ui_ruri.strip()
+                            redirect_uri = ui_ruri.strip()
+
+                    if client_id and client_secret and create_oauth_flow:
+                        try:
+                            flow = create_oauth_flow(client_id, client_secret, redirect_uri)
+                            auth_url, _ = flow.authorization_url(
+                                access_type="offline",
+                                include_granted_scopes="true",
+                                prompt="select_account consent"
+                            )
+                            st.link_button(
+                                "🔐 Sign In with Google",
+                                url=auth_url,
+                                use_container_width=True,
+                                type="primary"
+                            )
+                            st.markdown(
+                                f'<div style="text-align: center; margin-top: 8px; margin-bottom: 8px;">'
+                                f'<a href="{auth_url}" target="_blank" rel="noopener noreferrer" style="color: #38BDF8; font-size: 0.88rem; text-decoration: underline; font-weight: 600;">'
+                                f'↗ Open Google Sign-In in a new tab'
+                                f'</a>'
+                                f'<div style="color: #94A3B8; font-size: 0.78rem; margin-top: 4px;">'
+                                f'Tip: Opens account chooser outside the iframe to prevent 403 multi-account conflicts.'
+                                f'</div></div>',
+                                unsafe_allow_html=True
+                            )
+                        except Exception as e_url:
+                            st.warning(f"OAuth URL initialization notice: {e_url}")
+                    else:
+                        st.info("💡 Google OAuth credentials not found. Configure them above, or use the **'📤 Upload GSC Export'** or **'🧪 Interactive Demo'** tabs right now!")
+
+            # TAB B: Manual CSV / ZIP Upload
+            with tab_conn_upload:
+                col_up_box, col_up_help = st.columns([3, 1.5])
+                with col_up_box:
+                    uploaded_file = st.file_uploader(
+                        "Upload Google Search Console Export (ZIP or CSV format):",
+                        type=['zip', 'csv'],
+                        help="In Google Search Console, click 'Export' ➔ 'Download ZIP' (or upload Queries.csv directly).",
+                        key="uploader_gsc_zip_csv"
+                    )
+                with col_up_help:
+                    st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                    st.caption("Upload Queries.csv directly or the full ZIP file from GSC. If you have a GA4 landing page export, you can analyze both.")
+
+            # TAB C: Interactive Demo
+            with tab_conn_sample:
+                st.markdown("""
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 12px; padding: 1.2rem; margin-bottom: 0.8rem;">
+                    <div style="font-weight: 800; color: #C4B5FD; font-size: 1rem; margin-bottom: 4px;">🧪 Industrial Demo Dataset (GSC + GA4 Combined)</div>
+                    <div style="color: #94A3B8; font-size: 0.85rem; line-height: 1.5;">
+                        Instantly explore all 15 analytical modules, 30-Day Future SEO Roadmap, Money Pages, Traffic Leaks, Mobile UX checks, and AI Citation Trackers using pre-configured industrial data.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                load_sample = st.button("🧪 Load Full GSC + GA4 Industrial Demo", use_container_width=True, key="btn_load_sample_full")
 
     csv_files = {}
 
@@ -1429,93 +1455,127 @@ def render_advance_gsc_analysis_page(standalone_header: bool = True):
         </div>
     """, unsafe_allow_html=True)
 
-    c_prov, c_model, c_key = st.columns([1.2, 1.4, 2.0])
+    global_ai_key = st.session_state.get("global_ai_api_key", "").strip() or st.session_state.get("api_key_Google Gemini", "").strip() or st.session_state.get("api_key_ChatGPT (OpenAI)", "").strip() or st.session_state.get("api_key_Claude (Anthropic)", "").strip()
+    global_ai_provider = st.session_state.get("global_ai_provider", "Google Gemini")
+    global_ai_model = st.session_state.get("global_ai_model", "gemini-2.5-flash")
 
-    with c_prov:
-        ai_provider = st.selectbox(
-            "AI Provider",
-            options=["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"],
-            index=0,
-            key="gsc_ai_provider"
-        )
+    if global_ai_key:
+        ai_provider = global_ai_provider
+        selected_model = global_ai_model
+        api_key = global_ai_key
+        st.markdown(f"""
+        <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 10px 16px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 1.15rem;">🟢</span>
+                <div>
+                    <div style="color: #34D399; font-weight: 800; font-size: 0.95rem;">Global AI Intelligence Active: {ai_provider} ({selected_model})</div>
+                    <div style="color: #94A3B8; font-size: 0.78rem;">Using global credentials from Top Master Bar. No manual entry needed.</div>
+                </div>
+            </div>
+            <span style="background: rgba(16, 185, 129, 0.2); color: #6EE7B7; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.72rem; padding: 3px 8px; border-radius: 9999px; font-weight: 700;">AUTONOMOUS AI ENGINE</span>
+        </div>
+        """, unsafe_allow_html=True)
+        with st.expander("⚙️ Override AI Model or Key for this tab (Optional)", expanded=False):
+            c_prov, c_model, c_key = st.columns([1.2, 1.4, 2.0])
+            with c_prov:
+                ai_provider = st.selectbox(
+                    "AI Provider",
+                    options=["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"],
+                    index=["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"].index(ai_provider) if ai_provider in ["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"] else 0,
+                    key="gsc_ai_provider_ov"
+                )
+            with c_model:
+                selected_model = st.text_input("AI Model", value=selected_model, key="gsc_ai_model_ov")
+            with c_key:
+                api_key = st.text_input("API Key", value=api_key, type="password", key="gsc_ai_key_ov")
+    else:
+        c_prov, c_model, c_key = st.columns([1.2, 1.4, 2.0])
 
-    with c_model:
-        if ai_provider == "Google Gemini":
-            model_options = [
-                "gemini-4-argon",
-                "gemini-4-argon-thinking",
-                "gemini-3.8-pro-preview",
-                "gemini-3.8-flash",
-                "gemini-3.7-pro",
-                "gemini-3.7-flash",
-                "gemini-2.5-flash",
-                "gemini-2.5-pro",
-                "gemini-2.0-flash",
-                "Custom Model"
-            ]
-        elif ai_provider == "ChatGPT (OpenAI)":
-            model_options = [
-                "gpt-4o",
-                "gpt-4o-mini",
-                "gpt-4.1",
-                "o3-mini",
-                "Custom Model"
-            ]
-        else:
-            model_options = [
-                "claude-3-7-sonnet-20250219",
-                "claude-3-5-sonnet-20241022",
-                "claude-3-5-haiku-20241022",
-                "Custom Model"
-            ]
+        with c_prov:
+            ai_provider = st.selectbox(
+                "AI Provider",
+                options=["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"],
+                index=0,
+                key="gsc_ai_provider"
+            )
 
-        selected_model_choice = st.selectbox(
-            "AI Model",
-            options=model_options,
-            index=0,
-            key="gsc_ai_model_choice"
-        )
-        if selected_model_choice == "Custom Model":
-            selected_model = st.text_input(
-                "Custom Model Name",
-                placeholder="e.g. gemini-3.8-pro-preview",
-                key="gsc_custom_model_input"
-            ).strip()
-        else:
-            selected_model = selected_model_choice
+        with c_model:
+            if ai_provider == "Google Gemini":
+                model_options = [
+                    "gemini-2.5-flash",
+                    "gemini-3.8-flash",
+                    "gemini-3.7-flash",
+                    "gemini-2.5-pro",
+                    "gemini-4-argon",
+                    "gemini-2.0-flash",
+                    "Custom Model"
+                ]
+            elif ai_provider == "ChatGPT (OpenAI)":
+                model_options = [
+                    "gpt-4o-mini",
+                    "gpt-4o",
+                    "gpt-4.1",
+                    "o3-mini",
+                    "Custom Model"
+                ]
+            else:
+                model_options = [
+                    "claude-3-5-sonnet-20241022",
+                    "claude-3-7-sonnet-20250219",
+                    "claude-3-5-haiku-20241022",
+                    "Custom Model"
+                ]
 
-    with c_key:
-        if ai_provider == "Google Gemini":
-            key_label = "Google Gemini API Key (Free)"
-            key_placeholder = "Paste Gemini API key (AIzaSy...)"
-            help_url = "https://aistudio.google.com/apikey"
-            help_text = "Get free key from Google AI Studio →"
-        elif ai_provider == "ChatGPT (OpenAI)":
-            key_label = "OpenAI API Key"
-            key_placeholder = "sk-..."
-            help_url = "https://platform.openai.com/api-keys"
-            help_text = "Get OpenAI API key →"
-        else:
-            key_label = "Anthropic API Key"
-            key_placeholder = "sk-ant-..."
-            help_url = "https://console.anthropic.com/settings/keys"
-            help_text = "Get Anthropic key →"
+            selected_model_choice = st.selectbox(
+                "AI Model",
+                options=model_options,
+                index=0,
+                key="gsc_ai_model_choice"
+            )
+            if selected_model_choice == "Custom Model":
+                selected_model = st.text_input(
+                    "Custom Model Name",
+                    placeholder="e.g. gemini-2.5-flash",
+                    key="gsc_custom_model_input"
+                ).strip()
+            else:
+                selected_model = selected_model_choice
 
-        saved_key = st.session_state.get(f"api_key_{ai_provider}", "")
-        api_key = st.text_input(
-            key_label,
-            value=saved_key,
-            type="password",
-            placeholder=key_placeholder,
-            key=f"gsc_input_key_{ai_provider}"
-        )
-        if api_key:
-            st.session_state[f"api_key_{ai_provider}"] = api_key
+        with c_key:
+            if ai_provider == "Google Gemini":
+                key_label = "Google Gemini API Key (Free)"
+                key_placeholder = "Paste Gemini API key (AIzaSy...)"
+                help_url = "https://aistudio.google.com/apikey"
+                help_text = "Get free key from Google AI Studio →"
+            elif ai_provider == "ChatGPT (OpenAI)":
+                key_label = "OpenAI API Key"
+                key_placeholder = "sk-..."
+                help_url = "https://platform.openai.com/api-keys"
+                help_text = "Get OpenAI API key →"
+            else:
+                key_label = "Anthropic API Key"
+                key_placeholder = "sk-ant-..."
+                help_url = "https://console.anthropic.com/settings/keys"
+                help_text = "Get Anthropic key →"
 
-        st.markdown(
-            f'<div style="font-size:0.75rem; margin-top:2px;"><a href="{help_url}" target="_blank" style="color:#38BDF8; text-decoration:none;">{help_text}</a></div>',
-            unsafe_allow_html=True
-        )
+            saved_key = st.session_state.get(f"api_key_{ai_provider}", "")
+            api_key = st.text_input(
+                key_label,
+                value=saved_key,
+                type="password",
+                placeholder=key_placeholder,
+                key=f"gsc_input_key_{ai_provider}"
+            )
+            if api_key:
+                st.session_state[f"api_key_{ai_provider}"] = api_key
+                st.session_state["global_ai_api_key"] = api_key
+                st.session_state["global_ai_provider"] = ai_provider
+                st.session_state["global_ai_model"] = selected_model
+
+            st.markdown(
+                f'<div style="font-size:0.75rem; margin-top:2px;"><a href="{help_url}" target="_blank" style="color:#38BDF8; text-decoration:none;">{help_text}</a></div>',
+                unsafe_allow_html=True
+            )
 
     c_gen1, c_gen2, c_gen3 = st.columns([2.0, 1.2, 1.2])
     with c_gen1:
