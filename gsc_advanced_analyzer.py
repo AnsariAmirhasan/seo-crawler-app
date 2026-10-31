@@ -16,9 +16,14 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
-import plotly.graph_objects as go
-import matplotlib.pyplot as plt
-from wordcloud import WordCloud
+try:
+    import matplotlib.pyplot as plt
+    from wordcloud import WordCloud
+    WORDCLOUD_AVAILABLE = True
+except ImportError:
+    plt = None
+    WordCloud = None
+    WORDCLOUD_AVAILABLE = False
 from typing import Dict, Any, Tuple, Optional, List
 
 try:
