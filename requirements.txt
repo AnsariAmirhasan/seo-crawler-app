@@ -19,4 +19,5 @@ google-auth-oauthlib
 google-api-python-client
 google-analytics-admin
 google-analytics-data
+fastapi>=0.100.0
 

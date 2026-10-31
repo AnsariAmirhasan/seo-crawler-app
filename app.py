@@ -1,3895 +1,1092 @@
 import os
-import functools
-import base64
-from PIL import Image
-import streamlit as st
-
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-APP_ICON_PATH = os.path.join(_SCRIPT_DIR, "assets", "app_icon.png")
-FAVICON_PATH = os.path.join(_SCRIPT_DIR, "assets", "favicon_32.png")
-SPIDER_LOGO_PATH = os.path.join(_SCRIPT_DIR, "assets", "spider_logo.png")
-BANNER_PATH = os.path.join(_SCRIPT_DIR, "assets", "crawl_pilot_banner.png")
-
-# Safely load favicon as PIL Image (most robust across all Streamlit versions)
-_favicon_obj = "🕷️"
-if os.path.exists(FAVICON_PATH):
-    try:
-        _favicon_obj = Image.open(FAVICON_PATH)
-    except Exception:
-        _favicon_obj = "🕷️"
-
-# 1. Streamlit Page Configuration - Must be the very first Streamlit command!
-st.set_page_config(
-    page_title="CrawlPilot | CRAWL • ANALYZE • OPTIMIZE • RANK",
-    page_icon=_favicon_obj,
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
 import re
-from datetime import datetime
-import pandas as pd
 import time
-import requests
+import json
 from urllib.parse import urlparse, urljoin
-import xml.etree.ElementTree as ET
+from typing import Optional, List, Dict, Any
 
-from crawler import SEOSpider, USER_AGENTS, normalize_url
-from seo_analyzer import analyze_crawl_results, parse_page_seo
-try:
-    from url_utils import is_pagination_url, get_base_unpaginated_url
-except Exception:
-    from seo_analyzer import is_pagination_url, get_base_unpaginated_url
-from visualizer import (
-    create_health_gauge,
-    create_status_code_chart,
-    create_issues_bar_chart,
-    create_site_architecture_graph,
-    create_silo_structure_graph
-)
-from exporter import generate_excel_report, generate_csv
-from sitemap_generator import (
-    build_xml_sitemap,
-    build_urllist_txt,
-    build_html_sitemap,
-    build_gzipped_xml
-)
-from query_fanout import render_query_fanout_page
-from silo_architect import render_silo_architect_page
-from brand_content_generator import render_brand_first_content_page
-from gsc_advanced_analyzer import render_advance_gsc_analysis_page
-from keyword_research_mapper import render_keyword_mapper_page
-from full_site_seo_audit import render_full_site_seo_audit_page
+from fastapi import FastAPI, Query, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+import requests
+from bs4 import BeautifulSoup
 
-@functools.lru_cache(maxsize=16)
-def get_asset_base64(filepath: str) -> str:
+# Initialize FastAPI app for Vercel
+app = FastAPI(
+    title="CrawlPilot — SEO Crawler & Audit Suite",
+    description="High-speed Technical SEO Crawler & Deep Audit Web Application",
+    version="2.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+USER_AGENT = "Mozilla/5.0 (compatible; CrawlPilotBot/2.0; +https://crawlpilot.vercel.app)"
+
+def audit_single_url(target_url: str) -> Dict[str, Any]:
+    if not target_url.startswith(("http://", "https://")):
+        target_url = "https://" + target_url
+
+    parsed_target = urlparse(target_url)
+    domain = parsed_target.netloc
+
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    }
+
+    start_time = time.time()
     try:
-        if os.path.exists(filepath):
-            with open(filepath, "rb") as f:
-                return base64.b64encode(f.read()).decode("utf-8")
-    except Exception:
-        pass
-    return ""
-
-def make_clean_export_filename(prefix: str, url_or_domain: str, ext: str) -> str:
-    """Generate descriptive filename: [Prefix]_[Clean_Domain]_[YYYY-MM-DD].[ext]"""
-    from datetime import datetime
-    raw_domain = ""
-    if url_or_domain:
-        parsed = urlparse(url_or_domain if "://" in url_or_domain else f"https://{url_or_domain}")
-        raw_domain = parsed.netloc or parsed.path or url_or_domain
-    raw_domain = re.sub(r"^www\.", "", str(raw_domain).lower())
-    clean_domain = re.sub(r"[^a-zA-Z0-9_-]", "_", raw_domain).strip("_") or "website"
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    clean_ext = ext.lstrip(".")
-    return f"{prefix}_{clean_domain}_{today_str}.{clean_ext}"
-
-# 2. Futuristic Cyber HUD Theme Styling
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Space+Grotesk:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
-
-html, body, [class*="css"] {
-    font-family: 'Space Grotesk', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-/* Keep top header clean but preserve sidebar expand toggle button */
-header[data-testid="stHeader"] {
-    background: transparent !important;
-}
-
-[data-testid="stHeaderActionElements"],
-[data-testid="stToolbarActions"],
-.stDeployButton,
-#MainMenu,
-footer {
-    display: none !important;
-    visibility: hidden !important;
-}
-
-/* Futuristic Cyber HUD Styling for Sidebar Expand / Collapse Controls */
-[data-testid="stToolbar"] {
-    background: transparent !important;
-    visibility: visible !important;
-}
-button[data-testid="stExpandSidebarButton"],
-button[data-testid="stSidebarCollapseButton"],
-[data-testid="collapsedControl"] {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    color: #FFC107 !important;
-    background: rgba(14, 20, 34, 0.9) !important;
-    border: 1px solid rgba(245, 158, 11, 0.5) !important;
-    border-radius: 9px !important;
-    box-shadow: 0 0 16px rgba(245, 158, 11, 0.3) !important;
-    cursor: pointer !important;
-    transition: all 0.22s ease !important;
-    z-index: 999999 !important;
-}
-button[data-testid="stExpandSidebarButton"]:hover,
-button[data-testid="stSidebarCollapseButton"]:hover,
-[data-testid="collapsedControl"]:hover {
-    background: rgba(245, 158, 11, 0.25) !important;
-    border-color: #FFC107 !important;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.65) !important;
-    transform: scale(1.08) !important;
-}
-button[data-testid="stExpandSidebarButton"] svg,
-button[data-testid="stSidebarCollapseButton"] svg,
-[data-testid="collapsedControl"] svg {
-    fill: #FFC107 !important;
-    color: #FFC107 !important;
-}
-
-/* Futuristic Deep-Space Cyber Background */
-.stApp {
-    background-color: #06080F !important;
-    background-image: 
-        radial-gradient(ellipse 90% 50% at 50% -12%, rgba(245, 158, 11, 0.16) 0%, transparent 55%),
-        radial-gradient(ellipse 70% 40% at 95% 15%, rgba(6, 182, 212, 0.10) 0%, transparent 50%),
-        radial-gradient(ellipse 60% 35% at 5% 85%, rgba(139, 92, 246, 0.08) 0%, transparent 45%),
-        linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px) !important;
-    background-size: 100% 100%, 100% 100%, 100% 100%, 36px 36px, 36px 36px !important;
-    color: #F8FAFC !important;
-}
-
-/* Cyber Cockpit Sidebar */
-section[data-testid="stSidebar"] {
-    background: rgba(7, 10, 18, 0.94) !important;
-    backdrop-filter: blur(28px) !important;
-    border-right: 1px solid rgba(245, 158, 11, 0.22) !important;
-    box-shadow: 12px 0 35px rgba(0, 0, 0, 0.75), inset -1px 0 0 rgba(255, 255, 255, 0.03) !important;
-}
-
-/* Radio Navigation Pills in Sidebar - Futuristic HUD Modules */
-div[data-testid="stRadio"] div[role="radiogroup"] {
-    gap: 7px !important;
-}
-div[data-testid="stRadio"] div[role="radiogroup"] > label {
-    border-radius: 11px !important;
-    padding: 10px 14px !important;
-    margin-bottom: 2px !important;
-    background: rgba(14, 20, 34, 0.55) !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-    backdrop-filter: blur(12px) !important;
-    position: relative !important;
-    overflow: hidden !important;
-    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    cursor: pointer !important;
-}
-div[data-testid="stRadio"] div[role="radiogroup"] > label::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 20%;
-    height: 60%;
-    width: 3px;
-    background: transparent;
-    border-radius: 0 4px 4px 0;
-    transition: all 0.2s ease;
-}
-div[data-testid="stRadio"] div[role="radiogroup"] > label:hover {
-    background: rgba(245, 158, 11, 0.12) !important;
-    border-color: rgba(245, 158, 11, 0.45) !important;
-    transform: translateX(4px) !important;
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.18) !important;
-}
-div[data-testid="stRadio"] div[role="radiogroup"] > label:hover::before {
-    background: #FFC107;
-    box-shadow: 0 0 10px #FFC107;
-}
-div[data-testid="stRadio"] div[role="radiogroup"] > label:hover p,
-div[data-testid="stRadio"] div[role="radiogroup"] > label:hover span {
-    color: #FFFFFF !important;
-}
-/* Hide circular radio buttons */
-div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child {
-    display: none !important;
-}
-/* Active Radio Item - Solid Cyber Amber HUD Glow */
-div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"],
-div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) {
-    background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%) !important;
-    border-color: #FDE047 !important;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.4) !important;
-    transform: translateX(5px) !important;
-}
-div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked)::before {
-    background: #000000;
-}
-div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"] p,
-div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) p,
-div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"] span,
-div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) span {
-    color: #000000 !important;
-    font-weight: 800 !important;
-    font-family: 'Space Grotesk', sans-serif !important;
-}
-
-/* Primary Button Styling - Luminous Plasma Energy */
-button[kind="primary"],
-button[data-testid="baseButton-primary"] {
-    background: linear-gradient(135deg, #FFC107 0%, #D97706 100%) !important;
-    color: #000000 !important;
-    font-family: 'Space Grotesk', sans-serif !important;
-    font-weight: 800 !important;
-    letter-spacing: 0.05em !important;
-    border: 1px solid #FDE047 !important;
-    border-radius: 11px !important;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.5) !important;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    position: relative !important;
-    overflow: hidden !important;
-}
-button[kind="primary"]:hover,
-button[data-testid="baseButton-primary"]:hover {
-    transform: translateY(-2px) scale(1.02) !important;
-    box-shadow: 0 0 35px rgba(245, 158, 11, 0.75), 0 8px 25px rgba(0, 0, 0, 0.5) !important;
-}
-button[kind="secondary"],
-button[data-testid="baseButton-secondary"] {
-    background: rgba(14, 20, 32, 0.75) !important;
-    color: #E2E8F0 !important;
-    font-family: 'Space Grotesk', sans-serif !important;
-    font-weight: 700 !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-radius: 11px !important;
-    backdrop-filter: blur(12px) !important;
-    transition: all 0.25s ease !important;
-}
-button[kind="secondary"]:hover,
-button[data-testid="baseButton-secondary"]:hover {
-    border-color: #38BDF8 !important;
-    color: #38BDF8 !important;
-    box-shadow: 0 0 20px rgba(56, 189, 248, 0.35) !important;
-    background: rgba(56, 189, 248, 0.12) !important;
-    transform: translateY(-1px) !important;
-}
-
-/* Modern HUD Pill Tab Ribbon */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 8px !important;
-    background: rgba(10, 14, 24, 0.9) !important;
-    padding: 8px 12px !important;
-    border-radius: 14px !important;
-    border: 1px solid rgba(245, 158, 11, 0.22) !important;
-    backdrop-filter: blur(20px) !important;
-    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.65), 0 0 22px rgba(245, 158, 11, 0.1) !important;
-    margin-bottom: 1.6rem !important;
-}
-.stTabs [data-baseweb="tab"] {
-    border-radius: 10px !important;
-    padding: 9px 18px !important;
-    font-family: 'Space Grotesk', sans-serif !important;
-    font-weight: 600 !important;
-    font-size: 0.88rem !important;
-    color: #94A3B8 !important;
-    border: none !important;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-.stTabs [data-baseweb="tab"]:hover {
-    color: #FFFFFF !important;
-    background: rgba(255, 255, 255, 0.08) !important;
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.12) !important;
-}
-.stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%) !important;
-    color: #000000 !important;
-    font-weight: 800 !important;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.4) !important;
-}
-.stTabs [aria-selected="true"] p,
-.stTabs [aria-selected="true"] span {
-    color: #000000 !important;
-    font-weight: 800 !important;
-}
-
-/* Input & Select Custom Styling - Futuristic Terminal Cockpit */
-div[data-baseweb="input"] {
-    background-color: rgba(11, 16, 26, 0.92) !important;
-    border: 1px solid rgba(255, 255, 255, 0.14) !important;
-    border-radius: 11px !important;
-    backdrop-filter: blur(14px) !important;
-    transition: all 0.25s ease !important;
-}
-div[data-baseweb="input"]:focus-within {
-    border-color: #FFC107 !important;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.4), inset 0 0 12px rgba(245, 158, 11, 0.1) !important;
-}
-div[data-baseweb="input"] input {
-    font-family: 'JetBrains Mono', 'Space Grotesk', monospace !important;
-    font-size: 0.92rem !important;
-    color: #F8FAFC !important;
-}
-div[data-baseweb="select"] > div {
-    background-color: rgba(11, 16, 26, 0.92) !important;
-    border: 1px solid rgba(255, 255, 255, 0.14) !important;
-    border-radius: 11px !important;
-    backdrop-filter: blur(14px) !important;
-    transition: all 0.25s ease !important;
-}
-div[data-baseweb="select"] > div:focus-within {
-    border-color: #38BDF8 !important;
-    box-shadow: 0 0 22px rgba(56, 189, 248, 0.35) !important;
-}
-
-/* Cyber HUD KPI Metric Cards */
-.kpi-card-gold {
-    background: linear-gradient(145deg, rgba(14, 20, 32, 0.88) 0%, rgba(8, 12, 20, 0.96) 100%);
-    padding: 1.25rem 1.3rem;
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
-    position: relative;
-    overflow: hidden;
-    backdrop-filter: blur(20px);
-    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease;
-}
-.kpi-card-gold::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 32px;
-    height: 2px;
-    background: linear-gradient(90deg, #FFC107, transparent);
-}
-.kpi-card-gold::after {
-    content: "";
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    width: 32px;
-    height: 2px;
-    background: linear-gradient(270deg, #38BDF8, transparent);
-}
-.kpi-card-gold:hover {
-    transform: translateY(-4px) scale(1.01);
-    border-color: rgba(245, 158, 11, 0.55);
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7), 0 0 25px rgba(245, 158, 11, 0.22);
-}
-
-/* Futuristic Pulsing Beacons */
-@keyframes hud-beacon-pulse {
-    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-    70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-}
-.hud-beacon {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #10B981;
-    animation: hud-beacon-pulse 2s infinite ease-in-out;
-}
-
-/* Hero Feature Cards */
-.feature-card {
-    background: linear-gradient(145deg, rgba(16, 22, 34, 0.8) 0%, rgba(9, 13, 20, 0.95) 100%);
-    padding: 1.6rem;
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    height: 100%;
-    backdrop-filter: blur(16px);
-    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-.feature-card:hover {
-    transform: translateY(-4px);
-    border-color: rgba(255, 193, 7, 0.55);
-    box-shadow: 0 14px 28px -6px rgba(255, 193, 7, 0.2);
-}
-.feature-icon-badge {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    margin-bottom: 1.1rem;
-}
-.feature-title {
-    font-size: 1.15rem;
-    font-weight: 700;
-    font-family: 'Space Grotesk', sans-serif;
-    color: #F8FAFC;
-    margin-bottom: 0.5rem;
-}
-.feature-desc {
-    font-size: 0.88rem;
-    color: #94A3B8;
-    line-height: 1.55;
-    margin: 0;
-}
-
-/* Status Chips with Neon Glow */
-.status-pill {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 6px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    font-family: 'JetBrains Mono', monospace;
-}
-.status-green {
-    background: rgba(16, 185, 129, 0.15);
-    color: #34D399;
-    border: 1px solid rgba(16, 185, 129, 0.35);
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
-}
-.status-purple {
-    background: rgba(168, 85, 247, 0.15);
-    color: #C084FC;
-    border: 1px solid rgba(168, 85, 247, 0.35);
-    box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
-}
-.status-amber {
-    background: rgba(245, 158, 11, 0.15);
-    color: #FBBF24;
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
-}
-.status-red {
-    background: rgba(239, 68, 68, 0.15);
-    color: #F87171;
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
-}
-</style>
-""", unsafe_allow_html=True)
-
-# 3. Sidebar: Brand & Tools Suite Navigation
-with st.sidebar:
-    app_icon_b64 = get_asset_base64(APP_ICON_PATH)
-    st.markdown(f"""
-    <div style="padding: 0.4rem 0 1.2rem; border-bottom: 1px solid rgba(245, 158, 11, 0.2); margin-bottom: 1.2rem; position: relative;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="position: relative; flex-shrink: 0;">
-                <img src="data:image/png;base64,{app_icon_b64}" width="52" height="52" style="border-radius: 14px; box-shadow: 0 0 20px rgba(245, 158, 11, 0.4), 0 4px 14px rgba(0,0,0,0.8); border: 1px solid rgba(255, 193, 7, 0.4);" />
-                <span class="hud-beacon" style="position: absolute; bottom: -2px; right: -2px;"></span>
-            </div>
-            <div>
-                <div style="font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 1.55rem; font-weight: 900; line-height: 1.1; letter-spacing: -0.01em;">
-                    <span style="color: #FFFFFF; text-shadow: 0 0 15px rgba(255,255,255,0.4);">CRAWL</span><span style="color: #FFC107; text-shadow: 0 0 20px rgba(255, 193, 7, 0.6);">PILOT</span>
-                </div>
-                <div style="font-size: 0.58rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: 0.16em; margin-top: 4px; text-transform: uppercase; white-space: nowrap;">
-                    QUANTUM TECHNICAL SEO
-                </div>
-            </div>
-        </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 4px 8px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;">
-            <span style="color: #34D399; display: flex; align-items: center; gap: 6px;"><span class="hud-beacon"></span> CORE SYSTEM</span>
-            <span style="color: #94A3B8;">v2.4 [ACTIVE]</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("<div style='font-family: \"JetBrains Mono\", monospace; font-size: 0.72rem; font-weight: 700; color: #64748B; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px;'>[ HUD_MODULES ]</div>", unsafe_allow_html=True)
-    selected_tool = st.radio(
-        "Select Active Tool",
-        options=[
-            "🕷️ CrawlPilot Engine",
-            "🔑 AI Keyword Research & Page Mapper",
-            "🔍 Full Site SEO Audit (GSC + GA4)",
-            "🗺️ XML Sitemap Generator",
-            "🎯 Query Fan-Out Extractor",
-            "🏛️ AI Silo / Competitor / Blog Topic",
-            "📱 AI Social Content Studio",
-            "📈 Advance GSC data Analysis",
-            "📊 SERP Rank Tracker (Coming Soon)",
-            "🔗 Backlink Explorer (Coming Soon)",
-            "⚡ Core Web Vitals (Coming Soon)"
-        ],
-        index=0,
-        label_visibility="collapsed"
-    )
-
-    st.markdown("""
-    <div style="background: linear-gradient(145deg, rgba(14, 20, 32, 0.9) 0%, rgba(8, 12, 20, 0.95) 100%); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 14px; padding: 1.1rem; margin-top: 1.2rem; box-shadow: 0 8px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05); position: relative; overflow: hidden;">
-        <div style="position: absolute; top: 0; right: 0; width: 45px; height: 45px; background: radial-gradient(circle at top right, rgba(245, 158, 11, 0.28), transparent 70%);"></div>
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px;">
-            <div style="font-weight: 800; color: #F8FAFC; font-size: 0.78rem; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; display: flex; align-items: center; gap: 7px;">
-                <span style="color: #FFC107;">⚡</span> ENGINE TELEMETRY
-            </div>
-            <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: #34D399; background: rgba(16, 185, 129, 0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.3);">ONLINE</span>
-        </div>
-        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #CBD5E1; line-height: 2.1;">
-            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">CAPACITY:</span> <b style="color: #FFC107;">10,000 URLs</b></div>
-            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">CLICK DEPTH:</span> <b style="color: #38BDF8;">25 Clicks (Deep)</b></div>
-            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">WORKERS:</span> <b style="color: #A78BFA;">12 Concurrent</b></div>
-            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">WAF SHIELD:</span> <b style="color: #34D399;">Active (Chrome v130)</b></div>
-            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">EXPORTS:</span> <b style="color: #F8FAFC;">Multi-Tab Excel+Doc</b></div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def render_xml_sitemap_generator():
-    # Hero section matching xml-sitemaps.com
-    st.markdown("""
-    <div style="background: radial-gradient(130% 120% at 50% -10%, #172554 0%, #0F172A 60%, #020617 100%); padding: 3rem 2rem 2.2rem; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.25); text-align: center; margin-bottom: 2rem; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.6);">
-        <h1 style="font-size: 2.85rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.03em; margin: 0 0 0.6rem 0; line-height: 1.15;">
-            Better Indexing Starts Here
-        </h1>
-        <p style="color: #94A3B8; font-size: 1.12rem; max-width: 680px; margin: 0 auto; line-height: 1.6;">
-            Generate search-engine ready sitemaps. Fast, free, and no registration required.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Input Box & Action button
-    col_input, col_action = st.columns([4, 1.2])
-    with col_input:
-        raw_domain = st.text_input(
-            "Domain Input",
-            value=st.session_state.get("sitemap_target_domain", ""),
-            placeholder="Your Website Domain... (e.g. https://example.com)",
-            label_visibility="collapsed",
-            key="sitemap_domain_input"
-        )
-    with col_action:
-        btn_generate = st.button("Generate Sitemap", type="primary", use_container_width=True, key="btn_sitemap_gen")
-
-    # Settings dropdown (Settings ▾ from screenshot)
-    with st.expander("Settings ▾", expanded=False):
-        st.markdown("<div style='font-size:0.85rem; color:#94A3B8; margin-bottom:10px;'>Configure crawl depth, update frequencies, and priority tags:</div>", unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            cfg_lastmod = st.selectbox(
-                "Page modification date (lastmod):",
-                ["Automatically generated (Today UTC)", "Do not include"],
-                index=0,
-                key="sitemap_cfg_lastmod"
-            )
-            cfg_changefreq = st.selectbox(
-                "Change frequency (changefreq):",
-                ["weekly", "daily", "hourly", "monthly", "yearly", "always", "never", "Do not include"],
-                index=0,
-                key="sitemap_cfg_changefreq"
-            )
-        with c2:
-            cfg_priority = st.selectbox(
-                "Page Priority calculation (priority):",
-                [
-                    "Automatic (Calculated from click depth)",
-                    "Fixed 1.0 (Highest)",
-                    "Fixed 0.8 (Standard)",
-                    "Fixed 0.5 (Default)",
-                    "Do not include"
-                ],
-                index=0,
-                key="sitemap_cfg_priority"
-            )
-            cfg_max_pages = st.slider("Max pages to crawl:", min_value=20, max_value=10000, value=1000, step=50, key="sitemap_cfg_max_pages")
-        with c3:
-            cfg_concurrency = st.slider("Crawl Speed (Concurrency):", min_value=5, max_value=40, value=15, step=5, key="sitemap_cfg_concurrency")
-            cfg_subdomains = st.checkbox("Include subdomains", value=False, key="sitemap_cfg_subdomains")
-            cfg_respect_robots = st.checkbox("Respect robots.txt", value=True, key="sitemap_cfg_robots")
-
-
-
-    # Crawl Execution
-    if btn_generate:
-        target_site = raw_domain.strip()
-        if not target_site:
-            st.warning("⚠️ Please enter a website domain or URL (e.g. example.com or https://example.com)")
-        else:
-            if not target_site.startswith(("http://", "https://")):
-                target_site = "https://" + target_site
-            st.session_state["sitemap_target_domain"] = target_site
-
-            progress_bar = st.progress(0, text="Initializing crawler for Sitemap Generation...")
-            status_box = st.empty()
-
-            spider = SEOSpider(
-                start_url=target_site,
-                max_pages=cfg_max_pages,
-                max_depth=25,
-                concurrency=cfg_concurrency,
-                respect_robots=cfg_respect_robots,
-                crawl_mode="All Subdomains" if cfg_subdomains else "Single Subdomain Only"
-            )
-
-            def on_sitemap_progress(crawled_count=0, max_pages=1, current_url="", status_code=200, **kwargs):
-                pct = min(1.0, crawled_count / max(max_pages or 1, 1))
-                progress_bar.progress(pct, text=f"⚡ Discovering URLs ({crawled_count}/{max_pages}) — {current_url[:65]}...")
-                status_box.markdown(f"""
-                <div style="background:rgba(30,41,59,0.7); border:1px solid #334155; border-radius:10px; padding:10px 14px; font-size:0.88rem; color:#CBD5E1;">
-                    <b>Crawling URL:</b> <code>{current_url[:75]}</code> &nbsp;|&nbsp; 
-                    <b>Status:</b> <span class="status-pill status-green">{status_code}</span> &nbsp;|&nbsp; 
-                    <b>Total Discovered:</b> <b>{crawled_count}</b>
-                </div>
-                """, unsafe_allow_html=True)
-
-            t0 = time.time()
-            with st.spinner("Traversing website internal link graph..."):
-                raw_crawl = spider.crawl(progress_callback=on_sitemap_progress)
-                elapsed = round(time.time() - t0, 2)
-
-            progress_bar.progress(1.0, text=f"Crawling Complete! Filtered {len(raw_crawl['crawled_pages'])} pages into clean XML sitemap.")
-
-            # Filter valid 200 OK pages for clean XML Sitemap
-            all_pages = raw_crawl["crawled_pages"]
-            valid_pages = []
-            for p in all_pages:
-                if p.get("status_code") == 200 and p.get("url"):
-                    valid_pages.append(p)
-
-            # Auto priority vs fixed priority
-            auto_p = "Automatic" in cfg_priority
-            fixed_p = None
-            if "Fixed 1.0" in cfg_priority:
-                fixed_p = "1.0"
-            elif "Fixed 0.8" in cfg_priority:
-                fixed_p = "0.8"
-            elif "Fixed 0.5" in cfg_priority:
-                fixed_p = "0.5"
-            elif "Do not include" in cfg_priority:
-                fixed_p = "do not include"
-                auto_p = False
-
-            auto_lm = "Automatically" in cfg_lastmod
-            ch_freq = "do not include" if "Do not include" in cfg_changefreq else cfg_changefreq
-
-            # Build all 4 sitemap formats
-            xml_data = build_xml_sitemap(
-                valid_pages,
-                default_changefreq=ch_freq,
-                auto_priority=auto_p,
-                fixed_priority=fixed_p,
-                auto_lastmod=auto_lm
-            )
-            gz_data = build_gzipped_xml(xml_data)
-            txt_data = build_urllist_txt(valid_pages)
-            html_data = build_html_sitemap(valid_pages, target_site)
-
-            st.session_state["sitemap_tool_results"] = {
-                "domain": target_site,
-                "elapsed": elapsed,
-                "total_crawled": len(all_pages),
-                "valid_count": len(valid_pages),
-                "excluded_count": len(all_pages) - len(valid_pages),
-                "xml": xml_data,
-                "gz": gz_data,
-                "txt": txt_data,
-                "html": html_data,
-                "valid_pages": valid_pages
-            }
-            status_box.success(f"🎉 Generated sitemap with **{len(valid_pages)} clean URLs** in **{elapsed}s**!")
-            time.sleep(0.5)
-            st.rerun()
-
-    # If results are ready, render the full results & download dashboard
-    results_data = st.session_state.get("sitemap_tool_results")
-    if results_data:
-        st.markdown("---")
-        
-        # Metric row
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("📑 URLs Crawled", results_data["total_crawled"])
-        m2.metric("✅ Indexable in Sitemap", results_data["valid_count"])
-        m3.metric("🚫 Excluded (Non-200/Broken)", results_data["excluded_count"])
-        m4.metric("⏱️ Generation Time", f"{results_data['elapsed']}s")
-
-        st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
-        st.subheader("📥 Download Your Sitemaps")
-        st.caption("All files are fully compliant with Google Search Console, Bing Webmaster, and W3C XML schemas.")
-
-        sm_site = results_data.get("domain", "") or "website"
-        with d1:
-            st.markdown("""
-            <div style="background:rgba(30,41,59,0.7); border:1px solid #38BDF8; border-radius:12px; padding:16px; text-align:center; min-height:160px;">
-                <div style="font-size:2rem; margin-bottom:8px;">🗺️</div>
-                <div style="font-weight:700; color:#F8FAFC; font-size:1rem;">sitemap.xml</div>
-                <div style="color:#94A3B8; font-size:0.78rem; margin:6px 0 12px;">Standard XML schema for Google, Bing & Search Engines</div>
-            </div>
-            """, unsafe_allow_html=True)
-            st.download_button(
-                "📥 Download XML",
-                data=results_data["xml"],
-                file_name=make_clean_export_filename("Sitemap", sm_site, "xml"),
-                mime="application/xml",
-                use_container_width=True,
-                key="dl_xml_btn"
-            )
-
-        with d2:
-            st.markdown("""
-            <div style="background:rgba(30,41,59,0.7); border:1px solid #34D399; border-radius:12px; padding:16px; text-align:center; min-height:160px;">
-                <div style="font-size:2rem; margin-bottom:8px;">🗜️</div>
-                <div style="font-weight:700; color:#F8FAFC; font-size:1rem;">sitemap.xml.gz</div>
-                <div style="color:#94A3B8; font-size:0.78rem; margin:6px 0 12px;">Compressed Gzip XML sitemap saves bandwidth for crawlers</div>
-            </div>
-            """, unsafe_allow_html=True)
-            st.download_button(
-                "🗜️ Download GZ",
-                data=results_data["gz"],
-                file_name=make_clean_export_filename("Sitemap", sm_site, "xml.gz"),
-                mime="application/gzip",
-                use_container_width=True,
-                key="dl_gz_btn"
-            )
-
-        with d3:
-            st.markdown("""
-            <div style="background:rgba(30,41,59,0.7); border:1px solid #F59E0B; border-radius:12px; padding:16px; text-align:center; min-height:160px;">
-                <div style="font-size:2rem; margin-bottom:8px;">📄</div>
-                <div style="font-weight:700; color:#F8FAFC; font-size:1rem;">urllist.txt</div>
-                <div style="color:#94A3B8; font-size:0.78rem; margin:6px 0 12px;">Simple line-separated URL list for quick indexing tools</div>
-            </div>
-            """, unsafe_allow_html=True)
-            st.download_button(
-                "📄 Download TXT",
-                data=results_data["txt"],
-                file_name=make_clean_export_filename("URL_List", sm_site, "txt"),
-                mime="text/plain",
-                use_container_width=True,
-                key="dl_txt_btn"
-            )
-
-        with d4:
-            st.markdown("""
-            <div style="background:rgba(30,41,59,0.7); border:1px solid #818CF8; border-radius:12px; padding:16px; text-align:center; min-height:160px;">
-                <div style="font-size:2rem; margin-bottom:8px;">🌐</div>
-                <div style="font-weight:700; color:#F8FAFC; font-size:1rem;">sitemap.html</div>
-                <div style="color:#94A3B8; font-size:0.78rem; margin:6px 0 12px;">Human-readable HTML sitemap for site visitors and footer</div>
-            </div>
-            """, unsafe_allow_html=True)
-            st.download_button(
-                "🌐 Download HTML",
-                data=results_data["html"],
-                file_name=make_clean_export_filename("Sitemap", sm_site, "html"),
-                mime="text/html",
-                use_container_width=True,
-                key="dl_html_btn"
-            )
-
-        st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
-
-        # Tabbed details
-        t_urls, t_xml, t_html, t_guide = st.tabs([
-            "📋 Sitemap URL List",
-            "💻 XML Code Preview",
-            "🌐 HTML Sitemap Code",
-            "🚀 Google Search Console & robots.txt Setup Guide"
-        ])
-
-        with t_urls:
-            df_sitemap = pd.DataFrame(results_data["valid_pages"])
-            display_cols = [col for col in ["url", "depth", "status_code", "title"] if col in df_sitemap.columns]
-            st.dataframe(df_sitemap[display_cols], use_container_width=True)
-
-        with t_xml:
-            st.caption("First 100 lines of generated sitemap.xml:")
-            xml_lines = results_data["xml"].splitlines()
-            st.code("\n".join(xml_lines[:100]) + ("\n... [truncated]" if len(xml_lines) > 100 else ""), language="xml")
-
-        with t_html:
-            st.caption("Generated HTML sitemap code:")
-            st.code(results_data["html"], language="html")
-
-        with t_guide:
-            domain = results_data["domain"]
-            st.markdown(f"""
-            ### 🛠️ How to Add and Submit Your New Sitemap
-
-            #### 1. Upload to your web server root
-            Upload `sitemap.xml` directly to your root website directory so it is accessible at:
-            ```text
-            {domain}/sitemap.xml
-            ```
-
-            #### 2. Add to your `robots.txt`
-            Edit your website's `robots.txt` file and append this directive at the very end:
-            ```text
-            User-agent: *
-            Allow: /
-
-            Sitemap: {domain}/sitemap.xml
-            ```
-
-            #### 3. Submit to Google Search Console
-            1. Open [Google Search Console](https://search.google.com/search-console).
-            2. Select your property: **`{domain}`**.
-            3. In the left sidebar navigation, click on **Sitemaps**.
-            4. Under *"Add a new sitemap"*, type `sitemap.xml` and click **Submit**.
-            5. Google will begin crawling and indexing all listed URLs immediately!
-
-            #### 4. Submit to Bing Webmaster Tools
-            1. Open [Bing Webmaster Tools](https://www.bing.com/webmasters).
-            2. Select your site and navigate to **Sitemaps**.
-            3. Click **Submit Sitemap** and enter `{domain}/sitemap.xml`.
-            """)
-
-if selected_tool == "🔑 AI Keyword Research & Page Mapper":
-    render_keyword_mapper_page()
-    st.stop()
-
-if selected_tool == "🔍 Full Site SEO Audit (GSC + GA4)":
-    render_full_site_seo_audit_page()
-    st.stop()
-
-if selected_tool == "🗺️ XML Sitemap Generator":
-    render_xml_sitemap_generator()
-    st.stop()
-
-if selected_tool == "🎯 Query Fan-Out Extractor":
-    render_query_fanout_page()
-    st.stop()
-
-if selected_tool == "🏛️ AI Silo / Competitor / Blog Topic":
-    render_silo_architect_page()
-    st.stop()
-
-if selected_tool == "📱 AI Social Content Studio":
-    render_brand_first_content_page()
-    st.stop()
-
-if selected_tool == "📈 Advance GSC data Analysis":
-    render_advance_gsc_analysis_page()
-    st.stop()
-
-if selected_tool != "🕷️ CrawlPilot Engine":
-    st.markdown(f"""
-    <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 16px; padding: 3rem 2rem; text-align: center; margin-top: 1.5rem; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
-        <div style="font-size: 3.2rem; margin-bottom: 1rem;">🚧</div>
-        <h2 style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.5rem;">{selected_tool}</h2>
-        <p style="color: #94A3B8; font-size: 1.05rem; max-width: 620px; margin: 0 auto 1.5rem; line-height: 1.6;">
-            This module is currently being built for <b>CrawlPilot SEO Suite</b>. In the sidebar, select <b>'🕷️ CrawlPilot Engine'</b> to use the active technical crawler.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    st.stop()
-
-
-
-# 5. Main Page Hero Banner with Official CrawlPilot Branding & Graphic
-# Hide this hero banner when a crawl is active or completed so audit data moves directly to the top
-has_crawl_results = st.session_state.get("crawl_results") is not None
-is_crawling_active = st.session_state.get("is_crawling", False)
-
-if not has_crawl_results and not is_crawling_active:
-    spider_logo_b64 = get_asset_base64(SPIDER_LOGO_PATH)
-    st.html(f"""
-    <div style="background: radial-gradient(125% 120% at 85% 25%, rgba(245, 158, 11, 0.18) 0%, rgba(18, 24, 38, 0.9) 45%, rgba(6, 9, 16, 0.98) 100%); padding: 2.4rem 2.8rem; border-radius: 20px; border: 1px solid rgba(245, 158, 11, 0.35); margin-bottom: 1.6rem; box-shadow: 0 24px 50px -10px rgba(0,0,0,0.8), 0 0 35px rgba(245, 158, 11, 0.12); position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 24px; backdrop-filter: blur(20px);">
-        <!-- Ambient Cyber Glows -->
-        <div style="position: absolute; top: -40px; right: 15%; width: 220px; height: 180px; background: radial-gradient(circle, rgba(245, 158, 11, 0.25) 0%, transparent 70%); pointer-events: none;"></div>
-        <div style="position: absolute; bottom: -30px; left: 10%; width: 180px; height: 140px; background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 70%); pointer-events: none;"></div>
-        
-        <div style="flex: 1.3; min-width: 320px; z-index: 2;">
-            <!-- Telemetry Status Pills -->
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem;">
-                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em; box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);">
-                    <span class="hud-beacon"></span> SYSTEM ONLINE
-                </div>
-                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(245, 158, 11, 0.1); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.3); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
-                    <span>⚡</span> QUANTUM SPIDER V2.4
-                </div>
-                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(6, 182, 212, 0.1); color: #38BDF8; border: 1px solid rgba(6, 182, 212, 0.3); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
-                    <span>🤖</span> AI: GEMINI 4 ARGON
-                </div>
-            </div>
-
-            <h1 style="font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 3.1rem; font-weight: 900; margin: 0 0 0.3rem 0; line-height: 1.08; letter-spacing: -0.02em;">
-                <span style="color: #FFFFFF; text-shadow: 0 0 35px rgba(255,255,255,0.4);">CRAWL</span><span style="background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 35px rgba(255,193,7,0.5);">PILOT</span>
-            </h1>
-            <div style="font-size: 0.76rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; margin-bottom: 0.95rem;">
-                CRAWL <span style="color: #FFC107;">•</span> ANALYZE <span style="color: #38BDF8;">•</span> OPTIMIZE <span style="color: #10B981;">•</span> DOMINATE
-            </div>
-            <p style="color: #CBD5E1; font-size: 1.02rem; max-width: 660px; margin: 0; line-height: 1.65; font-family: 'Space Grotesk', sans-serif;">
-                High-precision autonomous technical SEO crawler. Deep audit internal links, canonical integrity, metadata, status codes, and Core Web Vitals up to 10,000 URLs with automated WAF bypass.
-            </p>
-        </div>
-
-        <div style="position: relative; text-align: center; z-index: 2; padding: 10px 20px;">
-            <div style="position: relative; display: inline-block; padding: 14px; background: rgba(10, 14, 24, 0.6); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 50%; box-shadow: 0 0 35px rgba(245, 158, 11, 0.25), inset 0 0 20px rgba(245, 158, 11, 0.15);">
-                <img src="data:image/png;base64,{spider_logo_b64}" width="165" style="filter: drop-shadow(0 0 25px rgba(255, 193, 7, 0.55)); display: block;" />
-            </div>
-            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #FCD34D; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 10px; text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);">
-                TARGET RADAR :: ARMED
-            </div>
-        </div>
-    </div>
-    """)
-
-# 6. Screaming Frog Top Search Bar
-col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([4.8, 2.2, 1.8, 1.2])
-
-with col_sf_url:
-    target_url = st.text_input(
-        "Enter URL to spider",
-        value=st.session_state.get("cfg_target_url", ""),
-        placeholder="https://www.example.com/",
-        label_visibility="collapsed",
-        help="Enter starting website URL (e.g. https://www.cairnindia.com/)"
-    )
-
-with col_sf_mode:
-    crawl_mode = st.selectbox(
-        "Crawl Mode",
-        options=["Subdomain", "Subfolder", "All Subdomains", "Exact URL"],
-        index=0,
-        label_visibility="collapsed",
-        help="• Subdomain: Crawl within current host\n• Subfolder: Stay inside folder path\n• All Subdomains: Crawl all *.domain.com subdomains\n• Exact URL: Inspect this single page only"
-    )
-
-with col_sf_start:
-    btn_start = st.button("▶ Start Crawl", type="primary", use_container_width=True)
-
-with col_sf_clear:
-    btn_clear = st.button("🗑️ Clear", use_container_width=True)
-
-if btn_clear:
-    st.session_state["crawl_results"] = None
-    st.session_state["is_crawling"] = False
-    st.session_state["single_inspect_result"] = None
-    st.session_state["cfg_target_url"] = ""
-    st.rerun()
-
-# Fixed Optimized Engine Parameters (10,000 URLs limit)
-max_pages = 10000
-max_depth = 25
-concurrency = 12
-timeout = 10
-user_agent_choice = "Chrome (Windows 11)"
-respect_robots = False
-include_regex = ""
-exclude_regex = ""
-
-# 6. Crawl Execution Logic
-if btn_start:
-    if not target_url or not target_url.startswith(("http://", "https://")):
-        st.error("⚠️ Please enter a valid URL starting with http:// or https://")
-    else:
-        st.session_state["cfg_target_url"] = target_url
-        st.session_state["is_crawling"] = True
-        progress_bar = st.progress(0, text=f"Initializing High-Speed SEO Spider Engine [{crawl_mode} Mode - 10,000 URL Limit]...")
-        status_box = st.empty()
-
-        spider = SEOSpider(
-            start_url=target_url,
-            max_pages=max_pages,
-            max_depth=max_depth,
-            concurrency=concurrency,
-            user_agent_name=user_agent_choice,
-            respect_robots=respect_robots,
-            timeout=timeout,
-            include_regex=include_regex,
-            exclude_regex=exclude_regex,
-            crawl_mode=crawl_mode
-        )
-
-        def on_progress(crawled_count=0, max_pages=1, current_url="", status_code=200, **kwargs):
-            total_limit = max_pages or 1
-            pct = min(1.0, crawled_count / max(total_limit, 1))
-            progress_bar.progress(pct, text=f"⚡ Crawling ({crawled_count}/{total_limit} URLs) — {current_url[:65]}...")
-            status_box.markdown(f"""
-            <div style="background:rgba(30,41,59,0.7); border:1px solid #334155; border-radius:10px; padding:10px 14px; font-size:0.88rem; color:#CBD5E1;">
-                <b>Crawling URL:</b> <code>{current_url[:75]}</code> &nbsp;|&nbsp; 
-                <b>Status:</b> <span class="status-pill status-green">{status_code}</span> &nbsp;|&nbsp; 
-                <b>Total Crawled:</b> <b>{crawled_count}</b>
-            </div>
-            """, unsafe_allow_html=True)
-
-        start_time = time.time()
-        with st.spinner("Spider is traversing website architecture..."):
-            raw_crawl = spider.crawl(progress_callback=on_progress)
-            elapsed = round(time.time() - start_time, 2)
-
-        progress_bar.progress(1.0, text=f"Crawl Completed: {len(raw_crawl['crawled_pages'])} pages in {elapsed}s! Analyzing technical factors...")
-        
-        with st.spinner("Computing SEO Health Score and Issue Aggregations..."):
-            analysis = analyze_crawl_results(
-                raw_crawl["crawled_pages"],
-                raw_crawl["links"],
-                raw_crawl["images"]
-            )
-            analysis["elapsed_seconds"] = elapsed
-            analysis["start_url"] = target_url
-            st.session_state["crawl_results"] = analysis
-            st.session_state.pop("ai_audit_enriched_result", None)
-            st.session_state["is_crawling"] = False
-
-        status_box.success(f"✅ Audit Completed! Successfully crawled and analyzed **{len(analysis['df_pages'])}** pages in **{elapsed} seconds**.")
-        time.sleep(1)
-        st.rerun()
-
-# Main Application Tabs
-tab_overview, tab_issues, tab_minify, tab_pages, tab_responses, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_extractor, tab_inspector, tab_sitemap = st.tabs([
-    "📊 Overview",
-    "❗ Issues & Fixes",
-    "⚡ Minify JS & CSS",
-    "📄 Internal Pages",
-    "</> Response Codes",
-    "🔗 Canonicals",
-    "T Page Titles",
-    "📄 Meta Description",
-    "H Headings (H1/H2)",
-    "🔗 Link Analysis",
-    "🖼️ Images Audit",
-    "🧭 Site Structure",
-    "📑 Audit Report",
-    "🔍 Quick Inspector",
-    "🤖 Robots & Sitemap"
-])
-
-results = st.session_state.get("crawl_results")
-active_crawl_site = (results.get("start_url", "") if isinstance(results, dict) else "") or st.session_state.get("cfg_target_url", "")
-
-# ==============================================================================
-# TAB 1: OVERVIEW & HEALTH AUDIT
-# ==============================================================================
-with tab_overview:
-    if not results:
-        # 6 Futuristic Cyber HUD Telemetry Cards Showcase
-        st.html("""
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 1.6rem;">
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(255, 193, 7, 0.25);">🔗</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↑ 12%</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Internal Links</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">2,458</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 78%; height: 100%; background: linear-gradient(90deg, #FFC107, transparent);"></div></div>
-            </div>
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(99, 102, 241, 0.25);">📄</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↑ 8%</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Pages Crawled</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">1,245</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 62%; height: 100%; background: linear-gradient(90deg, #818CF8, transparent);"></div></div>
-            </div>
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(239, 68, 68, 0.25);">❗</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 24%</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Issues Found</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #F87171; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(239, 68, 68, 0.3);">186</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 45%; height: 100%; background: linear-gradient(90deg, #EF4444, transparent);"></div></div>
-            </div>
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(245, 158, 11, 0.25);">🏷️</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 40%</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Missing Titles</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">12</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 25%; height: 100%; background: linear-gradient(90deg, #F59E0B, transparent);"></div></div>
-            </div>
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(6, 182, 212, 0.12); border: 1px solid rgba(6, 182, 212, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(6, 182, 212, 0.25);">🖼️</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 18%</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Missing Images Alt</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">34</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 40%; height: 100%; background: linear-gradient(90deg, #06B6D4, transparent);"></div></div>
-            </div>
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(255, 193, 7, 0.25);">⚡</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 28%</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Avg. Latency</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #38BDF8; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(56, 189, 248, 0.3);">312 ms</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 85%; height: 100%; background: linear-gradient(90deg, #38BDF8, transparent);"></div></div>
-            </div>
-        </div>
-        """)
-
-        # Quantum Capabilities Matrix Showcase Card
-        st.html("""
-        <div style="background: linear-gradient(135deg, rgba(16, 22, 36, 0.92) 0%, rgba(9, 13, 22, 0.98) 100%); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 18px; padding: 2.4rem 2.6rem; margin-top: 0.8rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2rem; box-shadow: 0 20px 45px rgba(0,0,0,0.65), 0 0 30px rgba(245, 158, 11, 0.08); position: relative; overflow: hidden; backdrop-filter: blur(20px);">
-            <div style="position: absolute; top: -50px; left: -50px; width: 150px; height: 150px; background: radial-gradient(circle, rgba(245, 158, 11, 0.18) 0%, transparent 70%); pointer-events: none;"></div>
-            
-            <div style="flex: 1.2; min-width: 280px; position: relative; z-index: 2;">
-                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #FFC107; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 6px;">
-                    MISSION CONTROL • ZERO LIMITATIONS
-                </div>
-                <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; color: #FFFFFF; margin: 0 0 0.6rem 0; letter-spacing: -0.02em;">
-                    Autonomous Technical SEO <span style="background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Intelligence</span>
-                </h2>
-                <p style="color: #94A3B8; font-size: 0.98rem; line-height: 1.65; max-width: 520px; margin: 0; font-family: 'Space Grotesk', sans-serif;">
-                    Input target URL, select crawl depth, and engage. The multi-threaded quantum engine analyzes HTTP response codes, canonical directives, metadata anomalies, and image sizes at warp speed.
-                </p>
-            </div>
-
-            <div style="flex: 1; min-width: 260px; position: relative; z-index: 2;">
-                <div style="display: flex; flex-direction: column; gap: 11px; font-size: 0.88rem; color: #CBD5E1; font-family: 'Space Grotesk', sans-serif;">
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #34D399; font-weight: 800;">⚡</span> <b>High-Speed Multi-Thread Crawler</b> (10,000 URLs)</div>
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #38BDF8; font-weight: 800;">⚡</span> <b>Automated SiteGround / Cloudflare WAF Bypass</b></div>
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">⚡</span> <b>AI Action Plan Generation</b> (Gemini 4 Argon)</div>
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #A78BFA; font-weight: 800;">⚡</span> <b>Client-Ready Excel (.XLSX) & Word (.DOCX) Reports</b></div>
-                </div>
-            </div>
-
-            <div style="flex: 0.8; min-width: 220px; text-align: center; position: relative; z-index: 2;">
-                <div style="background: rgba(8, 12, 22, 0.95); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 14px; padding: 18px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.7), inset 0 0 15px rgba(245, 158, 11, 0.05); text-align: left;">
-                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #94A3B8; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.1em;">
-                        EXECUTION PIPELINE
-                    </div>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 700; color: #FFFFFF;">
-                            <span>01. CRAWL</span> <span style="color: #34D399; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(16,185,129,0.1); padding: 2px 6px; border-radius: 4px;">ARMED</span>
-                        </div>
-                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 600; color: #CBD5E1;">
-                            <span>02. ANALYZE</span> <span style="color: #38BDF8; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px;">READY</span>
-                        </div>
-                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 600; color: #CBD5E1;">
-                            <span>03. FIX</span> <span style="color: #FFC107; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(255,193,7,0.1); padding: 2px 6px; border-radius: 4px;">AUTO</span>
-                        </div>
-                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 700; color: #FFC107;">
-                            <span>04. DOMINATE</span> <span style="color: #A78BFA; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(167,139,250,0.1); padding: 2px 6px; border-radius: 4px;">TARGET</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """)
-
-    else:
-        summary = results.get("summary", {})
-        df_pages = results.get("df_pages", pd.DataFrame())
-        df_issues = results.get("df_issues", pd.DataFrame())
-        df_links = results.get("df_links", pd.DataFrame())
-        df_images = results.get("df_images", pd.DataFrame())
-        elapsed = results.get("elapsed_seconds", 0)
-        target = results.get("start_url", "")
-
-        # Compute safe metrics for KPI cards
-        missing_titles_cnt = len(df_pages[(df_pages["title"].fillna("").str.strip() == "") & (df_pages["status_code"] == 200)]) if not df_pages.empty and "title" in df_pages.columns else 0
-        if not df_pages.empty and "images_missing_alt_count" in df_pages.columns:
-            missing_alt_cnt = int(df_pages["images_missing_alt_count"].sum())
-        elif not df_images.empty and "has_alt" in df_images.columns:
-            missing_alt_cnt = len(df_images[df_images["has_alt"] == False])
-        else:
-            missing_alt_cnt = summary.get("images_missing_alt_count", summary.get("images_missing_alt", 0))
-
-        avg_latency = round(df_pages['latency_ms'].mean(), 1) if not df_pages.empty and 'latency_ms' in df_pages.columns else 0
-        https_count = len(df_pages[df_pages['url'].str.startswith('https://')]) if not df_pages.empty and 'url' in df_pages.columns else 0
-        total_links_val = summary.get('total_links', len(df_links))
-        total_crawled_val = summary.get('total_crawled', len(df_pages))
-        issues_val = summary.get('critical_errors', 0) + summary.get('warnings', 0)
-
-        # Futuristic Target Quick Status Strip
-        st.html(f"""
-        <div style="background: linear-gradient(135deg, rgba(8, 12, 22, 0.95), rgba(13, 19, 33, 0.9)); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; padding: 14px 20px; margin-bottom: 1.4rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <span class="hud-beacon"></span>
-                <div>
-                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #38BDF8; letter-spacing: 0.1em; text-transform: uppercase;">
-                        TARGET FLIGHT TELEMETRY
-                    </div>
-                    <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.1rem; font-weight: 800; color: #FFC107;">
-                        {target}
-                    </div>
-                </div>
-            </div>
-            <div style="display: flex; gap: 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #94A3B8; flex-wrap: wrap;">
-                <span style="background: rgba(255,255,255,0.04); padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">⏱️ SCAN: <b style="color: #F8FAFC;">{elapsed}s</b></span>
-                <span style="background: rgba(255,255,255,0.04); padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">⚡ LATENCY: <b style="color: #38BDF8;">{avg_latency} ms</b></span>
-                <span style="background: rgba(255,255,255,0.04); padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">🔒 SSL PROTOCOL: <b style="color: #34D399;">{https_count}/{len(df_pages)} SECURE</b></span>
-            </div>
-        </div>
-        """)
-
-        # 6 Futuristic Cyber HUD KPI Cards with Live Crawl Data
-        st.html(f"""
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 1.6rem;">
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; box-shadow: 0 0 12px rgba(245, 158, 11, 0.15);">🔗</div>
-                    <span style="background: rgba(16, 185, 129, 0.14); color: #34D399; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">LIVE</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">INTERNAL LINKS</div>
-                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 30%, #CBD5E1 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-top: 4px; letter-spacing: -0.02em;">{total_links_val:,}</div>
-                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #F59E0B, #FFC107);"></div>
-            </div>
-
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(56, 189, 248, 0.14); border: 1px solid rgba(56, 189, 248, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);">📄</div>
-                    <span style="background: rgba(16, 185, 129, 0.14); color: #34D399; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">TOTAL</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">PAGES CRAWLED</div>
-                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 30%, #38BDF8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-top: 4px; letter-spacing: -0.02em;">{total_crawled_val:,}</div>
-                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #0284C7, #38BDF8);"></div>
-            </div>
-
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; box-shadow: 0 0 12px rgba(239, 68, 68, 0.15);">❗</div>
-                    <span style="background: rgba(239, 68, 68, 0.14); color: #F87171; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.25);">ANOMALIES</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">ISSUES DETECTED</div>
-                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 30%, #EF4444 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-top: 4px; letter-spacing: -0.02em;">{issues_val:,}</div>
-                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #DC2626, #F87171);"></div>
-            </div>
-
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">🏷️</div>
-                    <span style="background: rgba(245, 158, 11, 0.14); color: #FBBF24; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.25);">META</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">MISSING TITLES</div>
-                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{missing_titles_cnt:,}</div>
-                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #D97706, #FBBF24);"></div>
-            </div>
-
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(6, 182, 212, 0.14); border: 1px solid rgba(6, 182, 212, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">🖼️</div>
-                    <span style="background: rgba(6, 182, 212, 0.14); color: #22D3EE; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(6, 182, 212, 0.25);">ASSETS</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">MISSING ALT</div>
-                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.02em;">{missing_alt_cnt:,}</div>
-                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #0891B2, #22D3EE);"></div>
-            </div>
-
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(16, 185, 129, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">⚡</div>
-                    <span style="background: rgba(16, 185, 129, 0.14); color: #34D399; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">WARP</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em;">AVG LATENCY</div>
-                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 30%, #34D399 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-top: 4px; letter-spacing: -0.02em;">{avg_latency} <span style="font-size: 1rem; color: #94A3B8;">ms</span></div>
-                <div class="kpi-micro-bar" style="width: 100%; background: linear-gradient(90deg, #059669, #34D399);"></div>
-            </div>
-        </div>
-        """)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # Visualizer Charts Grid
-        col_g1, col_g2, col_g3 = st.columns([1, 1, 1.6])
-        with col_g1:
-            st.plotly_chart(create_health_gauge(summary["health_score"]), use_container_width=True, config={'displayModeBar': False})
-        with col_g2:
-            st.plotly_chart(create_status_code_chart(df_pages), use_container_width=True, config={'displayModeBar': False})
-        with col_g3:
-            st.plotly_chart(create_issues_bar_chart(df_issues), use_container_width=True, config={'displayModeBar': False})
-
-        st.markdown("---")
-        
-        # Export Actions Section
-        st.subheader("📥 Export Client-Ready Audit Reports")
-        col_d1, col_d2, col_d3 = st.columns([1.2, 1.2, 1.6])
-        with col_d1:
-            cur_site = active_crawl_site
-            excel_bytes = generate_excel_report(results, cur_site)
-            st.download_button(
-                label="📊 Download Full Excel Report (.xlsx)",
-                data=excel_bytes,
-                file_name=make_clean_export_filename("SEO_Audit_Report", cur_site, "xlsx"),
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-        with col_d2:
-            csv_pages = generate_csv(df_pages)
-            st.download_button(
-                label="📑 Download All Pages (CSV)",
-                data=csv_pages,
-                file_name=make_clean_export_filename("Crawled_Pages", cur_site, "csv"),
-                mime="text/csv",
-                use_container_width=True
-            )
-        with col_d3:
-            st.caption("✨ Excel report contains dedicated sheets: **Summary**, **Pages**, **Canonicals**, **Issues**, **Images**, and **Links**.")
-
-# ==============================================================================
-# TAB 2: ISSUES & ACTIONABLE FIXES
-# ==============================================================================
-with tab_issues:
-    if not results:
-        st.info("👈 Enter a URL in the sidebar and run a crawl to view prioritized issues and actionable fixes.")
-    else:
-        df_issues = results["df_issues"]
-        if df_issues.empty:
-            st.success("🎉 Outstanding! Zero technical SEO issues detected on crawled pages.")
-        else:
-            total_issues_count = len(df_issues)
-            err_count = len(df_issues[df_issues["type"] == "Error"])
-            warn_count = len(df_issues[df_issues["type"] == "Warning"])
-            not_count = len(df_issues[df_issues["type"] == "Notice"])
-
-            # 4 Crisp Metric Summary Cards
-            col_im1, col_im2, col_im3, col_im4 = st.columns(4)
-            with col_im1:
-                st.metric("Total Issues", f"{total_issues_count}", delta=f"{len(df_issues['url'].unique())} pages affected")
-            with col_im2:
-                st.metric("Critical Errors", f"{err_count}", delta="Requires immediate fix" if err_count else "None", delta_color="inverse" if err_count else "normal")
-            with col_im3:
-                st.metric("Warnings", f"{warn_count}", delta="Action recommended" if warn_count else "None", delta_color="inverse" if warn_count else "normal")
-            with col_im4:
-                st.metric("Notices", f"{not_count}", delta="Informational" if not_count else "None", delta_color="normal")
-
-            st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
-
-            # 1. Severity Filter Buttons (st.pills)
-            sev_options = [
-                f"All Severities ({total_issues_count})",
-                f"🔴 Errors ({err_count})",
-                f"🟡 Warnings ({warn_count})",
-                f"🔵 Notices ({not_count})"
-            ]
-            selected_sev = st.pills(
-                "Filter by Severity:",
-                options=sev_options,
-                default=f"All Severities ({total_issues_count})",
-                selection_mode="single",
-                key="pills_sev_filter"
-            )
-
-            # Resolve Active Severity
-            if not selected_sev or "All Severities" in selected_sev:
-                active_severities = ["Error", "Warning", "Notice"]
-                sev_key_suffix = "all"
-            elif "Errors" in selected_sev:
-                active_severities = ["Error"]
-                sev_key_suffix = "error"
-            elif "Warnings" in selected_sev:
-                active_severities = ["Warning"]
-                sev_key_suffix = "warning"
-            elif "Notices" in selected_sev:
-                active_severities = ["Notice"]
-                sev_key_suffix = "notice"
-            else:
-                active_severities = ["Error", "Warning", "Notice"]
-                sev_key_suffix = "all"
-
-            # Filter issues by selected severity FIRST so category buttons only show relevant categories!
-            df_sev_subset = df_issues[df_issues["type"].isin(active_severities)]
-            sev_total_count = len(df_sev_subset)
-
-            # Resolve Category Counts strictly from the filtered severity subset
-            cat_counts = df_sev_subset["category"].value_counts().to_dict()
-            cat_options = [f"All Categories ({sev_total_count})"] + [
-                f"{cat} ({cat_counts[cat]})" for cat in sorted(cat_counts.keys())
-            ]
-            
-            selected_cat = st.pills(
-                "Filter by Issue Category:",
-                options=cat_options,
-                default=f"All Categories ({sev_total_count})",
-                selection_mode="single",
-                key=f"pills_cat_filter_{sev_key_suffix}"
-            )
-
-            # Resolve Active Category
-            if not selected_cat or "All Categories" in selected_cat:
-                active_category = None
-            else:
-                active_category = selected_cat.rsplit(" (", 1)[0]
-
-            filtered_issues = df_sev_subset.copy()
-            if active_category:
-                filtered_issues = filtered_issues[filtered_issues["category"] == active_category]
-
-            # Search Bar & CSV Download Toolbar
-            col_fs1, col_fs2 = st.columns([3, 1.2])
-            with col_fs1:
-                issue_search = st.text_input("🔍 Search issues, fix recommendations, or URLs:", "", key="issues_search_box")
-            with col_fs2:
-                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                csv_iss = generate_csv(filtered_issues)
-                st.download_button(
-                    label=f"📥 Download Filtered Issues ({len(filtered_issues)})",
-                    data=csv_iss,
-                    file_name=make_clean_export_filename("Audit_Issues_Filtered", active_crawl_site, "csv"),
-                    mime="text/csv",
-                    use_container_width=True
-                )
-
-            if issue_search:
-                filtered_issues = filtered_issues[
-                    filtered_issues["url"].str.contains(issue_search, case=False, na=False) |
-                    filtered_issues["issue"].str.contains(issue_search, case=False, na=False) |
-                    filtered_issues["recommendation"].str.contains(issue_search, case=False, na=False) |
-                    filtered_issues["category"].str.contains(issue_search, case=False, na=False)
-                ]
-
-            st.caption(f"Showing **{len(filtered_issues)}** of **{total_issues_count}** technical issues matching active button filters:")
-            st.dataframe(
-                filtered_issues,
-                use_container_width=True,
-                column_config={
-                    "type": st.column_config.TextColumn("Severity"),
-                    "category": st.column_config.TextColumn("Category"),
-                    "url": st.column_config.LinkColumn("Page URL"),
-                    "issue": st.column_config.TextColumn("Issue Detected"),
-                    "recommendation": st.column_config.TextColumn("Recommended Action"),
-                },
-                hide_index=True
-            )
-
-# ==============================================================================
-# TAB: MINIFY JAVASCRIPT & CSS AUDIT
-# ==============================================================================
-with tab_minify:
-    if not results:
-        st.info("👈 Enter a URL in the sidebar and run a crawl to audit JavaScript and CSS file minification status.")
-    else:
-        df_unmin = results.get("df_unminified", pd.DataFrame())
-        # Fallback if df_unminified empty but df_pages exists
-        if df_unmin.empty and "df_pages" in results:
-            df_pages_tmp = results["df_pages"]
-            rows_tmp = []
-            for _, r in df_pages_tmp.iterrows():
-                p_u = r.get("url", "")
-                for s in r.get("unminified_scripts", []):
-                    rows_tmp.append({
-                        "page_url": p_u,
-                        "asset_url": str(s),
-                        "asset_type": "JavaScript (.js)",
-                        "minification_status": "Unminified",
-                        "recommended_action": "Minify JavaScript using Terser/esbuild, strip comments/whitespace, and enable Gzip/Brotli."
-                    })
-                for c in r.get("unminified_styles", []):
-                    rows_tmp.append({
-                        "page_url": p_u,
-                        "asset_url": str(c),
-                        "asset_type": "Stylesheet (.css)",
-                        "minification_status": "Unminified",
-                        "recommended_action": "Minify CSS using CSSNano/clean-css, remove unused styles, and activate CDN minification."
-                    })
-            if rows_tmp:
-                df_unmin = pd.DataFrame(rows_tmp).drop_duplicates(subset=["page_url", "asset_url"])
-
-        if df_unmin.empty:
-            st.success("🎉 Outstanding! All detected JavaScript and CSS files on crawled pages are properly minified and compressed.")
-        else:
-            total_unmin = len(df_unmin)
-            js_count = len(df_unmin[df_unmin["asset_type"] == "JavaScript (.js)"])
-            css_count = len(df_unmin[df_unmin["asset_type"] == "Stylesheet (.css)"])
-            pages_affected = df_unmin["page_url"].nunique() if "page_url" in df_unmin.columns else 0
-
-            # 4 Summary KPI Metric Cards
-            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-            with col_m1:
-                st.metric("Unminified Assets", f"{total_unmin}", delta=f"{pages_affected} pages affected", delta_color="inverse")
-            with col_m2:
-                st.metric("JavaScript (.js)", f"{js_count}", delta="Requires bundling / Terser", delta_color="inverse" if js_count else "normal")
-            with col_m3:
-                st.metric("Stylesheets (.css)", f"{css_count}", delta="Requires CSSNano / purge", delta_color="inverse" if css_count else "normal")
-            with col_m4:
-                st.metric("Potential Payload Savings", "30% - 70%", delta="Core Web Vitals boost", delta_color="normal")
-
-            st.markdown("<div style='margin-bottom: 0.8rem;'></div>", unsafe_allow_html=True)
-
-            # Filter buttons
-            filter_opts = [
-                f"All Assets ({total_unmin})",
-                f"JavaScript ({js_count})",
-                f"Stylesheets ({css_count})"
-            ]
-            sel_min_type = st.pills(
-                "Filter by Asset Type:",
-                options=filter_opts,
-                default=f"All Assets ({total_unmin})",
-                selection_mode="single",
-                key="pills_minify_filter"
-            )
-
-            df_min_filtered = df_unmin.copy()
-            if sel_min_type and "JavaScript" in sel_min_type:
-                df_min_filtered = df_min_filtered[df_min_filtered["asset_type"] == "JavaScript (.js)"]
-            elif sel_min_type and "Stylesheets" in sel_min_type:
-                df_min_filtered = df_min_filtered[df_min_filtered["asset_type"] == "Stylesheet (.css)"]
-
-            # Search Bar & CSV Download Toolbar
-            col_ms1, col_ms2 = st.columns([3, 1.2])
-            with col_ms1:
-                minify_search = st.text_input("🔍 Search by Asset URL or Page URL:", "", key="minify_search_box")
-            with col_ms2:
-                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                csv_min = generate_csv(df_min_filtered)
-                st.download_button(
-                    label=f"📥 Download Minify CSV ({len(df_min_filtered)})",
-                    data=csv_min,
-                    file_name=make_clean_export_filename("Unminified_Assets", active_crawl_site, "csv"),
-                    mime="text/csv",
-                    use_container_width=True
-                )
-
-            if minify_search:
-                df_min_filtered = df_min_filtered[
-                    df_min_filtered["asset_url"].str.contains(minify_search, case=False, na=False) |
-                    df_min_filtered["page_url"].str.contains(minify_search, case=False, na=False)
-                ]
-
-            st.caption(f"Showing **{len(df_min_filtered)}** unminified asset instances:")
-            st.dataframe(
-                df_min_filtered,
-                use_container_width=True,
-                column_config={
-                    "page_url": st.column_config.LinkColumn("Page URL (Found On)"),
-                    "asset_url": st.column_config.LinkColumn("Unminified Asset URL"),
-                    "asset_type": st.column_config.TextColumn("Asset Type"),
-                    "minification_status": st.column_config.TextColumn("Status"),
-                    "recommended_action": st.column_config.TextColumn("Recommended Action"),
-                },
-                hide_index=True
-            )
-
-            # Developer Implementation Guides in Accordion
-            with st.expander("🛠️ Developer Implementation Guide: How to Minify JS & CSS"):
-                st.markdown("""
-                ### 1. JavaScript Minification
-                - **Modern Bundlers (Vite / Webpack / Rollup / Next.js)**: Ensure production builds have `minify: 'terser'` or `minify: 'esbuild'` enabled.
-                - **Command Line (Terser)**:
-                  ```bash
-                  npx terser app.js -o app.min.js --compress --mangle
-                  ```
-                - **UglifyJS**:
-                  ```bash
-                  npx uglify-js script.js -c -m -o script.min.js
-                  ```
-
-                ### 2. CSS Minification
-                - **PostCSS + CSSNano**:
-                  ```bash
-                  npx postcss styles.css > styles.min.css
-                  ```
-                - **Clean-CSS CLI**:
-                  ```bash
-                  npx clean-css-cli -o styles.min.css styles.css
-                  ```
-
-                ### 3. Cloudflare & CDN 1-Click Auto-Minification
-                If you use Cloudflare, Fastly, AWS CloudFront, or a CMS (WordPress/Shopify):
-                - **Cloudflare**: Navigate to **Speed** → **Optimization** → **Auto Minify** → Check both **JavaScript** and **CSS**.
-                - **WordPress**: Install *WP Rocket*, *LiteSpeed Cache*, or *Autoptimize* and enable file minification & combine assets.
-                """)
-
-# ==============================================================================
-# TAB: ALL INTERNAL PAGES EXPLORER
-# ==============================================================================
-with tab_pages:
-    if not results:
-        st.info("Run a crawl to explore internal pages table.")
-    else:
-        df_pages = results["df_pages"]
-        search_query = st.text_input("🔍 Search pages by URL, Title, or Canonical Target:", "")
-        
-        display_df = df_pages.copy()
-        if search_query:
-            display_df = display_df[
-                display_df["url"].str.contains(search_query, case=False, na=False) |
-                display_df["title"].str.contains(search_query, case=False, na=False) |
-                display_df["canonical_url"].str.contains(search_query, case=False, na=False)
-            ]
-
-        columns_to_show = [
-            "url", "canonical_url", "canonical_status", "status_code", "title", "meta_description", "h1",
-            "word_count", "latency_ms", "size_kb",
-            "is_indexable", "internal_outlinks_count", "images_count"
-        ]
-        available_cols = [c for c in columns_to_show if c in display_df.columns]
-
-        st.caption(f"Showing **{len(display_df)}** pages:")
-        st.dataframe(
-            display_df[available_cols],
-            use_container_width=True,
-            column_config={
-                "url": st.column_config.LinkColumn("Page URL"),
-                "canonical_url": st.column_config.LinkColumn("Canonical URL"),
-                "canonical_status": st.column_config.TextColumn("Canonical Status"),
-                "status_code": st.column_config.NumberColumn("Status", format="%d"),
-                "title": st.column_config.TextColumn("Page Title"),
-                "meta_description": st.column_config.TextColumn("Meta Description"),
-                "h1": st.column_config.TextColumn("H1"),
-                "word_count": st.column_config.NumberColumn("Words"),
-                "latency_ms": st.column_config.NumberColumn("Latency", format="%.0f ms"),
-                "size_kb": st.column_config.NumberColumn("Size", format="%.1f KB"),
-                "is_indexable": st.column_config.CheckboxColumn("Indexable"),
-            },
-            hide_index=True
-        )
-
-# ==============================================================================
-# TAB 4: RESPONSE CODES & HTTP STATUS AUDIT
-# ==============================================================================
-with tab_responses:
-    if not results:
-        st.info("Run a crawl to audit HTTP response codes, redirection types, errors, and orphan pages.")
-    else:
-        df_pages = results["df_pages"]
-
-        df_links = results.get("df_links", pd.DataFrame())
-
-        # Ensure accurate inlinks_count, source_url, anchor_text, and is_orphan status
-        from seo_analyzer import resolve_inlinks_and_orphans
-        start_u = results.get("start_url", "")
-        df_pages = resolve_inlinks_and_orphans(df_pages, df_links, start_url=start_u)
-
-        # Ensure columns exist even if viewed from a cached session
-        for c in ["redirect_hops", "inlinks_count"]:
-            if c not in df_pages.columns:
-                df_pages[c] = 0
-        for c in ["redirect_chain_str", "redirect_issue_type", "redirect_severity", "source_url", "anchor_text"]:
-            if c not in df_pages.columns:
-                df_pages[c] = ""
-        for c in ["is_redirect_chain", "is_redirect_loop"]:
-            if c not in df_pages.columns:
-                df_pages[c] = False
-
-        if "status_description" not in df_pages.columns or "response_category" not in df_pages.columns:
-            def classify_temp(row):
-                c = row.get("status_code", 0)
-                e = str(row.get("error") or "").lower()
-                is_loop = row.get("is_redirect_loop", False)
-                is_chain = row.get("is_redirect_chain", False)
-
-                if c == 200: d = "200 OK"
-                elif c == 301: d = "301 Moved Permanently"
-                elif c == 302: d = "302 Found"
-                elif c == 307: d = "307 Temporary Redirect"
-                elif c == 308: d = "308 Permanent Redirect"
-                elif c == 400: d = "400 Bad Request"
-                elif c == 401: d = "401 Unauthorized"
-                elif c == 403: d = "403 Forbidden"
-                elif c == 404: d = "404 Not Found"
-                elif c == 410: d = "410 Gone"
-                elif c == 500: d = "500 Internal Server Error"
-                elif c == 502: d = "502 Bad Gateway"
-                elif c == 503: d = "503 Service Unavailable"
-                elif c == 0 or "timeout" in e: d = "No Response"
-                else: d = f"HTTP {c}"
-                
-                if "robots" in e: cat = "Blocked by Robots.txt"
-                elif c == 403 or (c != 200 and "blocked" in e): cat = "Blocked Resource"
-                elif is_loop: cat = "Redirection (Loop)"
-                elif is_chain: cat = "Redirection (Chain)"
-                elif c == 0 or "timeout" in e: cat = "No Response"
-                elif 200 <= c < 300: cat = "Success (2xx)"
-                elif 300 <= c < 400: cat = "Redirection (3xx)"
-                elif 400 <= c < 500: cat = "Client Error (4xx)"
-                elif 500 <= c < 600: cat = "Server Error (5xx)"
-                else: cat = "Other"
-                return pd.Series([d, cat], index=["status_description", "response_category"])
-            
-            temp_res = df_pages.apply(classify_temp, axis=1)
-            df_pages["status_description"] = temp_res["status_description"]
-            df_pages["response_category"] = temp_res["response_category"]
-
-        total_resp_pages = len(df_pages)
-
-        st.subheader("🚦 Response Codes & HTTP Status Breakdown")
-        st.caption("Inspect HTTP status codes, redirection chains, redirect loops, server errors, blocked resources, and orphan pages with 0 internal links.")
-
-        # KPI Metrics Row (8 metrics)
-        c_2xx = len(df_pages[(df_pages["status_code"] >= 200) & (df_pages["status_code"] < 300)])
-        c_3xx = len(df_pages[(df_pages["status_code"] >= 300) & (df_pages["status_code"] < 400)])
-        c_chain = len(df_pages[df_pages.get("is_redirect_chain", False) == True])
-        c_loop = len(df_pages[df_pages.get("is_redirect_loop", False) == True])
-        c_4xx = len(df_pages[(df_pages["status_code"] >= 400) & (df_pages["status_code"] < 500)])
-        c_5xx = len(df_pages[(df_pages["status_code"] >= 500) & (df_pages["status_code"] < 600)])
-        c_orphan = int((df_pages["is_orphan"] == True).sum()) if "is_orphan" in df_pages.columns else 0
-        c_noindex = len(df_pages[(df_pages.get("is_noindex", False) == True) | (df_pages.get("meta_robots", "").fillna("").str.contains("noindex", case=False))])
-
-        rm1, rm2, rm3, rm4, rm5, rm6, rm7, rm8 = st.columns(8)
-        rm1.metric("Success (2xx)", f"{c_2xx}", delta=f"{round(c_2xx/max(total_resp_pages,1)*100)}% of pages")
-        rm2.metric("Redirection (3xx)", f"{c_3xx}", delta="Redirects" if c_3xx else None)
-        rm3.metric("Redirect Chains", f"{c_chain}", delta=">1 Hop" if c_chain else None, delta_color="inverse")
-        rm4.metric("Redirect Loops", f"{c_loop}", delta="Circular Loop" if c_loop else None, delta_color="inverse")
-        rm5.metric("Client Error (4xx)", f"{c_4xx}", delta="Broken links" if c_4xx else None, delta_color="inverse")
-        rm6.metric("Server Error (5xx)", f"{c_5xx}", delta="Critical" if c_5xx else None, delta_color="inverse")
-        rm7.metric("Orphan URLs", f"{c_orphan}", delta="0 Inlinks" if c_orphan else None, delta_color="inverse")
-        rm8.metric("Noindex Pages", f"{c_noindex}", delta="Blocked" if c_noindex else "None", delta_color="inverse" if c_noindex else "normal")
-
-        st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
-
-        # Build Filter Options matching user's requirements + Orphan pages
-        c_robots = len(df_pages[df_pages["response_category"] == "Blocked by Robots.txt"]) if "response_category" in df_pages.columns else 0
-        c_blocked_res = len(df_pages[df_pages["response_category"] == "Blocked Resource"]) if "response_category" in df_pages.columns else 0
-        c_no_resp = len(df_pages[(df_pages["status_code"] == 0) | (df_pages["response_category"] == "No Response")]) if "response_category" in df_pages.columns else 0
-
-        sf_options = [
-            f"All ({total_resp_pages})",
-            f"Success (2xx) ({c_2xx})",
-            f"Noindex Pages (noindex tag) ({c_noindex})",
-            f"Redirection (3xx) ({c_3xx})",
-            f"Redirection (Chain) ({c_chain})",
-            f"Redirection (Loop) ({c_loop})",
-            f"Client Error (4xx) ({c_4xx})",
-            f"Server Error (5xx) ({c_5xx})",
-            f"Blocked by Robots.txt ({c_robots})",
-            f"Blocked Resource ({c_blocked_res})",
-            f"No Response ({c_no_resp})",
-            f"Orphan URLs (0 Inlinks) ({c_orphan})"
-        ]
-
-        rfcol1, rfcol2 = st.columns([1.2, 1.8])
-        with rfcol1:
-            resp_filter = st.selectbox(
-                "Filter by Response Code:",
-                options=sf_options,
-                index=0,
-                key="sb_response_code_filter"
-            )
-        with rfcol2:
-            resp_search = st.text_input(
-                "🔍 Search URL, Status Code, or Response Description:",
-                "",
-                key="txt_response_code_search"
-            )
-
-        # Filter the DataFrame using substring detection (immune to split parenthesis bugs!)
-        df_resp_filtered = df_pages.copy()
-
-        filter_choice = resp_filter.rsplit(" (", 1)[0]
-        if "Redirection (Chain)" in resp_filter:
-            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("is_redirect_chain", False) == True]
-        elif "Redirection (Loop)" in resp_filter:
-            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("is_redirect_loop", False) == True]
-        elif "Blocked by Robots.txt" in resp_filter:
-            df_resp_filtered = df_resp_filtered[df_resp_filtered["response_category"] == "Blocked by Robots.txt"]
-        elif "Blocked Resource" in resp_filter:
-            df_resp_filtered = df_resp_filtered[df_resp_filtered["response_category"] == "Blocked Resource"]
-        elif "No Response" in resp_filter:
-            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] == 0) | (df_resp_filtered["response_category"] == "No Response")]
-        elif "Noindex Pages" in resp_filter:
-            df_resp_filtered = df_resp_filtered[(df_resp_filtered.get("is_noindex", False) == True) | (df_resp_filtered.get("meta_robots", "").fillna("").str.contains("noindex", case=False))]
-        elif "Success (2xx)" in resp_filter:
-            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 200) & (df_resp_filtered["status_code"] < 300)]
-        elif "Redirection (3xx)" in resp_filter:
-            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 300) & (df_resp_filtered["status_code"] < 400)]
-        elif "Client Error (4xx)" in resp_filter:
-            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 400) & (df_resp_filtered["status_code"] < 500)]
-        elif "Server Error (5xx)" in resp_filter:
-            df_resp_filtered = df_resp_filtered[(df_resp_filtered["status_code"] >= 500) & (df_resp_filtered["status_code"] < 600)]
-        elif "Orphan URLs" in resp_filter:
-            df_resp_filtered = df_resp_filtered[df_resp_filtered.get("is_orphan", False) == True]
-        else:
-            df_resp_filtered = df_pages.copy()
-
-        if resp_search:
-            status_desc_str = df_resp_filtered["status_description"].astype(str) if "status_description" in df_resp_filtered.columns else ""
-            final_url_str = df_resp_filtered["final_url"].astype(str) if "final_url" in df_resp_filtered.columns else ""
-            cat_str = df_resp_filtered["response_category"].astype(str) if "response_category" in df_resp_filtered.columns else ""
-            chain_str = df_resp_filtered["redirect_chain_str"].astype(str) if "redirect_chain_str" in df_resp_filtered.columns else ""
-            issue_type_str = df_resp_filtered["redirect_issue_type"].astype(str) if "redirect_issue_type" in df_resp_filtered.columns else ""
-            source_url_str = df_resp_filtered["source_url"].astype(str) if "source_url" in df_resp_filtered.columns else ""
-            anchor_text_str = df_resp_filtered["anchor_text"].astype(str) if "anchor_text" in df_resp_filtered.columns else ""
-            
-            df_resp_filtered = df_resp_filtered[
-                df_resp_filtered["url"].astype(str).str.contains(resp_search, case=False, na=False) |
-                df_resp_filtered["status_code"].astype(str).str.contains(resp_search, case=False, na=False) |
-                status_desc_str.str.contains(resp_search, case=False, na=False) |
-                final_url_str.str.contains(resp_search, case=False, na=False) |
-                cat_str.str.contains(resp_search, case=False, na=False) |
-                chain_str.str.contains(resp_search, case=False, na=False) |
-                issue_type_str.str.contains(resp_search, case=False, na=False) |
-                source_url_str.str.contains(resp_search, case=False, na=False) |
-                anchor_text_str.str.contains(resp_search, case=False, na=False)
-            ]
-
-        # Download button
-        col_rdown1, col_rdown2 = st.columns([1.2, 3.8])
-        with col_rdown1:
-            csv_resp = generate_csv(df_resp_filtered)
-            clean_slug = filter_choice.replace(' ', '_').replace('(', '').replace(')', '').lower()
-            st.download_button(
-                label=f"📥 Download Filtered ({len(df_resp_filtered)} URLs)",
-                data=csv_resp,
-                file_name=make_clean_export_filename(f"Response_Codes_{clean_slug}", active_crawl_site, "csv"),
-                mime="text/csv",
-                use_container_width=True
-            )
-        with col_rdown2:
-            st.caption(f"Showing **{len(df_resp_filtered)}** of **{total_resp_pages}** URLs matching filter: `{filter_choice}`")
-
-        # Table Display: Dedicated view when filtering by Redirection (3xx/Chain/Loop), Client Error (4xx), or Success (2xx)
-        is_redirect_view = ("Redirection (3xx)" in resp_filter) or ("Redirection (Chain)" in resp_filter) or ("Redirection (Loop)" in resp_filter)
-        is_client_error_view = ("Client Error (4xx)" in resp_filter)
-        is_success_view = ("Success (2xx)" in resp_filter)
-        
-        if is_redirect_view:
-            target_cols = [
-                "url", "status_code", "source_url", "anchor_text",
-                "redirect_chain_str", "redirect_hops", "final_url",
-                "redirect_issue_type", "inlinks_count"
-            ]
-            avail_cols = [c for c in target_cols if c in df_resp_filtered.columns]
-            
-            redirect_urls = df_resp_filtered["url"].tolist()
-
-            st.caption("💡 **Interactive**: Click any **Redirected URL** row in the table above or select from the dropdown below to inspect its **Full Hop-by-Hop Path** and **Direct Link Fix**.")
-
-            table_event = st.dataframe(
-                df_resp_filtered[avail_cols],
-                use_container_width=True,
-                column_config={
-                    "url": st.column_config.LinkColumn("Original URL (Old Link)", width="medium"),
-                    "status_code": st.column_config.NumberColumn("Status", format="%d", width="small"),
-                    "source_url": st.column_config.LinkColumn("Source Page (Found On)", width="large", help="The referring internal page where this redirected link was found"),
-                    "anchor_text": st.column_config.TextColumn("Anchor Text", width="medium", help="Clickable anchor text used on the referring page"),
-                    "redirect_chain_str": st.column_config.TextColumn("Redirect Path", width="large", help="Complete path of redirects from initial URL to final destination"),
-                    "redirect_hops": st.column_config.NumberColumn("Hops", format="%d", width="small"),
-                    "final_url": st.column_config.LinkColumn("Final Destination URL", width="medium"),
-                    "redirect_issue_type": st.column_config.TextColumn("Issue Type", width="small"),
-                    "inlinks_count": st.column_config.NumberColumn("Inlinks", format="%d", width="small"),
-                },
-                hide_index=True,
-                on_select="rerun",
-                selection_mode="single-row",
-                key="df_redirects_selection"
-            )
-
-            # Detect clicked row from table
-            selected_url_from_table = None
-            if table_event and hasattr(table_event, "selection") and table_event.selection:
-                sel_rows = table_event.selection.get("rows", [])
-                if sel_rows and sel_rows[0] < len(df_resp_filtered):
-                    selected_url_from_table = df_resp_filtered.iloc[sel_rows[0]]["url"]
-
-            if redirect_urls:
-                if selected_url_from_table and selected_url_from_table in redirect_urls:
-                    st.session_state["sb_inspect_redirect_picker"] = selected_url_from_table
-                elif "sb_inspect_redirect_picker" not in st.session_state or st.session_state["sb_inspect_redirect_picker"] not in redirect_urls:
-                    st.session_state["sb_inspect_redirect_picker"] = redirect_urls[0]
-
-                active_idx = redirect_urls.index(st.session_state["sb_inspect_redirect_picker"])
-
-                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-
-                c_sel1, c_sel2 = st.columns([3, 1.2])
-                with c_sel1:
-                    active_redirect_url = st.selectbox(
-                        "🔍 Selected Redirected URL (Click table row above or choose here):",
-                        options=redirect_urls,
-                        index=active_idx,
-                        key="sb_inspect_redirect_picker"
-                    )
-                with c_sel2:
-                    curr_red_row = df_resp_filtered[df_resp_filtered["url"] == active_redirect_url]
-                    hops_val = curr_red_row["redirect_hops"].values[0] if not curr_red_row.empty and "redirect_hops" in curr_red_row.columns else 1
-                    status_val = curr_red_row["status_code"].values[0] if not curr_red_row.empty and "status_code" in curr_red_row.columns else 301
-                    badge_color = "#f59e0b" if hops_val == 1 else "#ef4444"
-                    badge_label = "Redirect (1 Hop)" if hops_val == 1 else f"⚠️ Chain ({hops_val} Hops)"
-                    st.markdown(f"<div style='padding-top: 1.8rem;'><span style='background: rgba(245, 158, 11, 0.15); color: {badge_color}; padding: 7px 16px; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.4); font-weight: 600; font-size: 0.88rem;'>HTTP {status_val} &nbsp;|&nbsp; {badge_label}</span></div>", unsafe_allow_html=True)
-
-                curr_red_row = df_resp_filtered[df_resp_filtered["url"] == active_redirect_url]
-                final_dest_url = curr_red_row["final_url"].values[0] if not curr_red_row.empty and "final_url" in curr_red_row.columns else active_redirect_url
-                chain_str_val = curr_red_row["redirect_chain_str"].values[0] if not curr_red_row.empty and "redirect_chain_str" in curr_red_row.columns else ""
-                src_page_val = curr_red_row["source_url"].values[0] if not curr_red_row.empty and "source_url" in curr_red_row.columns else ""
-                anchor_val = curr_red_row["anchor_text"].values[0] if not curr_red_row.empty and "anchor_text" in curr_red_row.columns else ""
-
-                st.markdown(f"##### 🛣️ Full Redirect Path Breakdown: `{active_redirect_url}`")
-
-                # Parse and display hop-by-hop cards
-                hop_parts = [p.strip() for p in chain_str_val.split(" → ") if p.strip()] if chain_str_val else [f"{active_redirect_url} ({status_val})", f"{final_dest_url} (200)"]
-                
-                # Flow visualization in styled boxes
-                hop_cards_html = ""
-                # Start step (Origin link on source page)
-                if src_page_val:
-                    hop_cards_html += f"""
-                    <div style='background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;'>
-                        <span style='color: #818cf8; font-weight: 600;'>Origin (Found On):</span> <a href='{src_page_val}' target='_blank' style='color: #93c5fd; text-decoration: underline;'>{src_page_val}</a><br>
-                        <span style='color: #94a3b8; font-size: 0.88rem;'>Anchor Text: </span><b style='color: #f1f5f9;'>"{anchor_val or '[No anchor text]'}"</b>
-                    </div>
-                    <div style='text-align: center; color: #6366f1; font-size: 1.1rem; margin: -4px 0 4px;'>↓</div>
-                    """
-                
-                for idx, hop_item in enumerate(hop_parts):
-                    is_last = (idx == len(hop_parts) - 1)
-                    box_bg = "rgba(16, 185, 129, 0.12)" if is_last else "rgba(245, 158, 11, 0.12)"
-                    border_color = "rgba(16, 185, 129, 0.4)" if is_last else "rgba(245, 158, 11, 0.4)"
-                    title_color = "#34d399" if is_last else "#fbbf24"
-                    title_label = "Final Destination URL (Target)" if is_last else (f"Initial Redirect (Hop 1)" if idx == 0 else f"Intermediate Redirect (Hop {idx+1})")
-                    
-                    hop_cards_html += f"""
-                    <div style='background: {box_bg}; border: 1px solid {border_color}; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;'>
-                        <span style='color: {title_color}; font-weight: 600;'>{title_label}:</span> <span style='color: #f8fafc; word-break: break-all;'>{hop_item}</span>
-                    </div>
-                    """
-                    if not is_last:
-                        hop_cards_html += "<div style='text-align: center; color: #f59e0b; font-size: 1.1rem; margin: -4px 0 4px;'>↓</div>"
-
-                st.markdown(hop_cards_html, unsafe_allow_html=True)
-
-                # Direct Link Fix Helper Section ("Solve karne ke liye")
-                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-                st.markdown("##### 🛠️ How to Fix: Update Link Directly to Final Destination")
-                st.caption("To eliminate redirect hops, save crawl budget, and boost page speed, replace the old link with the final destination URL directly:")
-
-                fix_col1, fix_col2 = st.columns(2)
-                with fix_col1:
-                    st.markdown("**Old URL to Replace:**")
-                    st.code(active_redirect_url, language="text")
-                with fix_col2:
-                    st.markdown("**Final Destination URL (Copy & Paste):**")
-                    st.code(final_dest_url, language="text")
-
-                # HTML Find-and-Replace Snippet Preview
-                with st.expander("📋 View HTML Find-and-Replace Code Snippet", expanded=False):
-                    anchor_clean = anchor_val if anchor_val else "Link Text"
-                    html_snippet = f'<!-- On referring page: {src_page_val or "website"} -->\n<!-- REPLACE OLD LINK: -->\n<a href="{active_redirect_url}">{anchor_clean}</a>\n\n<!-- WITH DIRECT FINAL DESTINATION: -->\n<a href="{final_dest_url}">{anchor_clean}</a>'
-                    st.code(html_snippet, language="html")
-
-                # Query all referring source pages and anchors for this redirected URL from df_links
-                b_clean = active_redirect_url.rstrip("/")
-                referring = pd.DataFrame()
-                if not df_links.empty and "target_url" in df_links.columns:
-                    referring = df_links[
-                        (df_links["target_url"] == active_redirect_url) | 
-                        (df_links["target_url"].str.rstrip("/") == b_clean)
-                    ]
-
-                total_ref_count = len(referring) if not referring.empty else (1 if src_page_val else 0)
-                st.markdown(f"##### 📄 All Referring Pages Linking to this Redirected URL ({total_ref_count})")
-                if not referring.empty:
-                    ref_cols = [c for c in ["source_url", "anchor_text", "is_internal", "nofollow"] if c in referring.columns]
-                    st.dataframe(
-                        referring[ref_cols].drop_duplicates(),
-                        use_container_width=True,
-                        column_config={
-                            "source_url": st.column_config.LinkColumn("Source Page (Where to update link)", width="large"),
-                            "anchor_text": st.column_config.TextColumn("Anchor Text", width="medium"),
-                            "is_internal": st.column_config.CheckboxColumn("Internal Link"),
-                            "nofollow": st.column_config.CheckboxColumn("Nofollow"),
-                        },
-                        hide_index=True
-                    )
-                else:
-                    if src_page_val:
-                        single_ref_df = pd.DataFrame([{
-                            "source_url": src_page_val,
-                            "anchor_text": anchor_val or "[Direct link / No text]",
-                            "is_internal": True,
-                            "nofollow": False
-                        }])
-                        st.dataframe(
-                            single_ref_df,
-                            use_container_width=True,
-                            column_config={
-                                "source_url": st.column_config.LinkColumn("Source Page (Where to update link)", width="large"),
-                                "anchor_text": st.column_config.TextColumn("Anchor Text", width="medium"),
-                                "is_internal": st.column_config.CheckboxColumn("Internal Link"),
-                                "nofollow": st.column_config.CheckboxColumn("Nofollow"),
-                            },
-                            hide_index=True
-                        )
-                    else:
-                        st.info("No internal referring page recorded for this URL (Discovered directly from initial seed).")
-        elif is_client_error_view:
-            target_cols = [
-                "url", "status_code", "status_description", "source_url", "anchor_text", "inlinks_count"
-            ]
-            avail_cols = [c for c in target_cols if c in df_resp_filtered.columns]
-            
-            broken_urls = df_resp_filtered["url"].tolist()
-
-            st.caption("💡 **Interactive**: Click any **Broken URL** row in the table above, or select from the dropdown below to inspect its referring **Source Pages** and **Anchor Texts**.")
-
-            table_event = st.dataframe(
-                df_resp_filtered[avail_cols],
-                use_container_width=True,
-                column_config={
-                    "url": st.column_config.LinkColumn("Broken Page URL (4xx)", width="large"),
-                    "status_code": st.column_config.NumberColumn("Status", format="%d", width="small"),
-                    "status_description": st.column_config.TextColumn("Response Description", width="small"),
-                    "source_url": st.column_config.LinkColumn("Source Page (Found On)", width="large", help="The referring internal page where this broken link was found"),
-                    "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable Link Text)", width="medium", help="Clickable anchor text used for this link"),
-                    "inlinks_count": st.column_config.NumberColumn("Inlinks", format="%d", width="small", help="Total incoming links to this 404 URL"),
-                },
-                hide_index=True,
-                on_select="rerun",
-                selection_mode="single-row",
-                key="df_broken_links_selection"
-            )
-
-            # Detect clicked row from table
-            selected_url_from_table = None
-            if table_event and hasattr(table_event, "selection") and table_event.selection:
-                sel_rows = table_event.selection.get("rows", [])
-                if sel_rows and sel_rows[0] < len(df_resp_filtered):
-                    selected_url_from_table = df_resp_filtered.iloc[sel_rows[0]]["url"]
-
-            if broken_urls:
-                if selected_url_from_table and selected_url_from_table in broken_urls:
-                    st.session_state["sb_inspect_404_picker"] = selected_url_from_table
-                elif "sb_inspect_404_picker" not in st.session_state or st.session_state["sb_inspect_404_picker"] not in broken_urls:
-                    st.session_state["sb_inspect_404_picker"] = broken_urls[0]
-
-                active_idx = broken_urls.index(st.session_state["sb_inspect_404_picker"])
-
-                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-                
-                c_sel1, c_sel2 = st.columns([3, 1.2])
-                with c_sel1:
-                    active_broken_url = st.selectbox(
-                        "🔍 Selected Broken Page (Click table row above or choose here):",
-                        options=broken_urls,
-                        index=active_idx,
-                        key="sb_inspect_404_picker"
-                    )
-                with c_sel2:
-                    curr_broken_row = df_resp_filtered[df_resp_filtered["url"] == active_broken_url]
-                    inlinks_val = curr_broken_row["inlinks_count"].values[0] if not curr_broken_row.empty and "inlinks_count" in curr_broken_row.columns else 0
-                    code_val = curr_broken_row["status_code"].values[0] if not curr_broken_row.empty and "status_code" in curr_broken_row.columns else 404
-                    st.markdown(f"<div style='padding-top: 1.8rem;'><span style='background: rgba(239, 68, 68, 0.15); color: #f87171; padding: 7px 16px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 600; font-size: 0.88rem;'>🔴 Status {code_val} &nbsp;|&nbsp; 🔗 {inlinks_val} Inlinks</span></div>", unsafe_allow_html=True)
-
-                st.markdown(f"##### 🔗 Referring Source Pages & Anchor Texts for: `{active_broken_url}`")
-
-                # Query only this chosen URL
-                b_clean = active_broken_url.rstrip("/")
-                referring = pd.DataFrame()
-                if not df_links.empty and "target_url" in df_links.columns:
-                    referring = df_links[
-                        (df_links["target_url"] == active_broken_url) | 
-                        (df_links["target_url"].str.rstrip("/") == b_clean)
-                    ]
-
-                if not referring.empty:
-                    ref_cols = [c for c in ["source_url", "anchor_text", "is_internal", "nofollow"] if c in referring.columns]
-                    st.dataframe(
-                        referring[ref_cols].drop_duplicates(),
-                        use_container_width=True,
-                        column_config={
-                            "source_url": st.column_config.LinkColumn("Source Page (Referring URL)", width="large"),
-                            "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable Link Text)", width="medium"),
-                            "is_internal": st.column_config.CheckboxColumn("Internal Link"),
-                            "nofollow": st.column_config.CheckboxColumn("Nofollow"),
-                        },
-                        hide_index=True
-                    )
-                else:
-                    curr_broken_row = df_resp_filtered[df_resp_filtered["url"] == active_broken_url]
-                    s_url = curr_broken_row["source_url"].values[0] if not curr_broken_row.empty and "source_url" in curr_broken_row.columns else ""
-                    a_txt = curr_broken_row["anchor_text"].values[0] if not curr_broken_row.empty and "anchor_text" in curr_broken_row.columns else ""
-                    if s_url:
-                        single_ref_df = pd.DataFrame([{
-                            "source_url": s_url,
-                            "anchor_text": a_txt or "[Direct link / No text]",
-                            "is_internal": True,
-                            "nofollow": False
-                        }])
-                        st.dataframe(
-                            single_ref_df,
-                            use_container_width=True,
-                            column_config={
-                                "source_url": st.column_config.LinkColumn("Source Page (Referring URL)", width="large"),
-                                "anchor_text": st.column_config.TextColumn("Anchor Text (Clickable Link Text)", width="medium"),
-                                "is_internal": st.column_config.CheckboxColumn("Internal Link"),
-                                "nofollow": st.column_config.CheckboxColumn("Nofollow"),
-                            },
-                            hide_index=True
-                        )
-                    else:
-                        st.info("No internal referring page recorded for this URL (Discovered directly from initial seed).")
-        elif is_success_view:
-            target_cols = [
-                "url", "status_code", "status_description", "response_category", "meta_robots", "is_indexable"
-            ]
-            avail_cols = [c for c in target_cols if c in df_resp_filtered.columns]
-
-            st.dataframe(
-                df_resp_filtered[avail_cols],
-                use_container_width=True,
-                column_config={
-                    "url": st.column_config.LinkColumn("Page URL", width="large"),
-                    "status_code": st.column_config.NumberColumn("Status Code", format="%d", width="small"),
-                    "status_description": st.column_config.TextColumn("Response Description", width="medium"),
-                    "response_category": st.column_config.TextColumn("Response Category", width="medium"),
-                    "meta_robots": st.column_config.TextColumn("Meta Robots", width="medium"),
-                    "is_indexable": st.column_config.CheckboxColumn("Indexable", width="small"),
-                },
-                hide_index=True
-            )
-        else:
-            resp_cols = [
-                "url", "status_code", "status_description", "response_category",
-                "meta_robots", "is_indexable",
-                "source_url", "anchor_text",
-                "inlinks_count", "internal_outlinks_count"
-            ]
-            available_resp_cols = [c for c in resp_cols if c in df_resp_filtered.columns]
-
-            st.dataframe(
-                df_resp_filtered[available_resp_cols],
-                use_container_width=True,
-                column_config={
-                    "url": st.column_config.LinkColumn("Page URL"),
-                    "status_code": st.column_config.NumberColumn("Status Code", format="%d"),
-                    "status_description": st.column_config.TextColumn("Response Description"),
-                    "response_category": st.column_config.TextColumn("Response Category"),
-                    "meta_robots": st.column_config.TextColumn("Meta Robots"),
-                    "is_indexable": st.column_config.CheckboxColumn("Indexable"),
-                    "source_url": st.column_config.LinkColumn("Source Page (Found On)"),
-                    "anchor_text": st.column_config.TextColumn("Anchor Text"),
-                    "inlinks_count": st.column_config.NumberColumn("Inlinks (Inbound)", help="Number of internal pages linking to this URL. 0 = Orphan Page!"),
-                    "internal_outlinks_count": st.column_config.NumberColumn("Outlinks"),
-                },
-                hide_index=True
-            )
-
-        with st.expander("💡 SEO Guide: Response Codes, Redirect Chains & Loops Technical Reference"):
-            st.markdown("""
-            - **Success (2xx)**: HTTP 200 OK indicates the page was fetched successfully and is fully indexable by search engine bots.
-            - **Redirection (3xx)**: Permanent redirects (301, 308) pass equity; temporary redirects (302, 307) signify short-term moves.
-            - **Redirect Chain (>1 Hop)**: When URL A redirects to URL B, and URL B redirects to Final URL. Chains increase page load latency, consume crawl budget, and can dilute link equity. Always update links to point directly to the destination URL.
-            - **Redirect Loop**: When redirects continue back to a previously visited URL (or exceed the 10-hop threshold). Search engines fail to crawl looped pages, and browsers error with `ERR_TOO_MANY_REDIRECTS`. Break circular loops immediately.
-            - **Redirection (JavaScript & Meta Refresh)**: Client-side redirects cause crawling latency and index delays. Always prioritize 301 server-side redirects.
-            - **Client Error (4xx)**: 404 Not Found or 410 Gone mean broken links. Internal links pointing to 4xx URLs should be fixed or removed.
-            - **Server Error (5xx)**: 500, 502, 503, 504 errors indicate host/backend instability. High 5xx rates degrade Google crawl frequency.
-            - **Blocked by Robots.txt / Blocked Resource**: URL is barred from crawling by robots.txt directives or authorization.
-            - **Orphan URLs (0 Inlinks)**: An orphan page has **zero internal links** pointing to it from anywhere on the website. Search engines may not discover or rank orphan pages unless found via external links or XML sitemaps. Fix by adding contextual internal links from parent categories or menus.
-            """)
-
-# ==============================================================================
-# TAB 5: CANONICAL TAGS AUDIT (Page URL -> Canonical Target)
-# ==============================================================================
-with tab_canonicals:
-    if not results:
-        st.info("Run a crawl to audit Canonical URLs, mismatches, and self-referential tags.")
-    else:
-        df_pages = results["df_pages"]
-        
-        st.subheader("🎯 Canonical URLs Audit (Page URL ➔ Canonical Target)")
-        st.caption("Complete breakdown of Page URLs and their canonical directives — prevents duplicate content penalties and consolidates link equity.")
-
-        # Metric breakdown
-        total_pages = len(df_pages)
-        self_ref_count = len(df_pages[df_pages["canonical_status"] == "Self-Referential"])
-        canonicalised_count = len(df_pages[df_pages["canonical_status"] == "Canonicalised"])
-        missing_count = len(df_pages[(df_pages["canonical_status"] == "Missing") & (df_pages.get("is_noindex", False) == False) & (df_pages["is_indexable"] == True)])
-        multiple_count = len(df_pages[df_pages["canonical_status"] == "Multiple"])
-        noindex_canon_count = len(df_pages[df_pages["canonical_status"] == "Noindex (Optional)"])
-
-        cm1, cm2, cm3, cm4, cm5 = st.columns(5)
-        cm1.metric("Self-Referential (OK)", f"{self_ref_count}", delta=f"{round(self_ref_count/max(total_pages,1)*100)}% of pages")
-        cm2.metric("Canonicalised (Points Elsewhere)", f"{canonicalised_count}", delta="Consolidating equity" if canonicalised_count else None)
-        cm3.metric("Missing Canonical", f"{missing_count}", delta="Needs attention" if missing_count else None, delta_color="inverse")
-        cm4.metric("Multiple Canonicals", f"{multiple_count}", delta="Critical conflict" if multiple_count else None, delta_color="inverse")
-        cm5.metric("Noindex (Optional)", f"{noindex_canon_count}", delta="Bypassed" if noindex_canon_count else None)
-
-        # Filters
-        fcol1, fcol2 = st.columns([1, 2])
-        with fcol1:
-            canon_filter = st.selectbox(
-                "Filter by Canonical Status:",
-                ["All Pages", "Self-Referential", "Canonicalised", "Missing", "Multiple", "Noindex (Optional)"]
-            )
-        with fcol2:
-            canon_search = st.text_input("🔍 Search Page URL or Canonical Target URL:", "")
-
-        df_canon = df_pages[["url", "canonical_url", "canonical_status", "status_code", "is_indexable"]].copy()
-
-        if canon_filter != "All Pages":
-            df_canon = df_canon[df_canon["canonical_status"] == canon_filter]
-
-        if canon_search:
-            df_canon = df_canon[
-                df_canon["url"].str.contains(canon_search, case=False, na=False) |
-                df_canon["canonical_url"].str.contains(canon_search, case=False, na=False)
-            ]
-
-        # Download button for filtered canonicals
-        col_cdown1, col_cdown2 = st.columns([1, 4])
-        with col_cdown1:
-            csv_canon = generate_csv(df_canon)
-            st.download_button(
-                label=f"📥 Download Canonicals ({len(df_canon)} URLs)",
-                data=csv_canon,
-                file_name=make_clean_export_filename(f"Canonicals_{canon_filter.replace(' ', '_').lower()}", active_crawl_site, "csv"),
-                mime="text/csv",
-                use_container_width=True
-            )
-        with col_cdown2:
-            st.caption(f"Showing **{len(df_canon)}** of **{total_pages}** pages matching filter: `{canon_filter}`")
-
-        st.dataframe(
-            df_canon,
-            use_container_width=True,
-            column_config={
-                "url": st.column_config.LinkColumn("Page URL (Crawled)"),
-                "canonical_url": st.column_config.LinkColumn("Canonical Target (<link rel='canonical'>)"),
-                "canonical_status": st.column_config.TextColumn("Canonical Status"),
-                "status_code": st.column_config.NumberColumn("Status Code", format="%d"),
-                "is_indexable": st.column_config.CheckboxColumn("Indexable"),
-            },
-            hide_index=True
-        )
-
-        with st.expander("💡 SEO Guide: Understanding Canonical Statuses"):
-            st.markdown("""
-            - **Self-Referential (`Page URL == Canonical URL`)**: ✅ Recommended best practice. Protects against duplicate content caused by query parameters, session IDs, trailing slashes, and HTTP/HTTPS variations.
-            - **Canonicalised (`Page URL != Canonical URL`)**: 🔀 Directs search engines to index a master version instead of this URL.
-            - **Missing Canonical**: ⚠️ No canonical link tag found in `<head>`. Search engines will choose a version on their own.
-            - **Multiple Canonicals**: ❌ More than one canonical link tag detected. Search engines typically ignore all conflicting tags.
-            """)
-
-# ==============================================================================
-# TAB 5: PAGE TITLES AUDIT
-# ==============================================================================
-with tab_titles:
-    if not results:
-        st.info("Run a crawl to inspect page titles, detect duplicate cannibalization, and verify SERP length.")
-    else:
-        df_pages = results["df_pages"].copy()
-        total_pages = len(df_pages)
-
-        # Prepare Clean Title Columns
-        df_titles = df_pages[[
-            "url", "status_code", "title", "title_length", "title_pixel_width", "is_indexable"
-        ]].copy()
-        if "canonical_url" in df_pages.columns:
-            df_titles["canonical_url"] = df_pages["canonical_url"]
-        else:
-            df_titles["canonical_url"] = ""
-
-        # Map Duplicate Partners (Only 200 OK & Indexable pages count toward duplicates, excluding pagination copies!)
-        valid_titles_df = df_titles[
-            (df_titles["status_code"] == 200) & 
-            (df_titles["is_indexable"] == True) & 
-            (df_titles["title"].str.strip() != "")
-        ].copy()
-
-        valid_titles_df["is_pagination"] = [
-            is_pagination_url(u, c) for u, c in zip(valid_titles_df["url"], valid_titles_df["canonical_url"])
-        ]
-        valid_titles_df["base_url"] = [
-            get_base_unpaginated_url(u, c) for u, c in zip(valid_titles_df["url"], valid_titles_df["canonical_url"])
-        ]
-
-        title_to_base_urls = {}
-        title_to_urls = {}
-        dup_titles_set = set()
-
-        for t, group in valid_titles_df.groupby("title"):
-            t_clean = str(t).strip()
-            if not t_clean:
-                continue
-            all_non_pag = list(group[~group["is_pagination"]]["url"])
-            distinct_bases = sorted(list(set(group["base_url"])))
-            title_to_base_urls[t_clean] = distinct_bases
-            title_to_urls[t_clean] = all_non_pag if all_non_pag else list(group["url"])
-            if len(distinct_bases) > 1:
-                dup_titles_set.add(t_clean)
-
-        def get_title_dup_info(row):
-            if row.get("status_code", 200) != 200 or not row.get("is_indexable", True):
-                return 0, "— (Non-Indexable / Redirect)"
-            u = row["url"]
-            can = row.get("canonical_url", "")
-            if is_pagination_url(u, can):
-                return 1, "— (Paginated View)"
-            t = str(row["title"]).strip()
-            if t and t in dup_titles_set:
-                row_base = get_base_unpaginated_url(u, can)
-                other_bases = [b for b in title_to_base_urls.get(t, []) if b != row_base]
-                if other_bases:
-                    return len(title_to_base_urls.get(t, [])), " | ".join(other_bases)
-            return 1, "—"
-
-        dup_title_info = df_titles.apply(get_title_dup_info, axis=1)
-        df_titles["duplicate_count"] = [d[0] for d in dup_title_info]
-        df_titles["duplicate_matches"] = [d[1] for d in dup_title_info]
-
-        # Title Status Tag
-        def get_title_status(row):
-            code = row.get("status_code", 200)
-            if 300 <= code < 400:
-                return f"Redirect ({code})"
-            if code >= 400:
-                return f"Error ({code})"
-            is_noindex = bool(row.get("is_noindex", False) or ("noindex" in str(row.get("meta_robots", "")).lower()))
-            if is_noindex or not row.get("is_indexable", True):
-                return "Noindex (Non-Indexable)"
-            t = str(row["title"]).strip()
-            if not t:
-                return "Missing"
-            u = row["url"]
-            can = row.get("canonical_url", "")
-            if not is_pagination_url(u, can) and row.get("is_indexable", True) and t in dup_titles_set:
-                return "Duplicate"
-            if row["title_length"] > 60 or row["title_pixel_width"] > 600:
-                return "Over 60 Chars (>600px)"
-            if row["title_length"] < 30:
-                return "Below 30 Chars"
-            return "OK"
-
-        df_titles["title_status"] = df_titles.apply(get_title_status, axis=1)
-
-        # Title Metrics
-        ok_titles_count = len(df_titles[df_titles["title_status"] == "OK"])
-        missing_titles_count = len(df_titles[df_titles["title_status"] == "Missing"])
-        dup_titles_count = len(df_titles[df_titles["title_status"] == "Duplicate"])
-        over_titles_count = len(df_titles[df_titles["title_status"] == "Over 60 Chars (>600px)"])
-        below_titles_count = len(df_titles[df_titles["title_status"] == "Below 30 Chars"])
-
-        st.subheader("🏷️ Page Titles Audit")
-        st.caption("Deep inspection of Page Titles — detect missing titles, isolate duplicate cannibalization with exact matching partner URLs, and verify SERP pixel limits.")
-
-        # 5 Metric Cards
-        tm1, tm2, tm3, tm4, tm5 = st.columns(5)
-        tm1.metric("Optimal Titles (OK)", f"{ok_titles_count}", delta=f"{round(ok_titles_count/max(total_pages,1)*100)}% of pages")
-        tm2.metric("Duplicate Titles", f"{dup_titles_count}", delta=f"{len(dup_titles_set)} unique shared" if dup_titles_count else "Unique", delta_color="inverse" if dup_titles_count else "normal")
-        tm3.metric("Missing Titles", f"{missing_titles_count}", delta="Requires <title>" if missing_titles_count else "None", delta_color="inverse" if missing_titles_count else "normal")
-        tm4.metric("Over 60 Chars (>600px)", f"{over_titles_count}", delta="SERP Truncated" if over_titles_count else "None", delta_color="inverse" if over_titles_count else "normal")
-        tm5.metric("Below 30 Chars", f"{below_titles_count}", delta="Too short" if below_titles_count else "Good", delta_color="inverse" if below_titles_count else "normal")
-
-        # Filters and Search
-        fcol1, fcol2 = st.columns([1.5, 2])
-        with fcol1:
-            title_filter = st.selectbox(
-                "Filter Titles by Status:",
-                [
-                    "All Pages",
-                    "Duplicate Title",
-                    "Missing Title",
-                    "Title Over 60 Chars (>600px)",
-                    "Title Below 30 Chars",
-                    "Optimal Title (OK)",
-                    "Noindex Pages"
-                ]
-            )
-        with fcol2:
-            title_search = st.text_input("🔍 Search URL, Page Title, or Duplicate Partner URL:", "", key="title_search_input")
-
-        df_filtered_t = df_titles.copy()
-
-        if title_filter == "Duplicate Title":
-            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "Duplicate"]
-        elif title_filter == "Missing Title":
-            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "Missing"]
-        elif title_filter == "Title Over 60 Chars (>600px)":
-            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "Over 60 Chars (>600px)"]
-        elif title_filter == "Title Below 30 Chars":
-            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "Below 30 Chars"]
-        elif title_filter == "Optimal Title (OK)":
-            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "OK"]
-        elif title_filter == "Noindex Pages":
-            df_filtered_t = df_filtered_t[df_filtered_t["title_status"] == "Noindex (Non-Indexable)"]
-
-        if title_search:
-            df_filtered_t = df_filtered_t[
-                df_filtered_t["url"].str.contains(title_search, case=False, na=False) |
-                df_filtered_t["title"].str.contains(title_search, case=False, na=False) |
-                df_filtered_t["duplicate_matches"].str.contains(title_search, case=False, na=False)
-            ]
-
-        # Download button for filtered data
-        col_down1, col_down2 = st.columns([1, 4])
-        with col_down1:
-            csv_t = generate_csv(df_filtered_t)
-            st.download_button(
-                label=f"📥 Download Filtered Titles ({len(df_filtered_t)} URLs)",
-                data=csv_t,
-                file_name=make_clean_export_filename(f"Page_Titles_{title_filter.replace(' ', '_').lower()}", active_crawl_site, "csv"),
-                mime="text/csv",
-                use_container_width=True
-            )
-        with col_down2:
-            st.caption(f"Showing **{len(df_filtered_t)}** of **{total_pages}** pages matching filter: `{title_filter}`")
-
-        # Display Dataframe with Duplicate Partner URL(s)
-        st.dataframe(
-            df_filtered_t[[
-                "url", "title", "title_status", "duplicate_matches", "duplicate_count",
-                "title_length", "title_pixel_width", "status_code"
-            ]],
-            use_container_width=True,
-            column_config={
-                "url": st.column_config.LinkColumn("Page URL"),
-                "title": st.column_config.TextColumn("Page Title"),
-                "title_status": st.column_config.TextColumn("Title Status"),
-                "duplicate_matches": st.column_config.TextColumn("Duplicate With (Other URL(s))", help="The exact other URLs on your site sharing this identical title"),
-                "duplicate_count": st.column_config.NumberColumn("Total Copies", format="%d", help="Total number of crawled pages with this exact title"),
-                "title_length": st.column_config.NumberColumn("Chars"),
-                "title_pixel_width": st.column_config.NumberColumn("Pixels (px)"),
-                "status_code": st.column_config.NumberColumn("HTTP Status", format="%d")
-            },
-            hide_index=True
-        )
-
-        # Grouped Duplicate Title Clusters Explorer
-        if dup_titles_set:
-            with st.expander(f"👥 View Grouped Duplicate Titles Clusters ({len(dup_titles_set)} Unique Duplicate Groups)", expanded=(title_filter == "Duplicate Title")):
-                st.markdown("Here is the grouped breakdown of duplicate titles and every competing URL:")
-                for dup_t in sorted(dup_titles_set, key=lambda x: len(title_to_urls[x]), reverse=True):
-                    matched_urls = title_to_urls[dup_t]
-                    st.markdown(f"**📌 Title:** `{dup_t}` — *(Shared across **{len(matched_urls)}** pages)*")
-                    dup_cluster_df = pd.DataFrame({
-                        "Matching Page URL": matched_urls,
-                        "Status Code": [df_titles[df_titles["url"] == u]["status_code"].values[0] if not df_titles[df_titles["url"] == u].empty else 200 for u in matched_urls]
-                    })
-                    st.dataframe(dup_cluster_df, use_container_width=True, hide_index=True)
-                    st.markdown("<hr style='margin:0.4rem 0; border-color:#334155;'>", unsafe_allow_html=True)
-
-        st.markdown("---")
-        st.subheader("🔍 Google SERP Preview Simulator")
-        selected_url = st.selectbox("Select Page URL to preview Google Search snippet:", options=df_pages["url"].tolist(), key="serp_title_select")
-        
-        if selected_url:
-            row = df_pages[df_pages["url"] == selected_url].iloc[0]
-            p_title = row.get("title") or "Untitled Document"
-            p_url = row.get("url") or ""
-            p_desc = row.get("meta_description") or "No meta description provided for this page. Search engines will generate a snippet from page body text."
-            p_pixels = row.get("title_pixel_width", 0)
-
-            parsed_p = urlparse(p_url)
-            domain_display = parsed_p.netloc
-
-            st.markdown(f"""
-            <div class="serp-card">
-                <div class="serp-card-header">
-                    <div class="serp-favicon">🌐</div>
-                    <div>
-                        <div class="serp-domain">{domain_display}</div>
-                        <div class="serp-url-breadcrumb">{p_url}</div>
-                    </div>
-                </div>
-                <div class="serp-title-link">{p_title}</div>
-                <div class="serp-snippet">{p_desc}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            col_sp1, col_sp2 = st.columns(2)
-            col_sp1.metric("Title Length", f"{len(p_title)} chars", delta="Optimal (30-60)" if 30 <= len(p_title) <= 60 else "Check Length")
-            col_sp2.metric("Title Pixel Width", f"{p_pixels} px", delta="Fits Google Desktop (<600px)" if p_pixels <= 600 else "Truncated by Google (>600px)", delta_color="normal" if p_pixels <= 600 else "inverse")
-
-# ==============================================================================
-# TAB 6: META DESCRIPTIONS AUDIT
-# ==============================================================================
-with tab_descriptions:
-    if not results:
-        st.info("Run a crawl to inspect meta descriptions, detect duplicate snippets, and verify length limits.")
-    else:
-        df_pages = results["df_pages"].copy()
-        total_pages = len(df_pages)
-
-        # Prepare Clean Meta Description Columns
-        df_desc = df_pages[[
-            "url", "status_code", "meta_description", "meta_description_length", "is_indexable"
-        ]].copy()
-        if "canonical_url" in df_pages.columns:
-            df_desc["canonical_url"] = df_pages["canonical_url"]
-        else:
-            df_desc["canonical_url"] = ""
-
-        # Map Duplicate Partners (Only 200 OK & Indexable pages count toward duplicates, excluding pagination copies!)
-        valid_desc_df = df_desc[
-            (df_desc["status_code"] == 200) & 
-            (df_desc["is_indexable"] == True) & 
-            (df_desc["meta_description"].str.strip() != "")
-        ].copy()
-
-        valid_desc_df["is_pagination"] = [
-            is_pagination_url(u, c) for u, c in zip(valid_desc_df["url"], valid_desc_df["canonical_url"])
-        ]
-        valid_desc_df["base_url"] = [
-            get_base_unpaginated_url(u, c) for u, c in zip(valid_desc_df["url"], valid_desc_df["canonical_url"])
-        ]
-
-        desc_to_base_urls = {}
-        desc_to_urls = {}
-        dup_desc_set = set()
-
-        for d, group in valid_desc_df.groupby("meta_description"):
-            d_clean = str(d).strip()
-            if not d_clean:
-                continue
-            all_non_pag = list(group[~group["is_pagination"]]["url"])
-            distinct_bases = sorted(list(set(group["base_url"])))
-            desc_to_base_urls[d_clean] = distinct_bases
-            desc_to_urls[d_clean] = all_non_pag if all_non_pag else list(group["url"])
-            if len(distinct_bases) > 1:
-                dup_desc_set.add(d_clean)
-
-        def get_desc_dup_info(row):
-            if row.get("status_code", 200) != 200 or not row.get("is_indexable", True):
-                return 0, "— (Non-Indexable / Redirect)"
-            u = row["url"]
-            can = row.get("canonical_url", "")
-            if is_pagination_url(u, can):
-                return 1, "— (Paginated View)"
-            d = str(row["meta_description"]).strip()
-            if d and d in dup_desc_set:
-                row_base = get_base_unpaginated_url(u, can)
-                other_bases = [b for b in desc_to_base_urls.get(d, []) if b != row_base]
-                if other_bases:
-                    return len(desc_to_base_urls.get(d, [])), " | ".join(other_bases)
-            return 1, "—"
-
-        dup_desc_info = df_desc.apply(get_desc_dup_info, axis=1)
-        df_desc["duplicate_count"] = [d[0] for d in dup_desc_info]
-        df_desc["duplicate_matches"] = [d[1] for d in dup_desc_info]
-
-        # Meta Description Status Tag
-        def get_desc_status(row):
-            code = row.get("status_code", 200)
-            if 300 <= code < 400:
-                return f"Redirect ({code})"
-            if code >= 400:
-                return f"Error ({code})"
-            is_noindex = bool(row.get("is_noindex", False) or ("noindex" in str(row.get("meta_robots", "")).lower()))
-            if is_noindex or not row.get("is_indexable", True):
-                return "Noindex (Non-Indexable)"
-            d = str(row["meta_description"]).strip()
-            if not d:
-                return "Missing"
-            u = row["url"]
-            can = row.get("canonical_url", "")
-            if not is_pagination_url(u, can) and row.get("is_indexable", True) and d in dup_desc_set:
-                return "Duplicate"
-            if row["meta_description_length"] > 160:
-                return "Over 160 Chars"
-            if row["meta_description_length"] < 70:
-                return "Below 70 Chars"
-            return "OK"
-
-        df_desc["meta_desc_status"] = df_desc.apply(get_desc_status, axis=1)
-
-        # Meta Description Metrics
-        ok_desc_count = len(df_desc[df_desc["meta_desc_status"] == "OK"])
-        missing_desc_count = len(df_desc[df_desc["meta_desc_status"] == "Missing"])
-        dup_desc_count = len(df_desc[df_desc["meta_desc_status"] == "Duplicate"])
-        over_desc_count = len(df_desc[df_desc["meta_desc_status"] == "Over 160 Chars"])
-        below_desc_count = len(df_desc[df_desc["meta_desc_status"] == "Below 70 Chars"])
-
-        st.subheader("📝 Meta Description Audit")
-        st.caption("Deep inspection of Meta Descriptions — isolate duplicate snippets with matching partner URLs, detect missing descriptions, and optimize SERP click-through rate.")
-
-        # 5 Metric Cards
-        dm1, dm2, dm3, dm4, dm5 = st.columns(5)
-        dm1.metric("Optimal Descriptions (OK)", f"{ok_desc_count}", delta=f"{round(ok_desc_count/max(total_pages,1)*100)}% of pages")
-        dm2.metric("Duplicate Descriptions", f"{dup_desc_count}", delta=f"{len(dup_desc_set)} unique shared" if dup_desc_count else "Unique", delta_color="inverse" if dup_desc_count else "normal")
-        dm3.metric("Missing Descriptions", f"{missing_desc_count}", delta="Needs snippet" if missing_desc_count else "None", delta_color="inverse" if missing_desc_count else "normal")
-        dm4.metric("Over 160 Chars", f"{over_desc_count}", delta="SERP Truncated" if over_desc_count else "None", delta_color="inverse" if over_desc_count else "normal")
-        dm5.metric("Below 70 Chars", f"{below_desc_count}", delta="Too short" if below_desc_count else "Good", delta_color="inverse" if below_desc_count else "normal")
-
-        # Filters and Search
-        dfcol1, dfcol2 = st.columns([1.5, 2])
-        with dfcol1:
-            desc_filter = st.selectbox(
-                "Filter Meta Descriptions by Status:",
-                [
-                    "All Pages",
-                    "Duplicate Meta Description",
-                    "Missing Meta Description",
-                    "Meta Desc Over 160 Chars",
-                    "Meta Desc Below 70 Chars",
-                    "Optimal Meta Description (OK)",
-                    "Noindex Pages"
-                ]
-            )
-        with dfcol2:
-            desc_search = st.text_input("🔍 Search URL, Meta Description, or Duplicate Partner URL:", "", key="desc_search_input")
-
-        df_filtered_d = df_desc.copy()
-
-        if desc_filter == "Duplicate Meta Description":
-            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "Duplicate"]
-        elif desc_filter == "Missing Meta Description":
-            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "Missing"]
-        elif desc_filter == "Meta Desc Over 160 Chars":
-            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "Over 160 Chars"]
-        elif desc_filter == "Meta Desc Below 70 Chars":
-            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "Below 70 Chars"]
-        elif desc_filter == "Optimal Meta Description (OK)":
-            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "OK"]
-        elif desc_filter == "Noindex Pages":
-            df_filtered_d = df_filtered_d[df_filtered_d["meta_desc_status"] == "Noindex (Non-Indexable)"]
-
-        if desc_search:
-            df_filtered_d = df_filtered_d[
-                df_filtered_d["url"].str.contains(desc_search, case=False, na=False) |
-                df_filtered_d["meta_description"].str.contains(desc_search, case=False, na=False) |
-                df_filtered_d["duplicate_matches"].str.contains(desc_search, case=False, na=False)
-            ]
-
-        # Download button for filtered data
-        col_ddown1, col_ddown2 = st.columns([1, 4])
-        with col_ddown1:
-            csv_d = generate_csv(df_filtered_d)
-            st.download_button(
-                label=f"📥 Download Filtered Meta Descriptions ({len(df_filtered_d)} URLs)",
-                data=csv_d,
-                file_name=make_clean_export_filename(f"Meta_Descriptions_{desc_filter.replace(' ', '_').lower()}", active_crawl_site, "csv"),
-                mime="text/csv",
-                use_container_width=True
-            )
-        with col_ddown2:
-            st.caption(f"Showing **{len(df_filtered_d)}** of **{total_pages}** pages matching filter: `{desc_filter}`")
-
-        # Display Dataframe with Duplicate Partner URL(s)
-        st.dataframe(
-            df_filtered_d[[
-                "url", "meta_description", "meta_desc_status", "duplicate_matches", "duplicate_count",
-                "meta_description_length", "status_code"
-            ]],
-            use_container_width=True,
-            column_config={
-                "url": st.column_config.LinkColumn("Page URL"),
-                "meta_description": st.column_config.TextColumn("Meta Description"),
-                "meta_desc_status": st.column_config.TextColumn("Description Status"),
-                "duplicate_matches": st.column_config.TextColumn("Duplicate With (Other URL(s))", help="The exact other URLs on your site sharing this identical description"),
-                "duplicate_count": st.column_config.NumberColumn("Total Copies", format="%d", help="Total number of crawled pages with this exact description"),
-                "meta_description_length": st.column_config.NumberColumn("Chars (Length)"),
-                "status_code": st.column_config.NumberColumn("HTTP Status", format="%d")
-            },
-            hide_index=True
-        )
-
-        # Grouped Duplicate Meta Descriptions Clusters Explorer
-        if dup_desc_set:
-            with st.expander(f"👥 View Grouped Duplicate Descriptions Clusters ({len(dup_desc_set)} Unique Duplicate Groups)", expanded=(desc_filter == "Duplicate Meta Description")):
-                st.markdown("Here is the grouped breakdown of duplicate meta descriptions and all URLs sharing them:")
-                for dup_d in sorted(dup_desc_set, key=lambda x: len(desc_to_urls[x]), reverse=True):
-                    matched_urls = desc_to_urls[dup_d]
-                    st.markdown(f"**📌 Meta Description:** `{dup_d}` — *(Shared across **{len(matched_urls)}** pages)*")
-                    dup_cluster_df = pd.DataFrame({
-                        "Matching Page URL": matched_urls,
-                        "Status Code": [df_desc[df_desc["url"] == u]["status_code"].values[0] if not df_desc[df_desc["url"] == u].empty else 200 for u in matched_urls]
-                    })
-                    st.dataframe(dup_cluster_df, use_container_width=True, hide_index=True)
-                    st.markdown("<hr style='margin:0.4rem 0; border-color:#334155;'>", unsafe_allow_html=True)
-
-        with st.expander("💡 SEO Guide: Meta Description Best Practices"):
-            st.markdown("""
-            - **Unique Snippets for Every Page**: ⚠️ Identical meta descriptions result in duplicate snippets across search results, harming CTR.
-            - **Optimal Length (70 - 160 characters)**: Keeps your snippet within Google's desktop and mobile viewports without truncation ellipses (`...`).
-            - **Compelling Call-to-Action**: Encourage clicks with clear value propositions and relevant primary keywords.
-            """)
-
-# ==============================================================================
-# TAB 7: HEADINGS (H1/H2) HIERARCHY AUDIT
-# ==============================================================================
-with tab_headings:
-    if not results:
-        st.info("Run a crawl to inspect H1 and H2 tags, missing headings, and duplicate hierarchy.")
-    else:
-        df_pages = results["df_pages"].copy()
-        total_pages = len(df_pages)
-
-        # Prepare Clean Heading Columns with H1-1, H1-2, H2-1, H2-2
-        cols_to_extract = ["url", "h1", "h1_count", "h2_first", "h2_count", "status_code", "is_indexable"]
-        if "h1_2" in df_pages.columns:
-            cols_to_extract.append("h1_2")
-        if "h2_2" in df_pages.columns:
-            cols_to_extract.append("h2_2")
-
-        df_headings = df_pages[cols_to_extract].copy()
-        if "canonical_url" in df_pages.columns:
-            df_headings["canonical_url"] = df_pages["canonical_url"]
-        else:
-            df_headings["canonical_url"] = ""
-        if "h1_2" not in df_headings.columns:
-            df_headings["h1_2"] = ""
-        if "h2_2" not in df_headings.columns:
-            df_headings["h2_2"] = ""
-
-        # Calculate H1 and H2 duplicates with partner URL matching (Only 200 OK & Indexable pages, excluding pagination!)
-        valid_h1_df = df_headings[
-            (df_headings["status_code"] == 200) & 
-            (df_headings["is_indexable"] == True) & 
-            (df_headings["h1"].str.strip() != "")
-        ].copy()
-
-        valid_h1_df["is_pagination"] = [
-            is_pagination_url(u, c) for u, c in zip(valid_h1_df["url"], valid_h1_df["canonical_url"])
-        ]
-        valid_h1_df["base_url"] = [
-            get_base_unpaginated_url(u, c) for u, c in zip(valid_h1_df["url"], valid_h1_df["canonical_url"])
-        ]
-
-        h1_to_base_urls = {}
-        h1_to_urls = {}
-        dup_h1_set = set()
-
-        for h, group in valid_h1_df.groupby("h1"):
-            h_clean = str(h).strip()
-            if not h_clean:
-                continue
-            all_non_pag = list(group[~group["is_pagination"]]["url"])
-            distinct_bases = sorted(list(set(group["base_url"])))
-            h1_to_base_urls[h_clean] = distinct_bases
-            h1_to_urls[h_clean] = all_non_pag if all_non_pag else list(group["url"])
-            if len(distinct_bases) > 1:
-                dup_h1_set.add(h_clean)
-
-        def get_h1_dup_info(row):
-            if row.get("status_code", 200) != 200 or not row.get("is_indexable", True):
-                return 0, "— (Non-Indexable / Redirect)"
-            u = row["url"]
-            can = row.get("canonical_url", "")
-            if is_pagination_url(u, can):
-                return 1, "— (Paginated View)"
-            h = str(row["h1"]).strip()
-            if h and h in dup_h1_set:
-                row_base = get_base_unpaginated_url(u, can)
-                other_bases = [b for b in h1_to_base_urls.get(h, []) if b != row_base]
-                if other_bases:
-                    return len(h1_to_base_urls.get(h, [])), " | ".join(other_bases)
-            return 1, "—"
-
-        dup_h1_info = df_headings.apply(get_h1_dup_info, axis=1)
-        df_headings["duplicate_h1_count"] = [d[0] for d in dup_h1_info]
-        df_headings["duplicate_h1_matches"] = [d[1] for d in dup_h1_info]
-
-        h2_counts = df_headings[df_headings["h2_first"].str.strip() != ""]["h2_first"].value_counts()
-        dup_h2_set = set(h2_counts[h2_counts > 1].index)
-
-        # H1 Status Tag
-        def get_h1_status(row):
-            code = row.get("status_code", 200)
-            if 300 <= code < 400:
-                return f"Redirect ({code})"
-            if code >= 400:
-                return f"Error ({code})"
-            is_noindex = bool(row.get("is_noindex", False) or ("noindex" in str(row.get("meta_robots", "")).lower()))
-            if is_noindex or not row.get("is_indexable", True):
-                return "Noindex (Non-Indexable)"
-            h = str(row["h1"]).strip()
-            c = row.get("h1_count", 0)
-            if not h or c == 0:
-                return "Missing"
-            if c > 1:
-                return "Multiple H1s"
-            u = row["url"]
-            can = row.get("canonical_url", "")
-            if not is_pagination_url(u, can) and row.get("is_indexable", True) and h in dup_h1_set:
-                return "Duplicate"
-            if len(h) > 70:
-                return "Over 70 Chars"
-            return "OK"
-
-        # H2 Status Tag
-        def get_h2_status(row):
-            is_noindex = bool(row.get("is_noindex", False) or ("noindex" in str(row.get("meta_robots", "")).lower()))
-            if is_noindex or not row.get("is_indexable", True):
-                return "Noindex (Non-Indexable)"
-            h = str(row["h2_first"]).strip()
-            c = row.get("h2_count", 0)
-            if not h or c == 0:
-                return "Missing"
-            if h in dup_h2_set:
-                return "Duplicate"
-            if c > 1:
-                return "Multiple H2s"
-            return "OK"
-
-        df_headings["h1_status"] = df_headings.apply(get_h1_status, axis=1)
-        df_headings["h2_status"] = df_headings.apply(get_h2_status, axis=1)
-
-        # Metric Counters
-        h1_ok_count = len(df_headings[df_headings["h1_status"] == "OK"])
-        missing_h1_count = len(df_headings[df_headings["h1_status"] == "Missing"])
-        dup_h1_count = len(df_headings[df_headings["h1_status"] == "Duplicate"])
-        multiple_h1_count = len(df_headings[df_headings["h1_status"] == "Multiple H1s"])
-        missing_h2_count = len(df_headings[df_headings["h2_status"] == "Missing"])
-
-        st.subheader("🧱 Heading Hierarchy & Structure Audit (H1 / H2)")
-        st.caption("Inspect heading tags across your site — view primary and secondary H1s (H1-1 / H1-2), detect multiple H1 tags per page, and catch duplicate cannibalization.")
-
-        # 5 Metric Cards
-        hm1, hm2, hm3, hm4, hm5 = st.columns(5)
-        hm1.metric("H1 Optimal (OK)", f"{h1_ok_count}", delta=f"{round(h1_ok_count/max(total_pages,1)*100)}% of pages")
-        hm2.metric("Missing H1", f"{missing_h1_count}", delta="No H1 tag" if missing_h1_count else "None", delta_color="inverse" if missing_h1_count else "normal")
-        hm3.metric("Multiple H1s", f"{multiple_h1_count}", delta="2+ H1s on page" if multiple_h1_count else "Clean", delta_color="inverse" if multiple_h1_count else "normal")
-        hm4.metric("Duplicate H1", f"{dup_h1_count}", delta=f"{len(dup_h1_set)} unique shared" if dup_h1_count else "Unique", delta_color="inverse" if dup_h1_count else "normal")
-        hm5.metric("Missing H2", f"{missing_h2_count}", delta="Needs subheadings" if missing_h2_count else "Structured", delta_color="inverse" if missing_h2_count else "normal")
-
-        # Filters and Search
-        hfcol1, hfcol2 = st.columns([1.5, 2])
-        with hfcol1:
-            heading_filter = st.selectbox(
-                "Filter Headings by Status:",
-                [
-                    "All Headings",
-                    "Multiple H1s",
-                    "Missing H1",
-                    "Duplicate H1",
-                    "H1 Over 70 Chars",
-                    "Missing H2",
-                    "Multiple H2s",
-                    "Duplicate H2",
-                    "Noindex Pages"
-                ]
-            )
-        with hfcol2:
-            heading_search = st.text_input("🔍 Search URL or Heading Text (H1/H2):", "", key="heading_search_input")
-
-        df_filtered_hd = df_headings.copy()
-
-        if heading_filter == "Missing H1":
-            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Missing"]
-        elif heading_filter == "Multiple H1s":
-            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Multiple H1s"]
-        elif heading_filter == "Duplicate H1":
-            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Duplicate"]
-        elif heading_filter == "H1 Over 70 Chars":
-            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Over 70 Chars"]
-        elif heading_filter == "Missing H2":
-            df_filtered_hd = df_filtered_hd[df_filtered_hd["h2_status"] == "Missing"]
-        elif heading_filter == "Multiple H2s":
-            df_filtered_hd = df_filtered_hd[df_filtered_hd["h2_status"] == "Multiple H2s"]
-        elif heading_filter == "Duplicate H2":
-            df_filtered_hd = df_filtered_hd[df_filtered_hd["h2_status"] == "Duplicate"]
-        elif heading_filter == "Noindex Pages":
-            df_filtered_hd = df_filtered_hd[df_filtered_hd["h1_status"] == "Noindex (Non-Indexable)"]
-
-        if heading_search:
-            df_filtered_hd = df_filtered_hd[
-                df_filtered_hd["url"].str.contains(heading_search, case=False, na=False) |
-                df_filtered_hd["h1"].str.contains(heading_search, case=False, na=False) |
-                df_filtered_hd["h1_2"].str.contains(heading_search, case=False, na=False) |
-                df_filtered_hd["h2_first"].str.contains(heading_search, case=False, na=False) |
-                df_filtered_hd["h2_2"].str.contains(heading_search, case=False, na=False)
-            ]
-
-        # Download button for filtered headings
-        col_hdown1, col_hdown2 = st.columns([1, 4])
-        with col_hdown1:
-            csv_hd = generate_csv(df_filtered_hd)
-            st.download_button(
-                label=f"📥 Download Filtered Headings ({len(df_filtered_hd)} URLs)",
-                data=csv_hd,
-                file_name=make_clean_export_filename(f"Headings_{heading_filter.replace(' ', '_').lower()}", active_crawl_site, "csv"),
-                mime="text/csv",
-                use_container_width=True
-            )
-        with col_hdown2:
-            st.caption(f"Showing **{len(df_filtered_hd)}** of **{total_pages}** pages matching filter: `{heading_filter}`")
-
-        # Select clean, contextual columns:
-        # If user is specifically looking at cross-page Duplicate H1s, show duplicate partner URL.
-        # For Multiple H1s, show H1-1 and H1-2 without confusing duplicate partner column!
-        if heading_filter == "Duplicate H1":
-            display_cols = [
-                "url", "h1", "h1_status", "duplicate_h1_matches", "duplicate_h1_count",
-                "h1_count", "h2_first", "status_code"
-            ]
-        elif heading_filter == "Multiple H1s":
-            display_cols = [
-                "url", "h1_status", "h1_count", "h1", "h1_2",
-                "h2_first", "status_code"
-            ]
-        else:
-            display_cols = [
-                "url", "h1_status", "h1_count", "h1", "h1_2",
-                "h2_first", "h2_2", "h2_status", "h2_count", "status_code"
-            ]
-
-        st.dataframe(
-            df_filtered_hd[display_cols],
-            use_container_width=True,
-            column_config={
-                "url": st.column_config.LinkColumn("Page URL"),
-                "h1": st.column_config.TextColumn("H1-1 (First H1)"),
-                "h1_2": st.column_config.TextColumn("H1-2 (Second H1)", help="Second H1 tag found on this page when Multiple H1s exist"),
-                "h1_status": st.column_config.TextColumn("H1 Status"),
-                "h1_count": st.column_config.NumberColumn("H1 Count", format="%d", help="Total number of H1 tags on this single page"),
-                "duplicate_h1_matches": st.column_config.TextColumn("Duplicate With (Other URL(s))", help="The exact other URLs on your site sharing this identical H1"),
-                "duplicate_h1_count": st.column_config.NumberColumn("Total Copies", format="%d"),
-                "h2_first": st.column_config.TextColumn("H2-1 (First H2)"),
-                "h2_2": st.column_config.TextColumn("H2-2 (Second H2)"),
-                "h2_status": st.column_config.TextColumn("H2 Status"),
-                "h2_count": st.column_config.NumberColumn("H2 Count", format="%d"),
-                "status_code": st.column_config.NumberColumn("HTTP Status", format="%d")
-            },
-            hide_index=True
-        )
-
-        # Grouped Duplicate H1 Explorer
-        if dup_h1_set:
-            with st.expander(f"👥 View Grouped Duplicate H1 Clusters ({len(dup_h1_set)} Unique Duplicate Groups)", expanded=(heading_filter == "Duplicate H1")):
-                st.markdown("Here is the grouped breakdown of duplicate H1 headings and competing URLs:")
-                for dup_h in sorted(dup_h1_set, key=lambda x: len(h1_to_urls[x]), reverse=True):
-                    matched_urls = h1_to_urls[dup_h]
-                    st.markdown(f"**📌 H1 Heading:** `{dup_h}` — *(Shared across **{len(matched_urls)}** pages)*")
-                    dup_cluster_df = pd.DataFrame({
-                        "Matching Page URL": matched_urls,
-                        "Status Code": [df_headings[df_headings["url"] == u]["status_code"].values[0] if not df_headings[df_headings["url"] == u].empty else 200 for u in matched_urls]
-                    })
-                    st.dataframe(dup_cluster_df, use_container_width=True, hide_index=True)
-                    st.markdown("<hr style='margin:0.4rem 0; border-color:#334155;'>", unsafe_allow_html=True)
-
-        with st.expander("💡 SEO Guide: Heading Hierarchy Best Practices"):
-            st.markdown("""
-            - **Exactly One H1 per page**: ✅ The H1 is the main topic of your page. Having 0 H1s hurts topical relevance; having multiple H1s dilutes ranking signals.
-            - **Unique H1s**: ⚠️ Every page should have a unique H1 matching its unique title and search intent.
-            - **Logical Structure**: Use H2 tags to divide sections under your primary H1 heading.
-            """)
-
-# ==============================================================================
-# TAB 7: LINK ANALYSIS
-# ==============================================================================
-with tab_links:
-    if not results:
-        st.info("Run a crawl to see internal and external link connections.")
-    else:
-        df_links = results["df_links"].copy()
-        if df_links.empty:
-            st.info("No outgoing links recorded.")
-        else:
-            total_links_count = len(df_links)
-            c_internal = len(df_links[df_links["is_internal"] == True])
-            c_external = len(df_links[df_links["is_internal"] == False])
-            c_nofollow = len(df_links[df_links.get("nofollow", False) == True])
-
-            st.subheader("🔗 Link Explorer & Outlink Audit")
-            st.caption("Inspect all outgoing and internal links discovered during crawl — search by Source Page to audit where links from a specific page go, filter Destination URLs, and check anchor texts.")
-
-            # Metric Cards Row (4 metrics)
-            lm1, lm2, lm3, lm4 = st.columns(4)
-            lm1.metric("Total Links", f"{total_links_count}")
-            lm2.metric("Internal Links", f"{c_internal}", delta=f"{round(c_internal/max(total_links_count,1)*100)}% of links")
-            lm3.metric("External Links", f"{c_external}", delta=f"{round(c_external/max(total_links_count,1)*100)}% of links")
-            lm4.metric("Nofollow Links", f"{c_nofollow}", delta="No equity transfer" if c_nofollow else "All Dofollow")
-
-            st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
-
-            # Row 1: Link Type Filter
-            col_l1, col_l2 = st.columns([1, 2])
-            with col_l1:
-                link_filter = st.selectbox(
-                    "Filter Link Type:",
-                    ["All Links", "Internal Only", "External Only", "Nofollow Links"],
-                    key="sb_link_type_filter"
-                )
-
-            # Row 2: Search by Source Page & Destination URL
-            col_s1, col_s2 = st.columns(2)
-            with col_s1:
-                source_search = st.text_input(
-                    "🔍 Filter by Source Page (Page where link is found):",
-                    "",
-                    placeholder="e.g. https://www.example.com/about-us/",
-                    key="txt_link_source_search",
-                    help="Enter or paste any URL to see all outgoing links originating from that specific page."
-                )
-            with col_s2:
-                dest_search = st.text_input(
-                    "🎯 Search Destination URL or Anchor Text:",
-                    "",
-                    placeholder="e.g. /services/ or Contact Us",
-                    key="txt_link_dest_search",
-                    help="Filter by target link destination URL or anchor text keywords."
-                )
-
-            # Apply Filters
-            filtered_links = df_links.copy()
-
-            if link_filter == "Internal Only":
-                filtered_links = filtered_links[filtered_links["is_internal"] == True]
-            elif link_filter == "External Only":
-                filtered_links = filtered_links[filtered_links["is_internal"] == False]
-            elif link_filter == "Nofollow Links":
-                filtered_links = filtered_links[filtered_links.get("nofollow", False) == True]
-
-            if source_search.strip():
-                filtered_links = filtered_links[filtered_links["source_url"].astype(str).str.contains(source_search.strip(), case=False, na=False)]
-
-            if dest_search.strip():
-                q = dest_search.strip()
-                filtered_links = filtered_links[
-                    filtered_links["target_url"].astype(str).str.contains(q, case=False, na=False) |
-                    filtered_links["anchor_text"].astype(str).str.contains(q, case=False, na=False)
-                ]
-
-            # Download CSV toolbar
-            col_ld1, col_ld2 = st.columns([1.2, 4])
-            with col_ld1:
-                csv_links = generate_csv(filtered_links)
-                st.download_button(
-                    label=f"📥 Download Filtered Links ({len(filtered_links)})",
-                    data=csv_links,
-                    file_name=make_clean_export_filename("Discovered_Links_Filtered", active_crawl_site, "csv"),
-                    mime="text/csv",
-                    use_container_width=True
-                )
-            with col_ld2:
-                st.caption(f"Showing **{len(filtered_links)}** of **{total_links_count}** discovered links matching active filters.")
-
-            desired_cols = ["source_url", "target_url", "anchor_text", "is_internal", "nofollow", "rel"]
-            avail_cols = [c for c in desired_cols if c in filtered_links.columns]
-
-            st.dataframe(
-                filtered_links[avail_cols],
-                use_container_width=True,
-                column_config={
-                    "source_url": st.column_config.LinkColumn("Source Page (Found On)", width="large"),
-                    "target_url": st.column_config.LinkColumn("Destination URL", width="large"),
-                    "anchor_text": st.column_config.TextColumn("Anchor Text", width="medium"),
-                    "is_internal": st.column_config.CheckboxColumn("Internal", width="small"),
-                    "nofollow": st.column_config.CheckboxColumn("Nofollow", width="small"),
-                    "rel": st.column_config.TextColumn("rel Attribute", width="small"),
-                },
-                hide_index=True
-            )
-
-# ==============================================================================
-# TAB 8: IMAGES AUDIT
-# ==============================================================================
-with tab_images:
-    if not results:
-        st.info("Run a crawl to inspect image tags, missing alt attributes, and duplicate alt text.")
-    else:
-        df_images = results["df_images"].copy()
-        if df_images.empty:
-            st.info("No images detected on crawled pages.")
-        else:
-            # Ensure size_kb and is_over_100kb are populated (even on pre-existing session runs)
-            if "size_kb" not in df_images.columns or "is_over_100kb" not in df_images.columns:
-                from seo_analyzer import resolve_image_sizes
-                df_images = resolve_image_sizes(df_images)
-                results["df_images"] = df_images.copy()
-
-            total_images = len(df_images)
-
-            # Clean and calculate Alt & Size statistics
-            df_images["alt_clean"] = df_images["alt"].fillna("").astype(str).str.strip()
-            df_images["alt_length"] = df_images["alt_clean"].str.len()
-            if "size_kb" not in df_images.columns:
-                df_images["size_kb"] = 0.0
-            if "is_over_100kb" not in df_images.columns:
-                df_images["is_over_100kb"] = df_images["size_kb"] > 100.0
-            
-            # Identify Duplicate Alt Texts
-            alt_counts = df_images[df_images["alt_clean"] != ""]["alt_clean"].value_counts()
-            dup_alts_set = set(alt_counts[alt_counts > 1].index)
-
-            # Assign Status Tag
-            def get_image_status(row):
-                a = row["alt_clean"]
-                if not a or not row.get("has_alt", False):
-                    return "Missing Alt Text"
-                if a in dup_alts_set:
-                    return "Duplicate Alt Text"
-                if len(a) > 100:
-                    return "Alt Text Over 100 Chars"
-                return "OK"
-
-            df_images["alt_status"] = df_images.apply(get_image_status, axis=1)
-
-            # KPI Counters
-            missing_alt_count = len(df_images[df_images["alt_status"] == "Missing Alt Text"])
-            dup_alt_count = len(df_images[df_images["alt_status"] == "Duplicate Alt Text"])
-            over_len_alt_count = len(df_images[df_images["alt_status"] == "Alt Text Over 100 Chars"])
-            ok_alt_count = len(df_images[df_images["alt_status"] == "OK"])
-            over_100kb_count = int(df_images["is_over_100kb"].sum())
-
-            st.subheader("🖼️ Images SEO & Alt Text Audit")
-            st.caption("Deep inspection of image elements across crawled pages — detect images over 100 KB, extract missing alt text, identify duplicate alt descriptions, and flag overly long descriptions.")
-
-            # 6 Metric Cards
-            im1, im2, im3, im4, im5, im6 = st.columns(6)
-            im1.metric("Total Images", f"{total_images}")
-            im2.metric("Alt Optimal (OK)", f"{ok_alt_count}", delta=f"{round(ok_alt_count/max(total_images,1)*100)}% of images")
-            im3.metric("Missing Alt Text", f"{missing_alt_count}", delta="Needs alt attribute" if missing_alt_count else "None", delta_color="inverse" if missing_alt_count else "normal")
-            im4.metric("Duplicate Alt", f"{dup_alt_count}", delta="Repeated alt" if dup_alt_count else "Unique", delta_color="inverse" if dup_alt_count else "normal")
-            im5.metric("Alt > 100 Chars", f"{over_len_alt_count}", delta="Too verbose" if over_len_alt_count else "Concise", delta_color="inverse" if over_len_alt_count else "normal")
-            im6.metric("Images Over 100 KB", f"{over_100kb_count}", delta="Heavy assets (>100 KB)" if over_100kb_count else "Optimized", delta_color="inverse" if over_100kb_count else "normal")
-
-            # Filters and Search
-            ifcol1, ifcol2 = st.columns([1.5, 2])
-            with ifcol1:
-                img_filter = st.selectbox(
-                    "Filter Images by Status:",
-                    [
-                        "All Images",
-                        "Images Over 100 KB",
-                        "Missing Alt Text",
-                        "Duplicate Alt Text",
-                        "Alt Text Over 100 Chars",
-                        "Alt Text Optimal (OK)"
-                    ]
-                )
-            with ifcol2:
-                img_search = st.text_input("🔍 Search Image URL, Alt Text, or Page URL:", "")
-
-            df_filtered_img = df_images.copy()
-
-            if img_filter == "Images Over 100 KB":
-                df_filtered_img = df_filtered_img[df_filtered_img["is_over_100kb"] == True].sort_values(by="size_kb", ascending=False)
-            elif img_filter == "Missing Alt Text":
-                df_filtered_img = df_filtered_img[df_filtered_img["alt_status"] == "Missing Alt Text"]
-            elif img_filter == "Duplicate Alt Text":
-                df_filtered_img = df_filtered_img[df_filtered_img["alt_status"] == "Duplicate Alt Text"]
-            elif img_filter == "Alt Text Over 100 Chars":
-                df_filtered_img = df_filtered_img[df_filtered_img["alt_status"] == "Alt Text Over 100 Chars"]
-            elif img_filter == "Alt Text Optimal (OK)":
-                df_filtered_img = df_filtered_img[df_filtered_img["alt_status"] == "OK"]
-
-            if img_search:
-                df_filtered_img = df_filtered_img[
-                    df_filtered_img["page_url"].str.contains(img_search, case=False, na=False) |
-                    df_filtered_img["image_url"].str.contains(img_search, case=False, na=False) |
-                    df_filtered_img["alt_clean"].str.contains(img_search, case=False, na=False)
-                ]
-
-            # Download button for filtered images
-            col_idown1, col_idown2 = st.columns([1, 4])
-            with col_idown1:
-                csv_img = generate_csv(df_filtered_img)
-                st.download_button(
-                    label=f"📥 Download Filtered Images ({len(df_filtered_img)} URLs)",
-                    data=csv_img,
-                    file_name=make_clean_export_filename(f"Images_{img_filter.replace(' ', '_').lower()}", active_crawl_site, "csv"),
-                    mime="text/csv",
-                    use_container_width=True
-                )
-            with col_idown2:
-                st.caption(f"Showing **{len(df_filtered_img)}** of **{total_images}** images matching filter: `{img_filter}`")
-
-            st.dataframe(
-                df_filtered_img[[
-                    "page_url", "image_url", "size_kb", "is_over_100kb", "alt_clean", "alt_status", "alt_length", "has_alt"
-                ]],
-                use_container_width=True,
-                column_config={
-                    "page_url": st.column_config.LinkColumn("Found On Page"),
-                    "image_url": st.column_config.LinkColumn("Image URL"),
-                    "size_kb": st.column_config.NumberColumn("File Size", format="%.1f KB"),
-                    "is_over_100kb": st.column_config.CheckboxColumn("Over 100 KB"),
-                    "alt_clean": st.column_config.TextColumn("Alt Text"),
-                    "alt_status": st.column_config.TextColumn("Alt Status"),
-                    "alt_length": st.column_config.NumberColumn("Alt Chars", format="%d"),
-                    "has_alt": st.column_config.CheckboxColumn("Has Tag"),
-                },
-                hide_index=True
-            )
-
-            with st.expander("💡 SEO Guide: Image Optimization & Alt Text Best Practices"):
-                st.markdown("""
-                - **Keep File Sizes Under 100 KB**: Large image files significantly slow down page load times and degrade Largest Contentful Paint (LCP). Convert to modern WebP or AVIF and apply compression to keep assets under 100 KB.
-                - **Descriptive Alt Text**: Describe the visual content clearly for search engines and screen readers.
-                - **Avoid Keyword Stuffing**: Keep alt text natural, relevant, and concise (under 100 characters).
-                - **Unique Alt Text**: Different images should not share generic alt text (like "image" or "banner").
-                """)
-
-# ==============================================================================
-# TAB 9: SITE ARCHITECTURE GRAPH & SILO STRUCTURE
-# ==============================================================================
-with tab_architecture:
-    if not results:
-        st.info("Run a crawl to visualize internal linking topology and silo architecture.")
-    else:
-        df_pages = results.get("df_pages", pd.DataFrame()).copy()
-        df_links = results.get("df_links", pd.DataFrame()).copy()
-
-        if df_pages.empty or df_links.empty:
-            st.info("No internal link relationships found.")
-        else:
-            st.subheader("🧭 Internal Link Structure Visualization")
-            st.caption("Interactive visualization of your website's internal linking architecture, crawl depth and page relationships.")
-
-            # --- 1. Compact SEO Summary Cards ---
-            total_pages = len(df_pages)
-            total_internal_links = len(df_links[df_links["is_internal"] == True]) if not df_links.empty else 0
-            orphan_count = int(df_pages["is_orphan"].sum()) if "is_orphan" in df_pages.columns else 0
-            broken_count = len(df_pages[df_pages["status_code"] >= 400]) if "status_code" in df_pages.columns else 0
-            redirects_count = len(df_pages[(df_pages["status_code"] >= 300) & (df_pages["status_code"] < 400)]) if "status_code" in df_pages.columns else 0
-            redirect_chains_count = int(df_pages["is_redirect_chain"].sum()) if "is_redirect_chain" in df_pages.columns else 0
-            max_depth = int(df_pages["depth"].max()) if "depth" in df_pages.columns and not df_pages.empty else 0
-            deep_count = len(df_pages[df_pages["depth"] >= 4]) if "depth" in df_pages.columns else 0
-
-            sc1, sc2, sc3, sc4, sc5, sc6, sc7 = st.columns(7)
-            sc1.metric("Total Pages", f"{total_pages:,}")
-            sc2.metric("Internal Links", f"{total_internal_links:,}")
-            sc3.metric("Orphan Pages", f"{orphan_count}", delta="Needs links" if orphan_count else "None", delta_color="inverse" if orphan_count else "normal")
-            sc4.metric("Broken Links", f"{broken_count}", delta="4xx/5xx errors" if broken_count else "None", delta_color="inverse" if broken_count else "normal")
-            sc5.metric("Redirects", f"{redirects_count}", delta="3xx redirects" if redirects_count else "None", delta_color="inverse" if redirects_count else "normal")
-            sc6.metric("Redirect Chains", f"{redirect_chains_count}", delta="Multi-hop" if redirect_chains_count else "None", delta_color="inverse" if redirect_chains_count else "normal")
-            sc7.metric("Max Crawl Depth", f"Depth {max_depth}")
-
-            # --- 2. SEO Issues Quick Highlight Pills ---
-            st.markdown(f"""
-            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; margin-bottom: 16px; align-items: center;">
-                <span style="font-size: 12px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em;">SEO Issues Detected:</span>
-                <span style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); color: #C084FC; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {orphan_count} Orphan Pages</span>
-                <span style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #FBBF24; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {redirects_count} Redirects</span>
-                <span style="background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.4); color: #FB923C; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">⚠️ {redirect_chains_count} Redirect Chains</span>
-                <span style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #F87171; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">🔴 {broken_count} Broken Pages</span>
-                <span style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38BDF8; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600;">ℹ️ {deep_count} Deep Pages (Depth 4+)</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # --- 3. Graph Controls Bar ---
-            fc1, fc2, fc3, fc4, fc5 = st.columns([1.6, 1.3, 1.1, 1.2, 1.0])
-            with fc1:
-                arch_search = st.text_input("🔍 Search URL / Title / Slug:", value="", key="arch_search_input")
-            with fc2:
-                arch_view_mode = st.selectbox(
-                    "View Mode:",
-                    [
-                        "Hierarchy by Depth",
-                        "Radial / Depth Rings",
-                        "Force-Directed (Organic Clusters)",
-                        "Hubs & Authorities"
-                    ],
-                    key="arch_view_mode_select"
-                )
-            with fc3:
-                arch_depth = st.selectbox(
-                    "Crawl Depth:",
-                    ["All", "Depth 0", "Depth 1", "Depth 2", "Depth 3", "Depth 4", "5+"],
-                    key="arch_depth_select"
-                )
-            with fc4:
-                arch_seo_state = st.selectbox(
-                    "SEO State Filter:",
-                    ["All", "Healthy", "Hubs / Categories", "Orphans", "Broken Pages", "Redirect Chains", "Redirects"],
-                    key="arch_seo_state_select"
-                )
-            with fc5:
-                arch_max_nodes = st.slider(
-                    "Node Capacity:",
-                    min_value=30,
-                    max_value=min(250, max(50, total_pages)),
-                    value=min(80, max(30, total_pages)),
-                    step=10,
-                    key="arch_max_nodes_slider",
-                    help="Limit displayed nodes for maximum responsiveness on large sites."
-                )
-
-            # --- 4. Compact Legend ---
-            st.markdown("""
-            <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; color: #CBD5E1; background: rgba(15, 23, 42, 0.5); padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(51, 65, 85, 0.4); align-items: center;">
-                <span><span style="color: #10B981; font-size: 14px;">●</span> Healthy (200 OK)</span>
-                <span><span style="color: #38BDF8; font-size: 14px;">●</span> Hub / Category</span>
-                <span><span style="color: #F59E0B; font-size: 14px;">●</span> Redirect (3xx)</span>
-                <span><span style="color: #F97316; font-size: 14px;">●</span> Redirect Chain</span>
-                <span><span style="color: #EF4444; font-size: 14px;">●</span> Broken (4xx/5xx)</span>
-                <span><span style="color: #A855F7; font-size: 14px;">●</span> Orphan Page</span>
-                <span style="margin-left: auto; color: #64748B;">Zoom: Scroll • Pan: Drag • Highlight: Click Inspector</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # --- 5. Responsive Split View: Graph (72%) vs Details Panel (28%) ---
-            col_graph, col_details = st.columns([2.6, 1.0])
-
-            # Prepare list of URLs for interactive node selection
-            all_urls_list = list(df_pages["url"].dropna().unique())
-            current_selected_url = st.session_state.get("arch_selected_url")
-            if not current_selected_url or current_selected_url not in all_urls_list:
-                current_selected_url = all_urls_list[0] if all_urls_list else None
-
-            with col_details:
-                st.markdown("#### 📄 Page Details Panel")
-                selected_url_box = st.selectbox(
-                    "Select Node to Inspect:",
-                    all_urls_list,
-                    index=all_urls_list.index(current_selected_url) if current_selected_url in all_urls_list else 0,
-                    key="arch_node_inspect_select"
-                )
-                if selected_url_box != current_selected_url:
-                    st.session_state["arch_selected_url"] = selected_url_box
-                    current_selected_url = selected_url_box
-
-                # Render Page Details Card
-                if current_selected_url:
-                    page_row_df = df_pages[df_pages["url"] == current_selected_url]
-                    if not page_row_df.empty:
-                        p_row = page_row_df.iloc[0]
-                        p_title = str(p_row.get("title") or "No Page Title Found").strip()
-                        p_status = int(p_row.get("status_code", 200))
-                        p_status_desc = str(p_row.get("status_description") or f"{p_status}")
-                        p_depth = int(p_row.get("depth", 0))
-                        p_inlinks = int(p_row.get("inlinks_count", 0))
-                        p_outlinks = int(p_row.get("internal_outlinks_count", 0))
-                        p_canonical = str(p_row.get("canonical_url") or "None")
-                        p_indexable = bool(p_row.get("is_indexable", True))
-                        p_is_rc = bool(p_row.get("is_redirect_chain", False))
-                        p_is_orphan = bool(p_row.get("is_orphan", False))
-
-                        # Card Container
-                        status_badge_color = "#10B981" if p_status == 200 else ("#EF4444" if p_status >= 400 else "#F59E0B")
-                        st.markdown(f"""
-                        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(71, 85, 105, 0.4); border-radius: 10px; padding: 14px; margin-bottom: 12px;">
-                            <div style="font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase;">Page Title</div>
-                            <div style="font-size: 14px; font-weight: 600; color: #F8FAFC; margin-bottom: 8px;">{p_title}</div>
-                            <div style="font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase;">URL</div>
-                            <div style="font-size: 12px; color: #38BDF8; word-break: break-all; margin-bottom: 10px;">
-                                <a href="{current_selected_url}" target="_blank" style="color: #38BDF8; text-decoration: none;">{current_selected_url} ↗</a>
-                            </div>
-                            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
-                                <span style="background: {status_badge_color}22; border: 1px solid {status_badge_color}55; color: {status_badge_color}; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">{p_status_desc}</span>
-                                <span style="background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.3); color: #CBD5E1; padding: 2px 8px; border-radius: 6px; font-size: 11px;">Depth: {p_depth}</span>
-                                <span style="background: {'rgba(16, 185, 129, 0.15)' if p_indexable else 'rgba(239, 68, 68, 0.15)'}; border: 1px solid {'rgba(16, 185, 129, 0.3)' if p_indexable else 'rgba(239, 68, 68, 0.3)'}; color: {'#34D399' if p_indexable else '#F87171'}; padding: 2px 8px; border-radius: 6px; font-size: 11px;">{'Indexable' if p_indexable else 'Noindex'}</span>
-                                {f'<span style="background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.5); color: #C084FC; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Orphan Page</span>' if p_is_orphan else ''}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                        dcol1, dcol2 = st.columns(2)
-                        dcol1.metric("Incoming Links", f"{p_inlinks}")
-                        dcol2.metric("Outgoing Links", f"{p_outlinks}")
-
-                        st.caption(f"**Canonical:** `{p_canonical}`")
-
-                        # Redirect Chain Visualizer in Panel
-                        if p_is_rc or p_status >= 300 and p_status < 400:
-                            rc_path = str(p_row.get("redirect_chain_str") or current_selected_url)
-                            rc_hops = int(p_row.get("redirect_hops", 1))
-                            st.warning(f"**Redirect Path ({rc_hops} hops):**\n`{rc_path}`")
-
-                        # Incoming Links Table
-                        incoming_links_df = df_links[(df_links["target_url"] == current_selected_url) & (df_links["is_internal"] == True)]
-                        with st.expander(f"📥 Incoming Links ({len(incoming_links_df)})", expanded=False):
-                            if incoming_links_df.empty:
-                                st.info("No incoming internal links found pointing to this page.")
-                            else:
-                                st.dataframe(
-                                    incoming_links_df[["source_url", "anchor_text"]].rename(columns={"source_url": "Source Page", "anchor_text": "Anchor Text"}),
-                                    use_container_width=True,
-                                    hide_index=True
-                                )
-
-                        # Outgoing Links Table
-                        outgoing_links_df = df_links[(df_links["source_url"] == current_selected_url) & (df_links["is_internal"] == True)]
-                        with st.expander(f"📤 Outgoing Links ({len(outgoing_links_df)})", expanded=False):
-                            if outgoing_links_df.empty:
-                                st.info("No outgoing internal links found on this page.")
-                            else:
-                                st.dataframe(
-                                    outgoing_links_df[["target_url", "anchor_text"]].rename(columns={"target_url": "Target URL", "anchor_text": "Anchor Text"}),
-                                    use_container_width=True,
-                                    hide_index=True
-                                )
-
-            with col_graph:
-                # Generate and Render Architecture Graph
-                arch_fig = create_site_architecture_graph(
-                    df_links=df_links,
-                    df_pages=df_pages,
-                    view_mode=arch_view_mode,
-                    depth_filter=arch_depth,
-                    status_filter="All",
-                    seo_state_filter=arch_seo_state,
-                    search_query=arch_search,
-                    selected_url=current_selected_url,
-                    max_nodes=arch_max_nodes
-                )
-                st.plotly_chart(
-                    arch_fig,
-                    use_container_width=True,
-                    config={
-                        "displayModeBar": True,
-                        "scrollZoom": True,
-                        "displaylogo": False,
-                        "modeBarButtonsToRemove": ["lasso2d", "select2d"]
-                    }
-                )
-
-
-            st.markdown("""
-            <div style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(129, 140, 248, 0.35); border-radius: 12px; padding: 16px 22px; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-                <div>
-                    <span style="font-weight: 700; color: #FFFFFF; font-size: 0.98rem;">🏛️ Looking for Strategic AI Silo Architecture & Interlinking?</span>
-                    <div style="color: #94A3B8; font-size: 0.85rem; margin-top: 3px;">Harness Gemini (3.5 to 3.8), ChatGPT, or Claude to architect topical silos, eliminate PageRank leaks, and chat with an AI SEO strategist.</div>
-                </div>
-                <span style="background: #6366F1; color: white; padding: 6px 16px; border-radius: 8px; font-size: 0.82rem; font-weight: 700;">Select '🏛️ AI Silo / Competitor / Blog Topic' in Sidebar</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-# ==============================================================================
-# TAB: AUDIT REPORT & MULTI-TAB AUDIT EXPORT
-# ==============================================================================
-with tab_extractor:
-    if not results:
-        st.info("Run a crawl to extract structured SEO errors into an interactive audit spreadsheet.")
-    else:
-        from data_extractor import extract_all_seo_errors, build_error_audit_excel_workbook
-        from ai_audit_enricher import enrich_audit_report_with_ai, COUNTRIES
-
-        index_rows, error_dfs = extract_all_seo_errors(results)
-
-        st.subheader("📑 SEO Audit Report & Multi-Tab Export")
-        st.caption("Structured multi-tab client audit spreadsheet. The Index sheet summarizes all technical checks, and separate tabs list all affected URLs with suggested fixes and developer implementation guides.")
-
-        # =====================================================================
-        # AI ENGINE & API CONFIGURATION CARD
-        # =====================================================================
-        if "audit_reset_id" not in st.session_state:
-            st.session_state["audit_reset_id"] = 0
-        audit_reset_id = st.session_state["audit_reset_id"]
-
-        cfg_col1, cfg_col2, cfg_col3 = st.columns([1.4, 2.2, 1.6])
-
-        with cfg_col1:
-            ai_provider = st.selectbox(
-                "AI Provider",
-                options=["Google Gemini", "ChatGPT (OpenAI)", "Claude (Anthropic)"],
-                index=0,
-                key="audit_ai_provider"
-            )
-            if ai_provider == "Google Gemini":
-                model_options = [
-                    "gemini-4-argon",
-                    "gemini-4-argon-thinking",
-                    "gemini-3.8-flash",
-                    "gemini-3.7-flash",
-                    "gemini-3.6-flash",
-                    "gemini-3.5-flash",
-                    "gemini-3.5-flash-lite",
-                    "gemini-3.1-pro-preview",
-                    "gemini-2.5-flash",
-                    "gemini-1.5-flash",
-                    "gemini-2.0-flash",
-                    "Custom Model"
-                ]
-            elif ai_provider == "ChatGPT (OpenAI)":
-                model_options = [
-                    "gpt-4o-mini",
-                    "gpt-4o",
-                    "o3-mini",
-                    "Custom Model"
-                ]
-            else:
-                model_options = [
-                    "claude-3-5-haiku-20241022",
-                    "claude-3-5-sonnet-20241022",
-                    "Custom Model"
-                ]
-
-            selected_model_choice = st.selectbox(
-                "Model",
-                options=model_options,
-                index=0,
-                key="audit_model_choice"
-            )
-            if selected_model_choice == "Custom Model":
-                selected_model = st.text_input(
-                    "Custom Model Name",
-                    placeholder="e.g. gemini-2.5-pro",
-                    key=f"audit_custom_model_{audit_reset_id}"
-                ).strip()
-            else:
-                selected_model = selected_model_choice
-
-        with cfg_col2:
-            if ai_provider == "Google Gemini":
-                key_label = "Google Gemini API Key (Free)"
-                key_placeholder = "Paste your Gemini API key (AIzaSy...)"
-                help_url = "https://aistudio.google.com/apikey"
-                help_text = "Get your free key from Google AI Studio →"
-            elif ai_provider == "ChatGPT (OpenAI)":
-                key_label = "OpenAI API Key"
-                key_placeholder = "sk-..."
-                help_url = "https://platform.openai.com/api-keys"
-                help_text = "Get your OpenAI API key →"
-            else:
-                key_label = "Anthropic API Key"
-                key_placeholder = "sk-ant-..."
-                help_url = "https://console.anthropic.com/settings/keys"
-                help_text = "Get your Anthropic key →"
-
-            existing_key = st.session_state.get(f"api_key_{ai_provider}", "")
-            api_key = st.text_input(
-                key_label,
-                value=existing_key,
-                type="password",
-                placeholder=key_placeholder,
-                key=f"input_audit_key_{ai_provider}_{audit_reset_id}"
-            )
-            st.caption(f"🔑 <a href='{help_url}' target='_blank' style='color:#818CF8; text-decoration:none;'>{help_text}</a>", unsafe_allow_html=True)
-            if api_key:
-                st.session_state[f"api_key_{ai_provider}"] = api_key
-
-            sub_col1, sub_col2 = st.columns([1.5, 1.0])
-            with sub_col1:
-                btn_audit_submit = st.button("🚀 Submit & Generate Suggestions", type="primary", use_container_width=True, key="btn_audit_submit")
-            with sub_col2:
-                btn_clear_cfg = st.button("🔄 Clear All", use_container_width=True, key="btn_clear_audit_cfg")
-
-            if btn_clear_cfg:
-                st.session_state[f"api_key_{ai_provider}"] = ""
-                st.session_state.pop("ai_audit_enriched_result", None)
-                st.session_state.pop("client_audit_logo_bytes", None)
-                st.session_state["audit_reset_id"] = audit_reset_id + 1
-                st.rerun()
-
-        with cfg_col3:
-            target_country = st.selectbox(
-                "Target Search Region / Market",
-                options=COUNTRIES,
-                index=0,
-                key="audit_country"
-            )
-            business_niche = st.text_input(
-                "🏢 Brand / Business Niche (Optional)",
-                placeholder="e.g. Organic Essential Oils, Shopify Store",
-                help="Helps the AI understand your brand tone to craft accurate, high-CTR meta descriptions and title hooks.",
-                key=f"audit_biz_context_{audit_reset_id}"
-            )
-            uploaded_logo = st.file_uploader(
-                "🖼️ Client / Agency Logo (for Word Doc)",
-                type=["png", "jpg", "jpeg", "webp"],
-                help="Upload your agency or client logo. It will be added to the header of every page in the Word audit report.",
-                key=f"audit_logo_{audit_reset_id}"
-            )
-            if uploaded_logo:
-                st.session_state["client_audit_logo_bytes"] = uploaded_logo.getvalue()
-                st.caption("✅ Logo attached. Appears in the header of every page of your Word audit report.")
-
-        # Trigger AI Enrichment on Submit
-        if btn_audit_submit:
-            active_key = st.session_state.get(f"api_key_{ai_provider}", "").strip()
-            if not active_key:
-                st.error("⚠️ Please paste your API key in the field above before submitting!")
-            else:
-                progress_bar = st.progress(0.0)
-                status_text = st.empty()
-
-                def on_ai_progress(pct, msg):
-                    progress_bar.progress(pct)
-                    status_text.info(msg)
-
-                with st.spinner(f"🤖 Researching Google competitors in {target_country} and generating 150-160 char meta descriptions, titles, H1s, and developer guides..."):
-                    enr_idx, enr_dfs = enrich_audit_report_with_ai(
-                        index_rows=index_rows,
-                        error_dfs=error_dfs,
-                        api_key=active_key,
-                        provider=ai_provider,
-                        model=selected_model,
-                        country=target_country,
-                        business_context=business_niche,
-                        progress_callback=on_ai_progress
-                    )
-                    st.session_state["ai_audit_enriched_result"] = (enr_idx, enr_dfs)
-                    progress_bar.empty()
-                    status_text.empty()
-                    st.toast("✅ Suggested SEO fixes and Developer Guides generated!", icon="✨")
-                    st.rerun()
-
-        # Check if enriched audit exists in session state
-        ai_enriched_data = st.session_state.get("ai_audit_enriched_result")
-        active_index_rows = index_rows
-        active_error_dfs = error_dfs
-        is_ai_enriched = False
-
-        if ai_enriched_data:
-            active_index_rows, active_error_dfs = ai_enriched_data
-            is_ai_enriched = True
-
-        total_checks = len(active_index_rows)
-        failed_checks = sum(1 for r in active_index_rows if r.get("is_error", False))
-        passed_checks = total_checks - failed_checks
-        total_affected_urls = sum(r.get("count", 0) for r in active_index_rows if r.get("is_error", False))
-
-        # Metric Cards
-        em1, em2, em3, em4 = st.columns(4)
-        em1.metric("Audited Checks", f"{total_checks}")
-        em2.metric("Failed / Attention", f"{failed_checks}", delta=f"{failed_checks} categories" if failed_checks else "All Passed", delta_color="inverse" if failed_checks else "normal")
-        em3.metric("Clean / Passed Checks", f"{passed_checks}", delta="100% compliant" if passed_checks == total_checks else None)
-        em4.metric("Flagged Issue Items", f"{total_affected_urls:,}", delta="URLs/Assets" if total_affected_urls else "Clean")
-
-        st.markdown("<div style='margin: 0.8rem 0 0.4rem;'></div>", unsafe_allow_html=True)
-
-        # Download Toolbar (Standard audit Excel, Suggested Excel, and Client Word Doc .docx)
-        from audit_docx_report import generate_technical_seo_audit_docx
-
-        excel_standard_bytes = build_error_audit_excel_workbook(index_rows, error_dfs)
-        client_logo_data = st.session_state.get("client_audit_logo_bytes")
-
-        docx_bytes = generate_technical_seo_audit_docx(
-            crawl_results=results,
-            index_rows=active_index_rows,
-            error_dfs=active_error_dfs,
-            logo_bytes=client_logo_data,
-            target_country=target_country,
-            business_niche=business_niche,
-            agency_name="Technical SEO Intelligence"
-        )
-
-        cur_audit_site = active_crawl_site
-        if is_ai_enriched:
-            col_btn1, col_btn2, col_btn3, col_btn4 = st.columns([1.3, 1.4, 1.5, 1.0])
-            with col_btn1:
-                st.download_button(
-                    label="📥 Download Audit Excel (.xlsx)",
-                    data=excel_standard_bytes,
-                    file_name=make_clean_export_filename("SEO_Error_Audit_Report", cur_audit_site, "xlsx"),
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
-                    key="btn_dl_audit_excel_std"
-                )
-            with col_btn2:
-                excel_suggested_bytes = build_error_audit_excel_workbook(active_index_rows, active_error_dfs)
-                st.download_button(
-                    label="✨ Download Suggested Audit Excel",
-                    data=excel_suggested_bytes,
-                    file_name=make_clean_export_filename("SEO_Audit_With_Suggested_Fixes", cur_audit_site, "xlsx"),
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    type="primary",
-                    use_container_width=True,
-                    key="btn_dl_audit_excel_sugg"
-                )
-            with col_btn3:
-                st.download_button(
-                    label="📘 Download Client Audit Doc (.docx)",
-                    data=docx_bytes,
-                    file_name=make_clean_export_filename("Client_SEO_Audit_Report", cur_audit_site, "docx"),
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    type="primary",
-                    use_container_width=True,
-                    key="btn_dl_audit_docx"
-                )
-            with col_btn4:
-                df_index_csv = pd.DataFrame([
-                    {
-                        "Errors": r["error_name"],
-                        "Status": r["status"],
-                        "Comments": r["comments"],
-                        "Suggested Developer Action Plan": r.get("suggested_action_plan", r.get("ai_action_plan", ""))
-                    }
-                    for r in active_index_rows
-                ])
-                csv_index_bytes = df_index_csv.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📄 Download Index CSV",
-                    data=csv_index_bytes,
-                    file_name=make_clean_export_filename("SEO_Error_Index", cur_audit_site, "csv"),
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="btn_dl_audit_csv"
-                )
-        else:
-            col_btn1, col_btn2, col_btn3 = st.columns([1.4, 1.6, 1.1])
-            with col_btn1:
-                st.download_button(
-                    label="📥 Download Audit Excel (.xlsx)",
-                    data=excel_standard_bytes,
-                    file_name=make_clean_export_filename("SEO_Error_Audit_Report", cur_audit_site, "xlsx"),
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    type="primary",
-                    use_container_width=True,
-                    key="btn_dl_audit_excel"
-                )
-            with col_btn2:
-                st.download_button(
-                    label="📘 Download Client Audit Doc (.docx)",
-                    data=docx_bytes,
-                    file_name=make_clean_export_filename("Client_SEO_Audit_Report", cur_audit_site, "docx"),
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True,
-                    key="btn_dl_audit_docx_std"
-                )
-            with col_btn3:
-                df_index_csv = pd.DataFrame([
-                    {"Errors": r["error_name"], "Status": r["status"], "Comments": r["comments"]}
-                    for r in index_rows
-                ])
-                csv_index_bytes = df_index_csv.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📄 Download Index CSV",
-                    data=csv_index_bytes,
-                    file_name=make_clean_export_filename("SEO_Error_Index", cur_audit_site, "csv"),
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="btn_dl_audit_csv"
-                )
-
-        st.markdown("<div style='margin: 1rem 0 0.5rem;'></div>", unsafe_allow_html=True)
-
-        # Tabs: 1. Index Sheet Preview, 2. Error Tabs Explorer
-        tab_view_index, tab_view_sheets = st.tabs(["📋 Index Sheet Preview", "🔍 Explore Error Tabs & URLs"])
-
-        with tab_view_index:
-            st.markdown("""
-            <div style="background: #B6D7A8; color: #1B4D1B; font-weight: 800; font-size: 1.15rem; text-align: center; padding: 10px; border-radius: 8px 8px 0 0; border: 1px solid #93C47D; letter-spacing: 0.03em;">
-                Index
-            </div>
-            """, unsafe_allow_html=True)
-
-            df_display_index = pd.DataFrame([
-                {
-                    "Errors": r["error_name"],
-                    "Status": r["status"],
-                    "Comments": r["comments"],
-                    **({"Suggested Developer Action Plan": r.get("suggested_action_plan", r.get("ai_action_plan", ""))} if is_ai_enriched else {}),
-                    "Excel Sheet Tab": "✅ " + r["sheet_name"] if r.get("sheet_name") in active_error_dfs else "— (0 issues)"
-                }
-                for r in active_index_rows
-            ])
-
-            col_configs = {
-                "Errors": st.column_config.TextColumn("Errors", width="medium"),
-                "Status": st.column_config.TextColumn("Status", width="small"),
-                "Comments": st.column_config.TextColumn("Comments", width="large"),
-                "Excel Sheet Tab": st.column_config.TextColumn("Excel Worksheet Tab", width="medium"),
-            }
-            if is_ai_enriched:
-                col_configs["Suggested Developer Action Plan"] = st.column_config.TextColumn("Suggested Developer Action Plan", width="large")
-
-            st.dataframe(
-                df_display_index,
-                use_container_width=True,
-                column_config=col_configs,
-                hide_index=True
-            )
-
-        with tab_view_sheets:
-            if not active_error_dfs:
-                st.success("🎉 Great news! No errors or warnings found on this website.")
-            else:
-                active_sheet_names = list(active_error_dfs.keys())
-                selected_sheet = st.selectbox(
-                    "Select Error Tab to Inspect Affected URLs:",
-                    active_sheet_names,
-                    key="sb_extractor_sheet"
-                )
-
-                selected_df = active_error_dfs[selected_sheet]
-                st.markdown(f"##### 📄 Tab: **{selected_sheet}** ({len(selected_df)} URLs / entries)")
-
-                has_sugg_cols = any(any(k in col for k in ["Suggested", "Developer Guide", "Action Plan"]) for col in selected_df.columns)
-                if has_sugg_cols:
-                    st.info("💡 **Suggested Fixes & Developer Guides Active:** Check the highlighted suggestion columns and developer instructions on the right!")
-
-                display_cols = [c for c in selected_df.columns if not str(c).startswith("_")]
-                display_df = selected_df[display_cols]
-
-                col_sd1, col_sd2 = st.columns([1.5, 4])
-                with col_sd1:
-                    csv_sheet_bytes = display_df.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label=f"📥 Download {selected_sheet} CSV",
-                        data=csv_sheet_bytes,
-                        file_name=make_clean_export_filename(f"Audit_Sheet_{selected_sheet.replace(' ', '_')}", cur_audit_site, "csv"),
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="btn_dl_sheet_csv"
-                    )
-                with col_sd2:
-                    st.caption(f"Showing all rows for **{selected_sheet}** included in the downloaded workbook.")
-
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-# ==============================================================================
-# TAB 11: SINGLE URL QUICK INSPECTOR
-# ==============================================================================
-with tab_inspector:
-    st.subheader("🔍 Single URL Instant Inspector")
-    st.caption("Perform an instant deep technical audit on any single URL without crawling the full website.")
-    
-    col_in1, col_in2 = st.columns([3, 1])
-    with col_in1:
-        inspect_url = st.text_input("Enter Page URL to Inspect:", value="https://example.com")
-    with col_in2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        btn_inspect = st.button("🔎 Inspect Page Now", type="primary", use_container_width=True)
-
-    if btn_inspect and inspect_url:
-        with st.spinner("Fetching and inspecting technical SEO factors..."):
-            spider_temp = SEOSpider(start_url=inspect_url, max_pages=1, max_depth=0)
-            fetch_res = spider_temp.fetch_single_url(inspect_url)
-            audit = parse_page_seo(fetch_res)
-            st.session_state["single_inspect_result"] = audit
-
-    inspect_data = st.session_state.get("single_inspect_result")
-    if inspect_data:
-        st.markdown("---")
-        col_i1, col_i2, col_i3, col_i4 = st.columns(4)
-        with col_i1:
-            st.metric("HTTP Status", inspect_data.get("status_code", 0))
-        with col_i2:
-            st.metric("Latency", f"{inspect_data.get('latency_ms', 0)} ms")
-        with col_i3:
-            st.metric("Word Count", inspect_data.get("word_count", 0))
-        with col_i4:
-            st.metric("Indexable", "Yes ✅" if inspect_data.get("is_indexable") else "No ❌")
-
-        st.markdown("### 📋 Meta & Technical Elements")
-        st.json({
-            "Title": inspect_data.get("title"),
-            "Title Length": inspect_data.get("title_length"),
-            "Title Pixel Width": inspect_data.get("title_pixel_width"),
-            "Meta Description": inspect_data.get("meta_description"),
-            "H1 Heading": inspect_data.get("h1"),
-            "Canonical URL": inspect_data.get("canonical_url"),
-            "Canonical Status": inspect_data.get("canonical_status"),
-            "Meta Robots": inspect_data.get("meta_robots") or "None (Default Index, Follow)",
-            "Open Graph Title": inspect_data.get("og_title"),
-            "Open Graph Image": inspect_data.get("og_image"),
-            "Schema.org Types Detected": inspect_data.get("schema_types", []),
+        resp = requests.get(target_url, headers=headers, timeout=12, allow_redirects=True)
+        response_time_ms = int((time.time() - start_time) * 1000)
+    except Exception as e:
+        return {
+            "error": True,
+            "message": f"Could not connect to {target_url}: {str(e)}",
+            "url": target_url,
+        }
+
+    final_url = resp.url
+    status_code = resp.status_code
+    page_size_kb = round(len(resp.content) / 1024, 2)
+    content_type = resp.headers.get("content-type", "")
+
+    if "text/html" not in content_type and "application/xhtml" not in content_type:
+        return {
+            "error": False,
+            "url": final_url,
+            "status_code": status_code,
+            "response_time_ms": response_time_ms,
+            "page_size_kb": page_size_kb,
+            "message": f"Non-HTML content type: {content_type}",
+            "health_score": 50,
+            "issues": [{"type": "warning", "msg": f"URL returned non-HTML content: {content_type}"}],
+            "headings": {"h1": [], "h2": [], "h3": []},
+            "meta": {},
+            "links": {"internal": 0, "external": 0, "items": []},
+            "images": {"total": 0, "missing_alt": 0, "items": []},
+            "schema": []
+        }
+
+    soup = BeautifulSoup(resp.text, "lxml" if "lxml" in globals() else "html.parser")
+
+    # Title
+    title_tag = soup.find("title")
+    title = title_tag.get_text(strip=True) if title_tag else ""
+    title_len = len(title)
+
+    # Meta Description
+    meta_desc_tag = soup.find("meta", attrs={"name": re.compile(r"^description$", re.I)})
+    meta_desc = meta_desc_tag.get("content", "").strip() if meta_desc_tag else ""
+    desc_len = len(meta_desc)
+
+    # Meta Robots
+    meta_robots_tag = soup.find("meta", attrs={"name": re.compile(r"^robots$", re.I)})
+    meta_robots = meta_robots_tag.get("content", "").strip() if meta_robots_tag else "index, follow"
+
+    # Canonical
+    canonical_tag = soup.find("link", attrs={"rel": re.compile(r"^canonical$", re.I)})
+    canonical_url = canonical_tag.get("href", "").strip() if canonical_tag else ""
+    if canonical_url:
+        canonical_url = urljoin(final_url, canonical_url)
+
+    # Open Graph & Social Cards
+    og_title = (soup.find("meta", property="og:title") or {}).get("content", "")
+    og_desc = (soup.find("meta", property="og:description") or {}).get("content", "")
+    og_image = (soup.find("meta", property="og:image") or {}).get("content", "")
+    if og_image:
+        og_image = urljoin(final_url, og_image)
+    twitter_card = (soup.find("meta", attrs={"name": "twitter:card"}) or {}).get("content", "")
+
+    # Headings
+    h1s = [h.get_text(strip=True) for h in soup.find_all("h1") if h.get_text(strip=True)]
+    h2s = [h.get_text(strip=True) for h in soup.find_all("h2") if h.get_text(strip=True)][:15]
+    h3s = [h.get_text(strip=True) for h in soup.find_all("h3") if h.get_text(strip=True)][:15]
+
+    # Word Count & Text
+    body = soup.find("body")
+    text_content = body.get_text(separator=" ", strip=True) if body else ""
+    words = [w for w in text_content.split() if len(w) > 1]
+    word_count = len(words)
+
+    # Images Audit
+    img_tags = soup.find_all("img")
+    images_list = []
+    missing_alt_count = 0
+    for img in img_tags:
+        src = img.get("src") or img.get("data-src") or ""
+        if not src:
+            continue
+        full_src = urljoin(final_url, src)
+        alt = img.get("alt", None)
+        is_missing = alt is None or alt.strip() == ""
+        if is_missing:
+            missing_alt_count += 1
+        images_list.append({
+            "src": full_src,
+            "alt": alt if alt else "(Missing alt text)",
+            "has_alt": not is_missing
         })
 
-        if inspect_data.get("issues"):
-            st.markdown("### 🚨 Issues Detected on Page")
-            st.dataframe(pd.DataFrame(inspect_data["issues"]), use_container_width=True)
-
-# ==============================================================================
-# TAB 11: ROBOTS & SITEMAP TOOL
-# ==============================================================================
-with tab_sitemap:
-    st.subheader("🤖 Robots.txt & XML Sitemap Validator")
-    st.caption("Verify crawl accessibility directives and XML sitemap integrity.")
-    
-    site_base = st.text_input("Enter Root Website URL:", value="https://example.com")
-    
-    col_r1, col_r2 = st.columns(2)
-    with col_r1:
-        if st.button("📄 Fetch robots.txt", use_container_width=True):
-            try:
-                parsed = urlparse(site_base)
-                robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
-                r = requests.get(robots_url, timeout=10)
-                st.write(f"Status: **{r.status_code}** (`{robots_url}`)")
-                st.code(r.text, language="text")
-            except Exception as e:
-                st.error(f"Failed to fetch robots.txt: {e}")
-
-    with col_r2:
-        if st.button("🗺️ Fetch & Parse sitemap.xml", use_container_width=True):
-            try:
-                parsed = urlparse(site_base)
-                sitemap_url = f"{parsed.scheme}://{parsed.netloc}/sitemap.xml"
-                r = requests.get(sitemap_url, timeout=10)
-                st.write(f"Status: **{r.status_code}** (`{sitemap_url}`)")
-                if r.status_code == 200:
-                    root = ET.fromstring(r.content)
-                    urls = [loc.text for loc in root.iter('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
-                    st.success(f"Discovered **{len(urls)}** URLs in sitemap:")
-                    st.dataframe(pd.DataFrame(urls, columns=["Sitemap URL"]), use_container_width=True)
-                else:
-                    st.warning("sitemap.xml not found or returned non-200 code.")
-            except Exception as e:
-                st.error(f"Failed to parse sitemap: {e}")
-
-    # Instant Sitemap Export from Current Crawl
-    st.markdown("---")
-    st.markdown("### ⚡ Instant XML Sitemap Export from Current Audit")
-    crawl_data = st.session_state.get("crawl_results")
-    if crawl_data and "df_pages" in crawl_data and not crawl_data["df_pages"].empty:
-        df_p = crawl_data["df_pages"]
-        # Only clean 200 OK indexable pages
-        status_col = df_p["status_code"] if "status_code" in df_p.columns else 200
-        idx_col = df_p["is_indexable"] if "is_indexable" in df_p.columns else True
-        valid_idx = df_p[(status_col == 200) & (idx_col != False)]
+    # Links Audit
+    internal_links = 0
+    external_links = 0
+    links_sample = []
+    for a in soup.find_all("a", href=True):
+        href = a.get("href", "").strip()
+        if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+            continue
+        full_href = urljoin(final_url, href)
+        parsed_href = urlparse(full_href)
+        is_internal = parsed_href.netloc == domain
+        if is_internal:
+            internal_links += 1
+        else:
+            external_links += 1
         
-        st.success(f"📊 Current audit contains **{len(df_p)} total pages**, with **{len(valid_idx)} clean 200 OK indexable URLs** ready to export as sitemaps.")
-        
-        pages_records = valid_idx.to_dict(orient="records")
-        target_site = crawl_data.get("start_url", "https://example.com")
-        
-        xml_from_crawl = build_xml_sitemap(pages_records, default_changefreq="weekly", auto_priority=True, auto_lastmod=True)
-        gz_from_crawl = build_gzipped_xml(xml_from_crawl)
-        txt_from_crawl = build_urllist_txt(pages_records)
-        html_from_crawl = build_html_sitemap(pages_records, target_site)
+        if len(links_sample) < 30:
+            anchor_text = a.get_text(strip=True) or "(No text / Image)"
+            links_sample.append({
+                "href": full_href,
+                "text": anchor_text[:60],
+                "type": "Internal" if is_internal else "External"
+            })
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.download_button("📥 sitemap.xml", data=xml_from_crawl, file_name=make_clean_export_filename("Sitemap", target_site, "xml"), mime="application/xml", use_container_width=True, key="spider_dl_xml")
-        c2.download_button("🗜️ sitemap.xml.gz", data=gz_from_crawl, file_name=make_clean_export_filename("Sitemap", target_site, "xml.gz"), mime="application/gzip", use_container_width=True, key="spider_dl_gz")
-        c3.download_button("📄 urllist.txt", data=txt_from_crawl, file_name=make_clean_export_filename("URL_List", target_site, "txt"), mime="text/plain", use_container_width=True, key="spider_dl_txt")
-        c4.download_button("🌐 sitemap.html", data=html_from_crawl, file_name=make_clean_export_filename("Sitemap", target_site, "html"), mime="text/html", use_container_width=True, key="spider_dl_html")
+    # Schema JSON-LD
+    schema_items = []
+    for s in soup.find_all("script", type="application/ld+json"):
+        try:
+            raw_text = s.string or ""
+            data = json.loads(raw_text)
+            schema_type = data.get("@type", "Schema") if isinstance(data, dict) else "JSON-LD"
+            schema_items.append({"type": str(schema_type), "raw": data})
+        except Exception:
+            schema_items.append({"type": "Invalid JSON-LD", "raw": {}})
+
+    # Calculate SEO Score (0 to 100) and Identify Issues
+    score = 100
+    issues = []
+    good_checks = []
+
+    # 1. HTTP Status
+    if status_code == 200:
+        good_checks.append("HTTP 200 OK Status returned.")
+    elif status_code in (301, 302):
+        score -= 10
+        issues.append({"type": "warning", "title": "Redirect Detected", "desc": f"Redirected to {final_url} (HTTP {status_code})."})
     else:
-        st.info("ℹ️ Run an audit from the sidebar to immediately export standard sitemaps, or select **'🗺️ XML Sitemap Generator'** in the sidebar to generate a sitemap on-demand.")
+        score -= 40
+        issues.append({"type": "critical", "title": "Error Status Code", "desc": f"Page returned HTTP {status_code}."})
+
+    # 2. Page Title
+    if not title:
+        score -= 20
+        issues.append({"type": "critical", "title": "Missing Title Tag", "desc": "The page has no <title> tag. Critical for rankings."})
+    elif title_len < 30:
+        score -= 8
+        issues.append({"type": "warning", "title": "Short Title Tag", "desc": f"Title is only {title_len} chars. Recommended 50-60 chars."})
+    elif title_len > 65:
+        score -= 5
+        issues.append({"type": "warning", "title": "Long Title Tag", "desc": f"Title is {title_len} chars. Might truncate on Google SERP."})
+    else:
+        good_checks.append(f"Optimal Title length ({title_len} characters).")
+
+    # 3. Meta Description
+    if not meta_desc:
+        score -= 15
+        issues.append({"type": "critical", "title": "Missing Meta Description", "desc": "No meta description found. Google may show generic text."})
+    elif desc_len < 70:
+        score -= 6
+        issues.append({"type": "warning", "title": "Short Meta Description", "desc": f"Meta description is only {desc_len} chars. Recommended 120-160."})
+    elif desc_len > 165:
+        score -= 4
+        issues.append({"type": "warning", "title": "Long Meta Description", "desc": f"Meta description is {desc_len} chars. Might truncate on mobile."})
+    else:
+        good_checks.append(f"Optimal Meta Description length ({desc_len} characters).")
+
+    # 4. Heading H1
+    if len(h1s) == 0:
+        score -= 15
+        issues.append({"type": "critical", "title": "Missing H1 Heading", "desc": "Page does not have any <h1> heading tag."})
+    elif len(h1s) > 1:
+        score -= 5
+        issues.append({"type": "warning", "title": "Multiple H1 Headings", "desc": f"Found {len(h1s)} <h1> tags. Best practice is exactly one per page."})
+    else:
+        good_checks.append(f"Single H1 tag properly configured: \"{h1s[0][:40]}...\"")
+
+    # 5. Canonical Tag
+    if not canonical_url:
+        score -= 8
+        issues.append({"type": "warning", "title": "Missing Canonical Tag", "desc": "No rel=\"canonical\" tag found to avoid duplicate content."})
+    else:
+        good_checks.append("Canonical tag is configured correctly.")
+
+    # 6. Images Alt Text
+    if missing_alt_count > 0:
+        score -= min(15, missing_alt_count * 3)
+        issues.append({
+            "type": "warning" if missing_alt_count < 5 else "critical",
+            "title": f"{missing_alt_count} Images Missing Alt Text",
+            "desc": f"{missing_alt_count} out of {len(images_list)} images are missing alt attributes."
+        })
+    elif len(images_list) > 0:
+        good_checks.append(f"All {len(images_list)} images have alt attributes.")
+
+    # 7. Word Count (Thin Content)
+    if word_count < 300:
+        score -= 12
+        issues.append({"type": "warning", "title": "Thin Content Alert", "desc": f"Only {word_count} words found. Search engines favor comprehensive content (>= 300+ words)."})
+    else:
+        good_checks.append(f"Healthy content volume ({word_count} words).")
+
+    # 8. Open Graph & Social
+    if not og_title or not og_image:
+        score -= 6
+        issues.append({"type": "warning", "title": "Incomplete Open Graph Tags", "desc": "Missing og:title or og:image for rich social media cards."})
+    else:
+        good_checks.append("Open Graph social cards fully configured.")
+
+    # 9. Response Time
+    if response_time_ms > 1500:
+        score -= 10
+        issues.append({"type": "warning", "title": "Slow Response Time", "desc": f"Server took {response_time_ms}ms to respond. Target < 600ms."})
+    else:
+        good_checks.append(f"Fast server response speed ({response_time_ms}ms).")
+
+    # Final score clamping
+    health_score = max(5, min(100, score))
+
+    return {
+        "error": False,
+        "url": final_url,
+        "domain": domain,
+        "status_code": status_code,
+        "response_time_ms": response_time_ms,
+        "page_size_kb": page_size_kb,
+        "health_score": health_score,
+        "title": title,
+        "title_length": title_len,
+        "meta_description": meta_desc,
+        "meta_desc_length": desc_len,
+        "meta_robots": meta_robots,
+        "canonical_url": canonical_url,
+        "open_graph": {
+            "title": og_title or title,
+            "description": og_desc or meta_desc,
+            "image": og_image,
+            "twitter_card": twitter_card
+        },
+        "headings": {
+            "h1": h1s,
+            "h2": h2s,
+            "h3": h3s
+        },
+        "word_count": word_count,
+        "links": {
+            "internal": internal_links,
+            "external": external_links,
+            "total": internal_links + external_links,
+            "sample": links_sample
+        },
+        "images": {
+            "total": len(images_list),
+            "missing_alt": missing_alt_count,
+            "sample": images_list[:25]
+        },
+        "schema": schema_items,
+        "issues": issues,
+        "good_checks": good_checks
+    }
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "app": "CrawlPilot Vercel Edition", "version": "2.0.0"}
+
+@app.get("/api/audit")
+def api_audit(url: str = Query(..., description="Target website URL to audit")):
+    result = audit_single_url(url)
+    return JSONResponse(content=result)
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    html_content = """<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrawlPilot — Technical SEO Crawler & Audit Suite</title>
+  <meta name="description" content="Modern, high-speed Technical SEO Crawler & Audit SaaS Web Application. Built for Vercel.">
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+            },
+            dark: {
+              bg: '#090d16',
+              surface: '#111827',
+              border: '#1f293d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #090d16;
+      color: #f3f4f6;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .glass-card {
+      background: rgba(17, 24, 39, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-glow {
+      box-shadow: 0 0 30px -5px rgba(16, 185, 129, 0.15);
+    }
+    .gradient-text {
+      background: linear-gradient(135deg, #34d399 0%, #38bdf8 50%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .score-circle {
+      transition: stroke-dashoffset 1s ease-in-out;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f293d;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #374151;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+
+  <!-- Navbar -->
+  <header class="sticky top-0 z-50 glass-card border-b border-gray-800/80 px-4 lg:px-8 py-3.5">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-xl shadow-lg shadow-emerald-500/20">
+          🕷️
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xl font-bold tracking-tight text-white">CrawlPilot</span>
+            <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Vercel Edition</span>
+          </div>
+          <p class="text-xs text-gray-400 hidden sm:block">Technical SEO Crawler & Audit Suite</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-900 border border-gray-800 text-xs text-gray-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Engine Online</span>
+        </div>
+        <a href="https://github.com/AnsariAmirhasan/seo-crawler-app" target="_blank" class="px-3.5 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-medium text-gray-200 transition flex items-center gap-1.5 border border-gray-700">
+          <i data-lucide="github" class="w-3.5 h-3.5"></i>
+          <span>GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero & Search Section -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-8 lg:py-12 space-y-8">
+    <div class="text-center max-w-3xl mx-auto space-y-4">
+      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+        <span>Deep Technical SEO Intelligence • Instant Cloud Audit</span>
+      </div>
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight">
+        Audit. Optimize. <span class="gradient-text">Rank Higher.</span>
+      </h1>
+      <p class="text-gray-400 text-sm sm:text-base leading-relaxed">
+        Uncover critical SEO errors, broken tags, heading hierarchies, indexability issues, and social card previews in seconds.
+      </p>
+
+      <!-- URL Search Bar -->
+      <form id="auditForm" class="pt-4 max-w-2xl mx-auto">
+        <div class="relative flex items-center rounded-2xl glass-card border border-emerald-500/30 p-2 shadow-2xl glass-glow focus-within:border-emerald-500 transition-all">
+          <div class="pl-3 pr-2 text-gray-400">
+            <i data-lucide="globe" class="w-5 h-5"></i>
+          </div>
+          <input 
+            type="text" 
+            id="urlInput" 
+            placeholder="Enter website URL (e.g. stripe.com or https://example.com)" 
+            required
+            class="flex-1 bg-transparent px-2 py-3 text-white text-sm sm:text-base focus:outline-none placeholder-gray-500"
+          />
+          <button 
+            type="submit" 
+            id="submitBtn"
+            class="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-semibold text-sm transition shadow-lg shadow-emerald-500/25 flex items-center gap-2 disabled:opacity-50"
+          >
+            <span id="btnText">Audit Now</span>
+            <i id="btnIcon" data-lucide="arrow-right" class="w-4 h-4"></i>
+            <svg id="btnSpinner" class="hidden animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+          </button>
+        </div>
+      </form>
+
+      <!-- Preset Demos -->
+      <div class="flex flex-wrap items-center justify-center gap-2 pt-1 text-xs text-gray-400">
+        <span>Quick Try:</span>
+        <button onclick="runPreset('https://stripe.com')" class="px-2.5 py-1 rounded-md bg-gray-900 border border-gray-800 hover:border-emerald-500/50 hover:text-white transition">stripe.com</button>
+        <button onclick="runPreset('https://vercel.com')" class="px-2.5 py-1 rounded-md bg-gray-900 border border-gray-800 hover:border-emerald-500/50 hover:text-white transition">vercel.com</button>
+        <button onclick="runPreset('https://github.com')" class="px-2.5 py-1 rounded-md bg-gray-900 border border-gray-800 hover:border-emerald-500/50 hover:text-white transition">github.com</button>
+      </div>
+    </div>
+
+    <!-- Loading State Skeleton -->
+    <div id="loadingBox" class="hidden glass-card rounded-2xl p-12 text-center space-y-4 max-w-xl mx-auto border border-emerald-500/20">
+      <div class="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400 animate-bounce">
+        <i data-lucide="activity" class="w-8 h-8"></i>
+      </div>
+      <h3 class="text-xl font-bold text-white">Crawling & Auditing Website...</h3>
+      <p class="text-sm text-gray-400">Fetching DOM, inspecting meta tags, checking response time, and parsing social previews.</p>
+      <div class="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+        <div class="bg-gradient-to-r from-emerald-500 to-cyan-500 h-2 rounded-full animate-pulse w-3/4"></div>
+      </div>
+    </div>
+
+    <!-- Error Box -->
+    <div id="errorBox" class="hidden glass-card rounded-2xl p-6 border border-rose-500/30 bg-rose-500/5 max-w-2xl mx-auto flex items-start gap-4">
+      <div class="p-2 rounded-lg bg-rose-500/20 text-rose-400">
+        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h4 class="text-base font-semibold text-rose-300">Audit Request Failed</h4>
+        <p id="errorMsg" class="text-sm text-gray-300 mt-1"></p>
+      </div>
+    </div>
+
+    <!-- Audit Results Container -->
+    <div id="resultsContainer" class="hidden space-y-8">
+      
+      <!-- Top Action Bar -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 glass-card p-5 rounded-2xl border border-gray-800">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <span class="text-xs uppercase font-bold tracking-wider text-gray-400">Audited Target</span>
+          </div>
+          <h2 id="auditedUrl" class="text-xl font-extrabold text-white mt-0.5 truncate max-w-xl"></h2>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="downloadJsonReport()" class="px-3.5 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-xs font-semibold text-gray-200 transition flex items-center gap-1.5 border border-gray-700">
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>Export JSON</span>
+          </button>
+          <button onclick="downloadCsvReport()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition flex items-center gap-1.5 shadow-md shadow-emerald-600/30">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Score Card -->
+        <div class="glass-card rounded-2xl p-5 border border-gray-800 flex items-center gap-4">
+          <div class="relative w-20 h-20 flex-shrink-0">
+            <svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+              <path class="text-gray-800" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path id="scorePath" class="score-circle text-emerald-500" stroke-width="3.5" stroke-dasharray="100, 100" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center flex-col">
+              <span id="scoreText" class="text-xl font-extrabold text-white">0</span>
+              <span class="text-[9px] uppercase tracking-wider text-gray-400">Score</span>
+            </div>
+          </div>
+          <div>
+            <span class="text-xs font-medium text-gray-400">SEO Health Grade</span>
+            <h4 id="healthGrade" class="text-lg font-bold text-emerald-400">Calculating...</h4>
+            <span id="scoreSummary" class="text-xs text-gray-500">Based on 12+ checks</span>
+          </div>
+        </div>
+
+        <!-- Passed Checks -->
+        <div class="glass-card rounded-2xl p-5 border border-gray-800">
+          <div class="flex items-center justify-between text-gray-400 mb-2">
+            <span class="text-xs font-medium">Passed Checks</span>
+            <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="text-3xl font-extrabold text-white" id="passedCount">0</div>
+          <p class="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i> Ranking signals ready
+          </p>
+        </div>
+
+        <!-- Issues Card -->
+        <div class="glass-card rounded-2xl p-5 border border-gray-800">
+          <div class="flex items-center justify-between text-gray-400 mb-2">
+            <span class="text-xs font-medium">Issues to Fix</span>
+            <div class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
+              <i data-lucide="alert-circle" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="text-3xl font-extrabold text-white" id="issuesCount">0</div>
+          <p class="text-xs text-amber-400 mt-1" id="issuesSubtitle">0 critical, 0 warnings</p>
+        </div>
+
+        <!-- Performance / Speed -->
+        <div class="glass-card rounded-2xl p-5 border border-gray-800">
+          <div class="flex items-center justify-between text-gray-400 mb-2">
+            <span class="text-xs font-medium">Speed & Weight</span>
+            <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+              <i data-lucide="zap" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="text-3xl font-extrabold text-white" id="speedText">0ms</div>
+          <p class="text-xs text-gray-400 mt-1" id="pageSizeText">Page Size: 0 KB</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex border-b border-gray-800 space-x-2 overflow-x-auto pb-1">
+        <button onclick="switchTab('overviewTab', this)" class="tab-btn px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-2 whitespace-nowrap">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Overview & Issues
+        </button>
+        <button onclick="switchTab('serpTab', this)" class="tab-btn px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm text-gray-400 hover:text-white hover:bg-gray-800/50 flex items-center gap-2 whitespace-nowrap">
+          <i data-lucide="search" class="w-4 h-4"></i> SERP & Social Preview
+        </button>
+        <button onclick="switchTab('contentTab', this)" class="tab-btn px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm text-gray-400 hover:text-white hover:bg-gray-800/50 flex items-center gap-2 whitespace-nowrap">
+          <i data-lucide="heading" class="w-4 h-4"></i> Headings & Content
+        </button>
+        <button onclick="switchTab('linksImagesTab', this)" class="tab-btn px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm text-gray-400 hover:text-white hover:bg-gray-800/50 flex items-center gap-2 whitespace-nowrap">
+          <i data-lucide="image" class="w-4 h-4"></i> Links & Images
+        </button>
+        <button onclick="switchTab('technicalTab', this)" class="tab-btn px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm text-gray-400 hover:text-white hover:bg-gray-800/50 flex items-center gap-2 whitespace-nowrap">
+          <i data-lucide="code" class="w-4 h-4"></i> Technical & Schema
+        </button>
+      </div>
+
+      <!-- TAB 1: Overview & Issues -->
+      <div id="overviewTab" class="tab-pane space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Issues List (Left 2 cols) -->
+          <div class="lg:col-span-2 glass-card rounded-2xl p-6 border border-gray-800 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="list-checks" class="w-5 h-5 text-emerald-400"></i> Audit Findings
+              </h3>
+              <span id="issuesFilterBadge" class="text-xs px-2.5 py-1 rounded-full bg-gray-800 text-gray-300">All Insights</span>
+            </div>
+
+            <!-- Issues List Container -->
+            <div id="issuesList" class="space-y-3 max-h-[480px] overflow-y-auto pr-2"></div>
+          </div>
+
+          <!-- Quick Specs & Directives (Right 1 col) -->
+          <div class="space-y-6">
+            <div class="glass-card rounded-2xl p-6 border border-gray-800 space-y-4">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="sliders" class="w-5 h-5 text-cyan-400"></i> Directives
+              </h3>
+              <div class="space-y-3 text-xs">
+                <div class="flex items-center justify-between p-3 rounded-xl bg-gray-900 border border-gray-800">
+                  <span class="text-gray-400">HTTP Status</span>
+                  <span id="specStatus" class="font-bold text-emerald-400">200 OK</span>
+                </div>
+                <div class="flex items-center justify-between p-3 rounded-xl bg-gray-900 border border-gray-800">
+                  <span class="text-gray-400">Robots Directive</span>
+                  <span id="specRobots" class="font-mono text-cyan-400 truncate max-w-[150px]">index, follow</span>
+                </div>
+                <div class="flex items-center justify-between p-3 rounded-xl bg-gray-900 border border-gray-800">
+                  <span class="text-gray-400">Word Count</span>
+                  <span id="specWordCount" class="font-bold text-white">0 words</span>
+                </div>
+                <div class="flex items-center justify-between p-3 rounded-xl bg-gray-900 border border-gray-800">
+                  <span class="text-gray-400">Internal Links</span>
+                  <span id="specInLinks" class="font-bold text-white">0</span>
+                </div>
+                <div class="flex items-center justify-between p-3 rounded-xl bg-gray-900 border border-gray-800">
+                  <span class="text-gray-400">Images Missing Alt</span>
+                  <span id="specAltMissing" class="font-bold text-amber-400">0</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: SERP & Social Preview -->
+      <div id="serpTab" class="tab-pane hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Google SERP Card -->
+          <div class="glass-card rounded-2xl p-6 border border-gray-800 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="chrome" class="w-5 h-5 text-blue-400"></i> Google SERP Snippet Simulator
+              </h3>
+              <span class="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">Desktop Preview</span>
+            </div>
+            
+            <div class="p-5 rounded-xl bg-[#202124] border border-gray-700/80 space-y-1.5 font-sans">
+              <div class="flex items-center gap-2 text-xs text-[#bdc1c6] truncate">
+                <span class="w-4 h-4 rounded-full bg-gray-700 flex items-center justify-center text-[10px]">🌐</span>
+                <span id="serpDomain" class="font-mono">https://example.com</span>
+              </div>
+              <h4 id="serpTitle" class="text-lg text-[#8ab4f8] hover:underline cursor-pointer font-medium leading-snug truncate">
+                Page Title Goes Here
+              </h4>
+              <p id="serpDesc" class="text-xs text-[#bdc1c6] line-clamp-2 leading-relaxed">
+                Meta description preview snippet...
+              </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-xs pt-2">
+              <div class="p-3 rounded-xl bg-gray-900 border border-gray-800">
+                <span class="text-gray-400 block">Title Length</span>
+                <span id="serpTitleLen" class="text-sm font-bold text-white">0 chars</span>
+                <span class="text-[10px] text-gray-500 block">Optimal: 50-60 chars</span>
+              </div>
+              <div class="p-3 rounded-xl bg-gray-900 border border-gray-800">
+                <span class="text-gray-400 block">Description Length</span>
+                <span id="serpDescLen" class="text-sm font-bold text-white">0 chars</span>
+                <span class="text-[10px] text-gray-500 block">Optimal: 120-160 chars</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Social Card (Open Graph) Preview -->
+          <div class="glass-card rounded-2xl p-6 border border-gray-800 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="share-2" class="w-5 h-5 text-indigo-400"></i> Open Graph Social Preview
+              </h3>
+              <span class="text-xs px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Facebook / LinkedIn</span>
+            </div>
+
+            <div class="rounded-xl overflow-hidden border border-gray-800 bg-gray-900">
+              <div id="ogImageBox" class="w-full h-44 bg-gray-800 flex items-center justify-center text-gray-500 overflow-hidden">
+                <img id="ogImage" src="" alt="OG Image Preview" class="w-full h-full object-cover hidden" onerror="this.classList.add('hidden')">
+                <span id="noOgImgMsg" class="text-xs flex items-center gap-1.5"><i data-lucide="image-off" class="w-4 h-4"></i> No og:image tag found</span>
+              </div>
+              <div class="p-4 space-y-1">
+                <span id="ogDomain" class="text-[10px] font-mono uppercase text-gray-400">EXAMPLE.COM</span>
+                <h4 id="ogTitle" class="text-sm font-bold text-white truncate">OG Title</h4>
+                <p id="ogDesc" class="text-xs text-gray-400 line-clamp-2">OG Description</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: Headings & Content -->
+      <div id="contentTab" class="tab-pane hidden space-y-6">
+        <div class="glass-card rounded-2xl p-6 border border-gray-800 space-y-6">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="heading-1" class="w-5 h-5 text-emerald-400"></i> Heading Structure Hierarchy
+          </h3>
+
+          <!-- H1s -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs uppercase font-bold text-emerald-400 tracking-wider">H1 Tags (<span id="h1Count">0</span>)</span>
+              <span class="text-[10px] text-gray-400">Requirement: Exactly 1 per page</span>
+            </div>
+            <div id="h1List" class="space-y-1.5"></div>
+          </div>
+
+          <!-- H2s -->
+          <div class="space-y-2 pt-2 border-t border-gray-800">
+            <div class="flex items-center justify-between">
+              <span class="text-xs uppercase font-bold text-cyan-400 tracking-wider">H2 Subheadings (<span id="h2Count">0</span>)</span>
+            </div>
+            <div id="h2List" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: Links & Images -->
+      <div id="linksImagesTab" class="tab-pane hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Images Table -->
+          <div class="glass-card rounded-2xl p-6 border border-gray-800 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="image" class="w-5 h-5 text-amber-400"></i> Images Audit (<span id="totalImgCount">0</span>)
+              </h3>
+              <span id="imgAltBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400">0 Missing Alt</span>
+            </div>
+            <div class="overflow-x-auto max-h-96 pr-1">
+              <table class="w-full text-left text-xs">
+                <thead class="text-gray-400 border-b border-gray-800">
+                  <tr>
+                    <th class="pb-2">Image Source</th>
+                    <th class="pb-2">Alt Text</th>
+                  </tr>
+                </thead>
+                <tbody id="imagesTableBody" class="divide-y divide-gray-800/50"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Links Sample -->
+          <div class="glass-card rounded-2xl p-6 border border-gray-800 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="link" class="w-5 h-5 text-indigo-400"></i> Discovered Links (<span id="totalLinkCount">0</span>)
+              </h3>
+              <span id="linkRatioBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400">0 Internal / 0 External</span>
+            </div>
+            <div class="overflow-x-auto max-h-96 pr-1">
+              <table class="w-full text-left text-xs">
+                <thead class="text-gray-400 border-b border-gray-800">
+                  <tr>
+                    <th class="pb-2">Anchor Text</th>
+                    <th class="pb-2">Type</th>
+                    <th class="pb-2">Destination</th>
+                  </tr>
+                </thead>
+                <tbody id="linksTableBody" class="divide-y divide-gray-800/50"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: Technical & Schema -->
+      <div id="technicalTab" class="tab-pane hidden space-y-6">
+        <div class="glass-card rounded-2xl p-6 border border-gray-800 space-y-4">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="binary" class="w-5 h-5 text-cyan-400"></i> Canonical & Indexation Verification
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="p-4 rounded-xl bg-gray-900 border border-gray-800 space-y-1">
+              <span class="text-gray-400 block font-semibold">Declared Canonical URL</span>
+              <span id="techCanonical" class="font-mono text-emerald-400 break-all">None</span>
+            </div>
+            <div class="p-4 rounded-xl bg-gray-900 border border-gray-800 space-y-1">
+              <span class="text-gray-400 block font-semibold">Robots Directives</span>
+              <span id="techRobots" class="font-mono text-cyan-400">index, follow</span>
+            </div>
+          </div>
+
+          <h3 class="text-base font-bold text-white pt-4 flex items-center gap-2">
+            <i data-lucide="boxes" class="w-5 h-5 text-purple-400"></i> Schema.org Structured Data (JSON-LD)
+          </h3>
+          <div id="schemaList" class="space-y-2"></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="mt-auto border-t border-gray-800/80 py-6 text-center text-xs text-gray-500">
+    <p>© 2026 CrawlPilot — Engineered for Vercel Cloud Serverless Execution. 100% Free & Open Source.</p>
+  </footer>
+
+  <script>
+    lucide.createIcons();
+    let currentAuditData = null;
+
+    function runPreset(url) {
+      document.getElementById('urlInput').value = url;
+      document.getElementById('auditForm').dispatchEvent(new Event('submit'));
+    }
+
+    document.getElementById('auditForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const rawUrl = document.getElementById('urlInput').value.trim();
+      if (!rawUrl) return;
+
+      // UI Loading State
+      document.getElementById('btnText').textContent = 'Auditing...';
+      document.getElementById('btnIcon').classList.add('hidden');
+      document.getElementById('btnSpinner').classList.remove('hidden');
+      document.getElementById('submitBtn').disabled = true;
+
+      document.getElementById('loadingBox').classList.remove('hidden');
+      document.getElementById('errorBox').classList.add('hidden');
+      document.getElementById('resultsContainer').classList.add('hidden');
+
+      try {
+        const res = await fetch(`/api/audit?url=${encodeURIComponent(rawUrl)}`);
+        const data = await res.json();
+
+        if (data.error) {
+          throw new Error(data.message || 'Failed to crawl website.');
+        }
+
+        currentAuditData = data;
+        renderResults(data);
+      } catch (err) {
+        document.getElementById('errorMsg').textContent = err.message;
+        document.getElementById('errorBox').classList.remove('hidden');
+      } finally {
+        document.getElementById('btnText').textContent = 'Audit Now';
+        document.getElementById('btnIcon').classList.remove('hidden');
+        document.getElementById('btnSpinner').classList.add('hidden');
+        document.getElementById('submitBtn').disabled = false;
+        document.getElementById('loadingBox').classList.add('hidden');
+      }
+    });
+
+    function renderResults(data) {
+      document.getElementById('resultsContainer').classList.remove('hidden');
+      document.getElementById('auditedUrl').textContent = data.url;
+
+      // Health Score & Gauge
+      const score = data.health_score;
+      document.getElementById('scoreText').textContent = score;
+      
+      const scorePath = document.getElementById('scorePath');
+      scorePath.setAttribute('stroke-dasharray', `${score}, 100`);
+      
+      const grade = document.getElementById('healthGrade');
+      if (score >= 80) {
+        grade.textContent = 'Excellent (A)';
+        grade.className = 'text-lg font-bold text-emerald-400';
+        scorePath.classList.remove('text-amber-500', 'text-rose-500');
+        scorePath.classList.add('text-emerald-500');
+      } else if (score >= 60) {
+        grade.textContent = 'Average (B)';
+        grade.className = 'text-lg font-bold text-amber-400';
+        scorePath.classList.remove('text-emerald-500', 'text-rose-500');
+        scorePath.classList.add('text-amber-500');
+      } else {
+        grade.textContent = 'Needs Work (F)';
+        grade.className = 'text-lg font-bold text-rose-400';
+        scorePath.classList.remove('text-emerald-500', 'text-amber-500');
+        scorePath.classList.add('text-rose-500');
+      }
+
+      // Passed & Issues Count
+      document.getElementById('passedCount').textContent = data.good_checks.length;
+      document.getElementById('issuesCount').textContent = data.issues.length;
+      const criticalCount = data.issues.filter(i => i.type === 'critical').length;
+      const warnCount = data.issues.length - criticalCount;
+      document.getElementById('issuesSubtitle').textContent = `${criticalCount} critical, ${warnCount} warnings`;
+
+      // Speed & Size
+      document.getElementById('speedText').textContent = `${data.response_time_ms}ms`;
+      document.getElementById('pageSizeText').textContent = `Page Size: ${data.page_size_kb} KB`;
+
+      // Specs
+      document.getElementById('specStatus').textContent = `${data.status_code} OK`;
+      document.getElementById('specRobots').textContent = data.meta_robots;
+      document.getElementById('specWordCount').textContent = `${data.word_count} words`;
+      document.getElementById('specInLinks').textContent = `${data.links.internal} internal`;
+      document.getElementById('specAltMissing').textContent = `${data.images.missing_alt} missing`;
+
+      // Issues List
+      const issuesList = document.getElementById('issuesList');
+      issuesList.innerHTML = '';
+      
+      data.issues.forEach(issue => {
+        const isCrit = issue.type === 'critical';
+        const card = document.createElement('div');
+        card.className = `p-3.5 rounded-xl border flex items-start gap-3 ${
+          isCrit ? 'bg-rose-500/10 border-rose-500/20 text-rose-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+        }`;
+        card.innerHTML = `
+          <div class="mt-0.5"><i data-lucide="${isCrit ? 'alert-octagon' : 'alert-triangle'}" class="w-4 h-4"></i></div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-white">${issue.title}</span>
+              <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${
+                isCrit ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'
+              }">${issue.type}</span>
+            </div>
+            <p class="text-xs text-gray-300 mt-0.5">${issue.desc}</p>
+          </div>
+        `;
+        issuesList.appendChild(card);
+      });
+
+      data.good_checks.forEach(check => {
+        const card = document.createElement('div');
+        card.className = 'p-3 rounded-xl border bg-emerald-500/5 border-emerald-500/20 text-emerald-300 flex items-center gap-3 text-xs';
+        card.innerHTML = `
+          <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+          <span>${check}</span>
+        `;
+        issuesList.appendChild(card);
+      });
+
+      // SERP Simulator
+      document.getElementById('serpDomain').textContent = data.domain;
+      document.getElementById('serpTitle').textContent = data.title || '(No Title Tag Found)';
+      document.getElementById('serpDesc').textContent = data.meta_description || '(No Meta Description Provided)';
+      document.getElementById('serpTitleLen').textContent = `${data.title_length} chars`;
+      document.getElementById('serpDescLen').textContent = `${data.meta_desc_length} chars`;
+
+      // Open Graph
+      document.getElementById('ogDomain').textContent = data.domain.toUpperCase();
+      document.getElementById('ogTitle').textContent = data.open_graph.title || data.title;
+      document.getElementById('ogDesc').textContent = data.open_graph.description || data.meta_description;
+      if (data.open_graph.image) {
+        const img = document.getElementById('ogImage');
+        img.src = data.open_graph.image;
+        img.classList.remove('hidden');
+        document.getElementById('noOgImgMsg').classList.add('hidden');
+      } else {
+        document.getElementById('ogImage').classList.add('hidden');
+        document.getElementById('noOgImgMsg').classList.remove('hidden');
+      }
+
+      // Headings
+      document.getElementById('h1Count').textContent = data.headings.h1.length;
+      document.getElementById('h2Count').textContent = data.headings.h2.length;
+      
+      const h1List = document.getElementById('h1List');
+      h1List.innerHTML = '';
+      if (data.headings.h1.length === 0) {
+        h1List.innerHTML = '<p class="text-xs text-rose-400">⚠️ No <h1> tag found on page!</p>';
+      } else {
+        data.headings.h1.forEach(h1 => {
+          h1List.innerHTML += `<div class="p-2.5 rounded-lg bg-gray-900 border border-gray-800 text-xs font-semibold text-white"><h1>${h1}</h1></div>`;
+        });
+      }
+
+      const h2List = document.getElementById('h2List');
+      h2List.innerHTML = '';
+      data.headings.h2.forEach(h2 => {
+        h2List.innerHTML += `<div class="p-2 rounded-lg bg-gray-900/60 border border-gray-800/80 text-xs text-gray-300"><h2>${h2}</h2></div>`;
+      });
+
+      // Images
+      document.getElementById('totalImgCount').textContent = data.images.total;
+      document.getElementById('imgAltBadge').textContent = `${data.images.missing_alt} Missing Alt`;
+      const imgTable = document.getElementById('imagesTableBody');
+      imgTable.innerHTML = '';
+      data.images.sample.forEach(img => {
+        imgTable.innerHTML += `
+          <tr class="hover:bg-gray-800/30">
+            <td class="py-2.5 max-w-[200px] truncate font-mono text-gray-400">${img.src}</td>
+            <td class="py-2.5 font-medium ${img.has_alt ? 'text-emerald-400' : 'text-amber-400 font-semibold'}">${img.alt}</td>
+          </tr>
+        `;
+      });
+
+      // Links
+      document.getElementById('totalLinkCount').textContent = data.links.total;
+      document.getElementById('linkRatioBadge').textContent = `${data.links.internal} Internal / ${data.links.external} External`;
+      const linkTable = document.getElementById('linksTableBody');
+      linkTable.innerHTML = '';
+      data.links.sample.forEach(l => {
+        linkTable.innerHTML += `
+          <tr class="hover:bg-gray-800/30">
+            <td class="py-2 font-medium text-white max-w-[140px] truncate">${l.text}</td>
+            <td class="py-2"><span class="px-2 py-0.5 rounded text-[10px] ${l.type === 'Internal' ? 'bg-cyan-500/10 text-cyan-400' : 'bg-purple-500/10 text-purple-400'}">${l.type}</span></td>
+            <td class="py-2 font-mono text-gray-400 max-w-[180px] truncate">${l.href}</td>
+          </tr>
+        `;
+      });
+
+      // Technical & Schema
+      document.getElementById('techCanonical').textContent = data.canonical_url || '(None specified)';
+      document.getElementById('techRobots').textContent = data.meta_robots;
+      
+      const schemaList = document.getElementById('schemaList');
+      schemaList.innerHTML = '';
+      if (data.schema.length === 0) {
+        schemaList.innerHTML = '<p class="text-xs text-gray-500">No JSON-LD structured data detected.</p>';
+      } else {
+        data.schema.forEach(s => {
+          schemaList.innerHTML += `
+            <div class="p-3 rounded-xl bg-gray-900 border border-gray-800">
+              <span class="text-xs font-bold text-purple-400">@type: ${s.type}</span>
+              <pre class="mt-2 text-[10px] font-mono text-gray-400 max-h-32 overflow-y-auto">${JSON.stringify(s.raw, null, 2)}</pre>
+            </div>
+          `;
+        });
+      }
+
+      lucide.createIcons();
+      document.getElementById('resultsContainer').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function switchTab(tabId, el) {
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+      document.getElementById(tabId).classList.remove('hidden');
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.className = 'tab-btn px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm text-gray-400 hover:text-white hover:bg-gray-800/50 flex items-center gap-2 whitespace-nowrap';
+      });
+      el.className = 'tab-btn px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-2 whitespace-nowrap';
+      lucide.createIcons();
+    }
+
+    function downloadJsonReport() {
+      if (!currentAuditData) return;
+      const blob = new Blob([JSON.stringify(currentAuditData, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `crawlpilot-audit-${currentAuditData.domain}.json`;
+      a.click();
+    }
+
+    function downloadCsvReport() {
+      if (!currentAuditData) return;
+      let csv = 'Factor,Status,Detail\\n';
+      csv += `URL,Audited,"${currentAuditData.url}"\\n`;
+      csv += `Health Score,${currentAuditData.health_score}/100,"Calculated SEO health"\\n`;
+      csv += `Status Code,${currentAuditData.status_code},"HTTP status"\\n`;
+      csv += `Title,${currentAuditData.title_length} chars,"${(currentAuditData.title || '').replace(/"/g, '""')}"\\n`;
+      csv += `Meta Description,${currentAuditData.meta_desc_length} chars,"${(currentAuditData.meta_description || '').replace(/"/g, '""')}"\\n`;
+      csv += `H1 Count,${currentAuditData.headings.h1.length},"Heading 1 tags count"\\n`;
+      csv += `Internal Links,${currentAuditData.links.internal},"Internal link count"\\n`;
+      csv += `Missing Image Alt,${currentAuditData.images.missing_alt},"Images without alt attribute"\\n`;
+      
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `crawlpilot-audit-${currentAuditData.domain}.csv`;
+      a.click();
+    }
+  </script>
+</body>
+</html>
+"""
+    return HTMLResponse(content=html_content)
