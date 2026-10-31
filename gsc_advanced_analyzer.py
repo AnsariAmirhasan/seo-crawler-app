@@ -44,6 +44,45 @@ try:
 except ImportError:
     DOCX_AVAILABLE = False
 
+# Google OAuth & Full Site Audit helpers
+try:
+    from full_site_seo_audit import (
+        GOOGLE_OAUTH_LIBS_AVAILABLE,
+        GOOGLE_OAUTH_SCOPES,
+        get_oauth_config,
+        create_oauth_flow,
+        get_authenticated_credentials,
+        fetch_live_gsc_properties,
+        fetch_live_ga4_properties,
+        get_date_bounds,
+        fetch_live_gsc_search_analytics
+    )
+except ImportError:
+    GOOGLE_OAUTH_LIBS_AVAILABLE = False
+    GOOGLE_OAUTH_SCOPES = []
+    get_oauth_config = None
+    create_oauth_flow = None
+    get_authenticated_credentials = lambda: None
+    fetch_live_gsc_properties = lambda x: []
+    fetch_live_ga4_properties = lambda x: []
+    get_date_bounds = lambda x: ("", "", "", "")
+    fetch_live_gsc_search_analytics = lambda *args: (pd.DataFrame(), pd.DataFrame())
+
+from ga4_gsc_intelligence_engine import (
+    normalize_canonical_path,
+    format_read_time,
+    fetch_live_ga4_datasets,
+    generate_sample_ga4_datasets,
+    generate_page_insights,
+    enrich_queries_and_pages_with_ga4,
+    render_future_seo_roadmap_tab,
+    render_money_pages_vs_leaks_tab,
+    render_ga4_landing_health_tab,
+    render_trend_radar_tab,
+    render_mobile_desktop_tab,
+    render_ai_search_traffic_tab
+)
+
 
 def make_clean_export_filename(prefix: str, url_or_domain: str, ext: str) -> str:
     """Generate descriptive filename: [Prefix]_[Clean_Domain]_[YYYY-MM-DD].[ext]"""
@@ -602,7 +641,8 @@ def generate_ai_seo_action_plan(
             "2. COMMERCIAL / PRODUCT QUERIES: Pick the most specific product/solution page from the ACTUAL PAGES list above. "
             f"DO NOT assign commercial queries to a blog post if a product page exists. If no existing page exists, recommend a clean URL like '{base_domain}/products/{{slug}}'.\n"
             "3. INFORMATIONAL / QUESTIONS: Assign to an existing guide/blog or recommend '{base_domain}/blog/{{slug}}'.\n"
-            "4. Return STRICTLY a valid JSON array of objects. Do not include markdown if possible, or standard ```json.\n"
+            "4. GA4 BEHAVIORAL GROUNDING: If a page has 'High Bounce / Leaving Fast' (Traffic Leak), emphasize answering search intent in the first 50 words, summary table above fold, and improving UX. If it has high read time but 0 conversions, recommend inline CTAs. If it is a Money Page, focus on ranking expansion and internal linking.\n"
+            "5. Return STRICTLY a valid JSON array of objects. Do not include markdown if possible, or standard ```json.\n"
             "Each object must have these exact keys:\n"
             "- query: the input query string\n"
             "- target_page: the best matching or recommended target URL\n"
@@ -613,11 +653,14 @@ def generate_ai_seo_action_plan(
             "- action_plan: specific actionable on-page advice (e.g. title tweaks, internal linking, schema markup, content expansion)"
         )
 
-        user_prompt = "Generate SEO optimization recommendations for these Google Search Console queries:\n"
+        user_prompt = "Generate SEO optimization recommendations for these Google Search Console queries with GA4 behavioral context:\n"
         for idx, row in enumerate(batch):
+            ga4_ctx = ""
+            if row.get("userExperienceBadge") and row.get("userExperienceBadge") != "⚪ Connect GA4 for Behavior Insights":
+                ga4_ctx = f" | GA4 Behavior: {row.get('userExperienceBadge')} (Visits: {row.get('sessions', 0)}, Read Time: {row.get('read_time_formatted', 'N/A')}, Conv: {row.get('conversions', 0)}) | Strategy: {row.get('case_tag', '')}"
             user_prompt += (
                 f"{idx+1}. Query: '{row['query']}' | Category: '{row.get('category', 'General')}' | "
-                f"Position: {row.get('position', 0):.1f} | CTR: {row.get('ctr', 0)*100:.1f}%\n"
+                f"Position: {row.get('position', 0):.1f} | CTR: {row.get('ctr', 0)*100:.1f}%{ga4_ctx}\n"
             )
 
         try:
@@ -988,17 +1031,171 @@ def render_advance_gsc_analysis_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # 2. Upload and Data Acquisition Area
-    col_upload, col_sample = st.columns([3.5, 1.5])
-    with col_upload:
-        uploaded_file = st.file_uploader(
-            "📤 Upload Google Search Console Export (ZIP or CSV format):",
-            type=['zip', 'csv'],
-            help="In Google Search Console, click 'Export' ➔ 'Download ZIP' (or upload Queries.csv directly)."
-        )
-    with col_sample:
-        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-        load_sample = st.button("🧪 Load Sample GSC Data", use_container_width=True, help="Load an industrial demo dataset to preview all reports and features instantly.")
+    # 2. Connection Area: Google OAuth Direct API / File Upload / Interactive Demo
+    tab_conn_oauth, tab_conn_upload, tab_conn_sample = st.tabs([
+        "🔑 Live Google OAuth (GSC + GA4 Direct API)",
+        "📤 Upload GSC Export (ZIP or CSV)",
+        "🧪 Interactive Demo (Industrial Sample Data)"
+    ])
+
+    # Check for incoming OAuth redirect code
+    auth_code = st.query_params.get("code")
+    client_id, client_secret, redirect_uri = get_oauth_config() if get_oauth_config else ("", "", "")
+
+    if auth_code and client_id and client_secret and create_oauth_flow:
+        with st.spinner("Exchanging OAuth authorization code with Google..."):
+            try:
+                flow = create_oauth_flow(client_id, client_secret, redirect_uri)
+                flow.fetch_token(code=auth_code)
+                flow_creds = flow.credentials
+                st.session_state["g_oauth_creds"] = {
+                    "token": flow_creds.token,
+                    "refresh_token": flow_creds.refresh_token,
+                    "token_uri": flow_creds.token_uri,
+                    "client_id": flow_creds.client_id,
+                    "client_secret": flow_creds.client_secret,
+                    "scopes": flow_creds.scopes
+                }
+                st.query_params.clear()
+                st.success("✅ Successfully authenticated Google Account with GSC + GA4 scopes!")
+                st.rerun()
+            except Exception as e_token:
+                st.error(f"Authentication token exchange failed: {e_token}")
+
+    active_creds = get_authenticated_credentials() if get_authenticated_credentials else None
+
+    # TAB A: Live Google OAuth
+    with tab_conn_oauth:
+        if active_creds:
+            st.markdown("""
+            <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 0.9rem 1.2rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.3rem;">🟢</span>
+                    <div>
+                        <div style="color: #34D399; font-weight: 800; font-size: 0.95rem;">Google Account Connected</div>
+                        <div style="color: #94A3B8; font-size: 0.78rem;">Scopes: Google Search Console API + Google Analytics 4 Data API (v1beta)</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            gsc_props = fetch_live_gsc_properties(active_creds) if fetch_live_gsc_properties else []
+            ga4_props = fetch_live_ga4_properties(active_creds) if fetch_live_ga4_properties else []
+
+            col_gsc_sel, col_ga4_sel, col_date_sel = st.columns([1.6, 1.8, 1.3])
+            with col_gsc_sel:
+                if gsc_props:
+                    selected_gsc_site = st.selectbox("Select GSC Verified Site:", options=gsc_props, key="sel_gsc_site_oauth")
+                else:
+                    selected_gsc_site = st.text_input("Enter GSC Site URL (e.g. sc-domain:example.com):", key="in_gsc_site_oauth")
+
+            with col_ga4_sel:
+                ga4_options = ["None / GSC Only"] + [p["label"] for p in ga4_props]
+                selected_ga4_label = st.selectbox("Select GA4 Property (Data API v1beta):", options=ga4_options, key="sel_ga4_prop_oauth")
+                selected_ga4_id = None
+                if selected_ga4_label != "None / GSC Only":
+                    selected_ga4_id = next((p["id"] for p in ga4_props if p["label"] == selected_ga4_label), None)
+
+            with col_date_sel:
+                date_choice = st.selectbox(
+                    "Comparison Period:",
+                    options=[
+                        "Last 28 Days",
+                        "Last 3 Months",
+                        "Last 6 Months"
+                    ],
+                    index=0,
+                    key="sel_date_oauth",
+                    help="Compares the selected period vs. the preceding period to power the 30-Day Trend Radar & Content Decay."
+                )
+
+            col_btn_fetch, col_btn_logout = st.columns([3.5, 1])
+            with col_btn_fetch:
+                btn_fetch_live = st.button("🚀 Fetch Live GSC + GA4 Intelligence", type="primary", use_container_width=True, key="btn_fetch_live_api")
+            with col_btn_logout:
+                if st.button("🚪 Disconnect", use_container_width=True, key="btn_disc_oauth"):
+                    st.session_state.pop("g_oauth_creds", None)
+                    st.rerun()
+
+            if btn_fetch_live and selected_gsc_site:
+                with st.spinner(f"🚀 Fetching real-time GSC and GA4 metrics for {selected_gsc_site}..."):
+                    curr_start, curr_end, prev_start, prev_end = get_date_bounds(date_choice)
+                    q_live, p_live = fetch_live_gsc_search_analytics(
+                        active_creds, selected_gsc_site, curr_start, curr_end, prev_start, prev_end
+                    )
+                    if selected_ga4_id:
+                        ga4_live = fetch_live_ga4_datasets(
+                            active_creds, selected_ga4_id, curr_start, curr_end, prev_start, prev_end
+                        )
+                    else:
+                        ga4_live = {"organic_landing": pd.DataFrame(), "lookup": {}, "has_ga4": False}
+
+                    st.session_state["gsc_cached_data"] = {
+                        "queries": q_live,
+                        "pages": p_live
+                    }
+                    st.session_state["ga4_cached_data"] = ga4_live
+                    st.session_state["gsc_target_domain"] = selected_gsc_site
+                    st.session_state["gsc_use_sample"] = False
+                    st.toast("✅ Live GSC + GA4 Intelligence successfully synchronized!", icon="🚀")
+                    st.rerun()
+        else:
+            # Login card
+            st.markdown("""
+            <div style="background: rgba(15, 23, 42, 0.7); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 14px; padding: 1.8rem; text-align: center; margin-bottom: 0.8rem;">
+                <div style="font-size: 2.4rem; margin-bottom: 0.6rem;">🔑</div>
+                <h3 style="color: #FFFFFF; font-weight: 800; margin-bottom: 0.4rem;">Connect Google Search Console & GA4</h3>
+                <p style="color: #94A3B8; font-size: 0.92rem; max-width: 620px; margin: 0 auto 1.4rem; line-height: 1.6;">
+                    Authenticate with Google to pull verified Search Console rankings and GA4 behavioral metrics directly without downloading or uploading CSVs.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            if client_id and client_secret and create_oauth_flow:
+                try:
+                    flow = create_oauth_flow(client_id, client_secret, redirect_uri)
+                    auth_url, _ = flow.authorization_url(
+                        access_type="offline",
+                        include_granted_scopes="true",
+                        prompt="consent"
+                    )
+                    st.markdown(f"""
+                    <div style="text-align: center;">
+                        <a href="{auth_url}" target="_self" style="display: inline-flex; align-items: center; gap: 10px; background: #0284C7; color: #FFFFFF; font-weight: 800; font-size: 1rem; padding: 12px 28px; border-radius: 10px; text-decoration: none; box-shadow: 0 4px 20px rgba(2, 132, 199, 0.4);">
+                            <span>🔐 Sign In with Google</span>
+                        </a>
+                    </div>
+                    """, unsafe_allow_html=True)
+                except Exception as e_url:
+                    st.warning(f"OAuth URL initialization notice: {e_url}")
+            else:
+                st.info("💡 Google OAuth credentials not found in Streamlit Secrets. You can use the **'📤 Upload GSC Export'** or **'🧪 Interactive Demo'** tabs right now!")
+
+    # TAB B: Manual CSV / ZIP Upload
+    with tab_conn_upload:
+        col_up_box, col_up_help = st.columns([3, 1.5])
+        with col_up_box:
+            uploaded_file = st.file_uploader(
+                "Upload Google Search Console Export (ZIP or CSV format):",
+                type=['zip', 'csv'],
+                help="In Google Search Console, click 'Export' ➔ 'Download ZIP' (or upload Queries.csv directly).",
+                key="uploader_gsc_zip_csv"
+            )
+        with col_up_help:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            st.caption("Upload Queries.csv directly or the full ZIP file from GSC. If you have a GA4 landing page export, you can analyze both.")
+
+    # TAB C: Interactive Demo
+    with tab_conn_sample:
+        st.markdown("""
+        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 12px; padding: 1.2rem; margin-bottom: 0.8rem;">
+            <div style="font-weight: 800; color: #C4B5FD; font-size: 1rem; margin-bottom: 4px;">🧪 Industrial Demo Dataset (GSC + GA4 Combined)</div>
+            <div style="color: #94A3B8; font-size: 0.85rem; line-height: 1.5;">
+                Instantly explore all 15 analytical modules, 30-Day Future SEO Roadmap, Money Pages, Traffic Leaks, Mobile UX checks, and AI Citation Trackers using pre-configured industrial data.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        load_sample = st.button("🧪 Load Full GSC + GA4 Industrial Demo", use_container_width=True, key="btn_load_sample_full")
 
     csv_files = {}
 
@@ -1016,6 +1213,7 @@ def render_advance_gsc_analysis_page():
                     csv_files['Queries'] = single_df
 
                 st.session_state["gsc_cached_data"] = csv_files
+                st.session_state["gsc_use_sample"] = False
                 st.toast("✅ GSC Data successfully loaded and processed!", icon="🚀")
         except Exception as e:
             st.error(f"❌ Error processing file: {str(e)}")
@@ -1025,7 +1223,9 @@ def render_advance_gsc_analysis_page():
         st.session_state["gsc_use_sample"] = True
         csv_files = generate_sample_gsc_data()
         st.session_state["gsc_cached_data"] = csv_files
-        st.info("ℹ️ Currently displaying **Sample Industrial GSC Demo Dataset**. Upload your real export above anytime to analyze your live site.")
+        if "ga4_cached_data" not in st.session_state or not st.session_state["ga4_cached_data"].get("has_ga4"):
+            st.session_state["ga4_cached_data"] = generate_sample_ga4_datasets("airaindia.com", csv_files.get("pages"))
+        st.info("ℹ️ Currently displaying **Sample Industrial GSC + GA4 Demo Dataset**. Connect your live Google Account above anytime.")
     elif "gsc_cached_data" in st.session_state:
         csv_files = st.session_state["gsc_cached_data"]
     else:
@@ -1033,16 +1233,17 @@ def render_advance_gsc_analysis_page():
         st.markdown("""
         <div style="background: rgba(15, 23, 42, 0.7); border: 1px dashed rgba(139, 92, 246, 0.4); border-radius: 16px; padding: 2.5rem 2rem; text-align: center; margin-top: 1rem;">
             <div style="font-size: 2.8rem; margin-bottom: 0.8rem;">📥</div>
-            <h3 style="color: #F8FAFC; margin-bottom: 0.5rem; font-weight: 800;">No GSC Data Loaded Yet</h3>
+            <h3 style="color: #F8FAFC; margin-bottom: 0.5rem; font-weight: 800;">No GSC or GA4 Data Loaded Yet</h3>
             <p style="color: #94A3B8; font-size: 0.95rem; max-width: 580px; margin: 0 auto 1.5rem; line-height: 1.6;">
-                Export your Google Search Console performance data (Performance ➔ Export ➔ Download ZIP), then upload it above or click <b>'Load Sample GSC Data'</b> to see a full live demonstration.
+                Connect your Google Account above, upload your Google Search Console export, or click <b>'Load Full GSC + GA4 Industrial Demo'</b> to preview the complete Intelligence & Future Suggestion Engine.
             </p>
-            <div style="display: flex; justify-content: center; gap: 15px; font-size: 0.84rem; color: #CBD5E1;">
-                <span>✔ <b>Queries.csv</b> Analysis</span>
-                <span>✔ <b>Pages.csv</b> Analysis</span>
-                <span>✔ <b>Countries.csv</b> Analysis</span>
-                <span>✔ Target Page Mapping</span>
-                <span>✔ AI Meta & Complete File Export</span>
+            <div style="display: flex; justify-content: center; gap: 15px; font-size: 0.84rem; color: #CBD5E1; flex-wrap: wrap;">
+                <span>✔ <b>GSC API</b> Direct Sync</span>
+                <span>✔ <b>GA4 Data API</b> Direct Sync</span>
+                <span>✔ <b>30-Day Future Roadmap</b></span>
+                <span>✔ <b>Money Pages vs. Leaks</b></span>
+                <span>✔ <b>Mobile UX Gap Audit</b></span>
+                <span>✔ <b>AI Search Engine Tracker</b></span>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1103,6 +1304,33 @@ def render_advance_gsc_analysis_page():
             if mask.any():
                 queries_df.loc[mask, 'target_page'] = p_ov
                 queries_df.loc[mask, 'target_type'] = "🏠 Homepage (Brand)" if p_ov.rstrip('/') == saved_domain.rstrip('/') else "Custom Override"
+
+    # Merge and Enrich GSC + GA4 Intelligence Pipeline
+    ga4_datasets = st.session_state.get("ga4_cached_data")
+    if not ga4_datasets:
+        if st.session_state.get("gsc_use_sample"):
+            ga4_datasets = generate_sample_ga4_datasets(saved_domain, pages_df)
+            st.session_state["ga4_cached_data"] = ga4_datasets
+        else:
+            ga4_datasets = {"organic_landing": pd.DataFrame(), "lookup": {}, "has_ga4": False}
+
+    queries_df, pages_df, unified_urls = enrich_queries_and_pages_with_ga4(
+        queries_df, pages_df, ga4_datasets, base_domain=saved_domain
+    )
+    st.session_state["unified_urls_master"] = unified_urls
+
+    if not ga4_datasets.get("has_ga4"):
+        st.markdown("""
+        <div style="background: rgba(14, 24, 44, 0.7); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 0.8rem 1.2rem; margin-bottom: 1.2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.2rem;">💡</span>
+                <span style="font-size: 0.88rem; color: #CBD5E1;">
+                    <b>Connect GA4 for Behavior & Conversion Insights:</b> Currently displaying Search Console data. Connect your GA4 property above to unlock real reader read times, bounce badges, and conversion attribution.
+                </span>
+            </div>
+            <span style="font-size: 0.76rem; background: rgba(56, 189, 248, 0.15); color: #38BDF8; padding: 3px 10px; border-radius: 6px; font-weight: 700;">GSC Only Mode</span>
+        </div>
+        """, unsafe_allow_html=True)
 
     # 3. High-Level KPI Summary Cards
     total_clicks = int(queries_df['clicks'].sum()) if 'clicks' in queries_df.columns else 0
@@ -1442,9 +1670,15 @@ def render_advance_gsc_analysis_page():
                 use_container_width=True
             )
 
-    # 7. Core Analytical Modules Tabs
-    tab_ai, tab_qw, tab_lh, tab_pot, tab_top, tab_quest, tab_opp, tab_cloud, tab_geo_page = st.tabs([
+    # 7. Core Analytical Modules Tabs (15 Intelligent Pre-Click & Post-Click Tabs)
+    tab_ai, tab_roadmap, tab_money, tab_health, tab_trend, tab_mobile, tab_ai_traffic, tab_qw, tab_lh, tab_pot, tab_top, tab_quest, tab_opp, tab_cloud, tab_geo_page = st.tabs([
         "🤖 AI SEO Action Plan",
+        "🧭 30-Day Future SEO Roadmap",
+        "💎 Money Pages vs. Traffic Leaks (GSC × GA4)",
+        "📊 GA4 Landing Page Health & Conversions",
+        "📉 Rising & Dropping Pages (30-Day Trend Radar)",
+        "📱 Mobile vs. Desktop SEO Check (GA4 UX)",
+        "🤖 AI Search Traffic (ChatGPT, Perplexity, Gemini)",
         "⚡ Quick Wins (Pos 11-20)",
         "🍎 Low-Hanging Fruits (CTR)",
         "📈 Traffic Potential Estimator",
@@ -1455,7 +1689,7 @@ def render_advance_gsc_analysis_page():
         "🌍 Countries & Pages"
     ])
 
-    query_cols = [c for c in ['query', 'target_page', 'target_type', 'clicks', 'impressions', 'ctr', 'position'] if c in queries_df.columns]
+    query_cols = [c for c in ['query', 'target_page', 'target_type', 'clicks', 'impressions', 'ctr', 'position', 'userExperienceBadge', 'conversions', 'futureSuggestion'] if c in queries_df.columns]
 
     # TAB 0: AI ACTION PLAN
     with tab_ai:
@@ -1489,8 +1723,12 @@ def render_advance_gsc_analysis_page():
             if 'position' in disp_plan.columns:
                 disp_plan['position'] = disp_plan['position'].apply(lambda x: f"{float(x):.1f}" if pd.notnull(x) else "0.0")
 
-            display_cols = [c for c in ['query', 'target_page', 'target_type', 'ai_title', 'ai_h1', 'ai_meta_description', 'action_plan', 'clicks', 'impressions', 'ctr', 'position'] if c in disp_plan.columns]
-            st.dataframe(disp_plan[display_cols], use_container_width=True, height=420)
+            display_cols = [c for c in ['query', 'target_page', 'target_type', 'userExperienceBadge', 'ai_title', 'ai_h1', 'ai_meta_description', 'action_plan', 'futureSuggestion', 'clicks', 'impressions', 'ctr', 'position'] if c in disp_plan.columns]
+            rename_disp = {
+                'userExperienceBadge': 'GA4 Reader Experience',
+                'futureSuggestion': 'Future Suggestion (Action Plan)'
+            }
+            st.dataframe(disp_plan[display_cols].rename(columns=rename_disp), use_container_width=True, height=420)
 
             # Interactive Quick Target Page Override
             with st.expander("✏️ Quick Target Page Customizer & Manual Switcher", expanded=False):
@@ -1537,12 +1775,36 @@ def render_advance_gsc_analysis_page():
                 <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">🤖</div>
                 <h4 style="color: #F8FAFC; margin-bottom: 0.4rem;">No AI Action Plan Generated Yet</h4>
                 <p style="color: #94A3B8; font-size: 0.9rem; max-width: 580px; margin: 0 auto 1.2rem; line-height: 1.6;">
-                    Click the <b>'🚀 Generate AI Action Plan'</b> button in the AI configuration box above to review all site pages and create high-converting Page Titles, H1 tags, Meta Descriptions, and action plans.
+                    Click the <b>'🚀 Generate AI Action Plan'</b> button in the AI configuration box above to review all site pages and create high-converting Page Titles, H1 tags, Meta Descriptions, and action plans grounded in real user behavior.
                 </p>
             </div>
             """, unsafe_allow_html=True)
 
-    # TAB 1: QUICK WINS
+    # TAB 1: 🧭 30-Day Future SEO Roadmap (New Combined Tab)
+    with tab_roadmap:
+        render_future_seo_roadmap_tab(queries_df, pages_df, unified_urls, ga4_datasets, saved_domain)
+
+    # TAB 2: 💎 Money Pages vs. Traffic Leaks (New Combined Tab)
+    with tab_money:
+        render_money_pages_vs_leaks_tab(unified_urls, queries_df, ga4_datasets, saved_domain)
+
+    # TAB 3: 📊 GA4 Landing Page Health & Conversions (New Combined Tab)
+    with tab_health:
+        render_ga4_landing_health_tab(unified_urls, ga4_datasets, saved_domain)
+
+    # TAB 4: 📉 Rising & Dropping Pages Trend Radar (New Combined Tab)
+    with tab_trend:
+        render_trend_radar_tab(unified_urls, ga4_datasets, saved_domain)
+
+    # TAB 5: 📱 Mobile vs. Desktop SEO Check (New Combined Tab)
+    with tab_mobile:
+        render_mobile_desktop_tab(ga4_datasets, unified_urls, saved_domain)
+
+    # TAB 6: 🤖 AI Search Traffic (ChatGPT, Perplexity, Gemini) (New Combined Tab)
+    with tab_ai_traffic:
+        render_ai_search_traffic_tab(ga4_datasets, unified_urls, saved_domain)
+
+    # TAB 7: QUICK WINS (Upgraded with GA4 Badges & Future Suggestions)
     with tab_qw:
         st.markdown(f"""
         <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 1.1rem 1.4rem; margin-bottom: 1.2rem;">
@@ -1559,15 +1821,21 @@ def render_advance_gsc_analysis_page():
             (queries_df['impressions'] >= min_impressions)
         )
         sort_cols = [c for c in ['impressions', 'position'] if c in queries_df.columns]
+        qw_cols = [c for c in ['query', 'target_page', 'clicks', 'impressions', 'ctr', 'position', 'userExperienceBadge', 'conversions', 'futureSuggestion'] if c in queries_df.columns]
         if sort_cols:
-            quick_wins = queries_df[filter_mask][query_cols].sort_values(sort_cols, ascending=[False, True]).reset_index(drop=True)
+            quick_wins = queries_df[filter_mask][qw_cols].sort_values(sort_cols, ascending=[False, True]).reset_index(drop=True)
         else:
-            quick_wins = queries_df[filter_mask][query_cols].reset_index(drop=True)
+            quick_wins = queries_df[filter_mask][qw_cols].reset_index(drop=True)
 
         if len(quick_wins) > 0:
             quick_wins.index = range(1, len(quick_wins) + 1)
             qw_disp = format_gsc_df_for_display(quick_wins)
-            st.dataframe(qw_disp, use_container_width=True, height=380)
+            qw_rename = {
+                'userExperienceBadge': 'GA4 Reader Experience',
+                'conversions': 'GA4 Conversions',
+                'futureSuggestion': 'Future Suggestion (Next Step)'
+            }
+            st.dataframe(qw_disp.rename(columns=qw_rename), use_container_width=True, height=380)
 
             qw_csv = quick_wins.to_csv(index=False).encode('utf-8')
             st.download_button(
@@ -1580,7 +1848,7 @@ def render_advance_gsc_analysis_page():
         else:
             st.info(f"No quick wins found with position between {min_pos_qw}-{max_pos_qw} and ≥ {min_impressions} impressions. Try lowering the impressions threshold in settings above.")
 
-    # TAB 2: LOW-HANGING FRUITS
+    # TAB 8: LOW-HANGING FRUITS (Upgraded with GA4 Badges & Future Suggestions)
     with tab_lh:
         st.markdown(f"""
         <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 1.1rem 1.4rem; margin-bottom: 1.2rem;">
@@ -1597,15 +1865,21 @@ def render_advance_gsc_analysis_page():
             (queries_df['impressions'] >= max(5, min_impressions // 2))
         )
         sort_cols = [c for c in ['impressions', 'ctr'] if c in queries_df.columns]
+        lh_cols = [c for c in ['query', 'target_page', 'clicks', 'impressions', 'ctr', 'position', 'userExperienceBadge', 'conversions', 'futureSuggestion'] if c in queries_df.columns]
         if sort_cols:
-            low_hanging = queries_df[filter_mask][query_cols].sort_values(sort_cols, ascending=[False, True]).reset_index(drop=True)
+            low_hanging = queries_df[filter_mask][lh_cols].sort_values(sort_cols, ascending=[False, True]).reset_index(drop=True)
         else:
-            low_hanging = queries_df[filter_mask][query_cols].reset_index(drop=True)
+            low_hanging = queries_df[filter_mask][lh_cols].reset_index(drop=True)
 
         if len(low_hanging) > 0:
             low_hanging.index = range(1, len(low_hanging) + 1)
             lh_disp = format_gsc_df_for_display(low_hanging)
-            st.dataframe(lh_disp, use_container_width=True, height=380)
+            lh_rename = {
+                'userExperienceBadge': 'GA4 Reader Experience',
+                'conversions': 'GA4 Conversions',
+                'futureSuggestion': 'Future Suggestion (Next Step)'
+            }
+            st.dataframe(lh_disp.rename(columns=lh_rename), use_container_width=True, height=380)
 
             lh_csv = low_hanging.to_csv(index=False).encode('utf-8')
             st.download_button(
@@ -1618,13 +1892,13 @@ def render_advance_gsc_analysis_page():
         else:
             st.info("No low-hanging fruit queries found with current thresholds. All top 3 positions have healthy CTR!")
 
-    # TAB 3: TRAFFIC POTENTIAL ESTIMATION
+    # TAB 9: TRAFFIC POTENTIAL ESTIMATION (Upgraded with Projected Extra Leads)
     with tab_pot:
         st.markdown("""
         <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 1.1rem 1.4rem; margin-bottom: 1.2rem;">
-            <div style="font-weight: 800; font-size: 1.05rem; color: #38BDF8; margin-bottom: 4px;">📈 Algorithmic Traffic Growth Projection Engine</div>
+            <div style="font-weight: 800; font-size: 1.05rem; color: #38BDF8; margin-bottom: 4px;">📈 Algorithmic Traffic & Conversion Growth Projection Engine</div>
             <div style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5;">
-                How many extra clicks would your site generate if sub-page-1 keywords reached the first page? This model benchmarks your domain's actual <b>Top 10 average CTR</b> and projects incremental clicks across lower-ranking keywords.
+                How many extra clicks and leads would your site generate if sub-page-1 keywords reached the first page? This model benchmarks your domain's actual <b>Top 10 average CTR</b> and projects incremental clicks and <b>GA4 conversions</b> across lower-ranking keywords.
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1645,22 +1919,31 @@ def render_advance_gsc_analysis_page():
             calc_df['potential_clicks'] = 0
             calc_df['click_gain'] = 0
 
+        # Calculate projected extra leads using GA4 conversion rate
+        if 'conversion_rate' in calc_df.columns:
+            calc_df['projected_leads'] = (calc_df['click_gain'] * calc_df['conversion_rate']).round().astype(int)
+        else:
+            calc_df['projected_leads'] = (calc_df['click_gain'] * 0.02).round().astype(int)
+
         current_clicks_sum = calc_df['clicks'].sum() if 'clicks' in calc_df.columns else 0
         potential_clicks_sum = calc_df['potential_clicks'].sum()
         gain_clicks_sum = max(0, potential_clicks_sum - current_clicks_sum)
         gain_pct = (gain_clicks_sum / current_clicks_sum * 100) if current_clicks_sum > 0 else 0
+        total_projected_leads = calc_df['projected_leads'].sum()
 
-        pot_col1, pot_col2, pot_col3, pot_col4 = st.columns(4)
+        pot_col1, pot_col2, pot_col3, pot_col4, pot_col5 = st.columns(5)
         with pot_col1:
             st.metric("Top-10 Benchmark CTR", f"{avg_ctr_top10*100:.2f}%")
         with pot_col2:
             st.metric("Current Total Clicks", f"{int(current_clicks_sum):,}")
         with pot_col3:
-            st.metric("Estimated Potential Clicks", f"{int(potential_clicks_sum):,}")
+            st.metric("Potential Clicks", f"{int(potential_clicks_sum):,}")
         with pot_col4:
-            st.metric("Projected Growth", f"+{gain_pct:.1f}%", f"+{int(gain_clicks_sum):,} extra clicks")
+            st.metric("Projected Growth", f"+{gain_pct:.1f}%", f"+{int(gain_clicks_sum):,} clicks")
+        with pot_col5:
+            st.metric("Projected Extra Leads", f"+{int(total_projected_leads):,} Leads", "Via GA4 Conversion Rate")
 
-        pot_target_cols = [c for c in ['query', 'target_page', 'position', 'clicks', 'potential_clicks', 'click_gain', 'impressions'] if c in calc_df.columns]
+        pot_target_cols = [c for c in ['query', 'target_page', 'position', 'clicks', 'potential_clicks', 'click_gain', 'projected_leads', 'impressions', 'futureSuggestion'] if c in calc_df.columns]
         potential_table = calc_df[
             (calc_df['click_gain'] > 1) &
             (calc_df['position'] > 10.0)
@@ -1676,11 +1959,17 @@ def render_advance_gsc_analysis_page():
             if 'clicks' in disp_pot.columns: disp_pot['clicks'] = disp_pot['clicks'].astype(int)
             if 'potential_clicks' in disp_pot.columns: disp_pot['potential_clicks'] = disp_pot['potential_clicks'].astype(int)
             if 'click_gain' in disp_pot.columns: disp_pot['click_gain'] = disp_pot['click_gain'].astype(int)
+            if 'projected_leads' in disp_pot.columns: disp_pot['projected_leads'] = disp_pot['projected_leads'].astype(int)
             if 'impressions' in disp_pot.columns: disp_pot['impressions'] = disp_pot['impressions'].astype(int)
             if 'position' in disp_pot.columns: disp_pot['position'] = disp_pot['position'].apply(lambda x: f"{float(x):.1f}")
 
-            st.markdown("#### 🎯 Top Keywords Ranked by Click Gain Opportunity:")
-            st.dataframe(disp_pot, use_container_width=True, height=350)
+            st.markdown("#### 🎯 Top Keywords Ranked by Click & Lead Gain Opportunity:")
+            pot_rename = {
+                'click_gain': 'Projected Extra Clicks',
+                'projected_leads': 'Projected Extra Leads (GA4)',
+                'futureSuggestion': 'Future Action Plan'
+            }
+            st.dataframe(disp_pot.rename(columns=pot_rename), use_container_width=True, height=350)
 
             pot_csv = potential_table.to_csv(index=False).encode('utf-8')
             st.download_button(
