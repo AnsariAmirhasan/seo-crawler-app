@@ -206,10 +206,20 @@ div[data-testid="stRadio"] div[role="radiogroup"] > label:hover p,
 div[data-testid="stRadio"] div[role="radiogroup"] > label:hover span {
     color: #FFFFFF !important;
 }
-/* Hide circular radio buttons */
-div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child {
-    display: none !important;
+/* Custom Cyber Styling for Streamlit Radio Circles */
+div[data-testid="stRadio"] [role="radiogroup"] [data-testid="stWidgetSelectionFilter"],
+div[data-testid="stRadio"] [role="radiogroup"] div[data-baseweb="radio"] > div:first-child {
+    border-color: rgba(0, 240, 255, 0.45) !important;
+    background-color: transparent !important;
 }
+div[data-testid="stRadio"] [role="radiogroup"] label[data-checked="true"] [data-testid="stWidgetSelectionFilter"],
+div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) [data-testid="stWidgetSelectionFilter"],
+div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) div[data-baseweb="radio"] > div:first-child {
+    border-color: #00F0FF !important;
+    background-color: #00F0FF !important;
+    box-shadow: 0 0 14px #00F0FF !important;
+}
+
 /* Active Radio Item - Sleek Glowing Dark Cyan Cockpit Pill */
 div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"],
 div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) {
@@ -542,7 +552,10 @@ with st.sidebar:
             "🎯 Query Fan-Out Extractor",
             "🏛️ AI Silo & Competitors",
             "📱 AI Social Content Studio",
-            "📈 Advanced GSC Analysis"
+            "📈 Advanced GSC Analysis",
+            "📊 SERP Rank Tracker (Soon)",
+            "🔗 Backlink Explorer (Soon)",
+            "⚡ Core Web Vitals (Soon)"
         ],
         index=0,
         label_visibility="collapsed"
@@ -1151,6 +1164,58 @@ with tab_overview:
                 <div class="kpi-label">MISSING ALT</div>
                 <div class="kpi-value" style="color: #00F0FF; text-shadow: 0 0 20px rgba(0, 240, 255, 0.45);">34</div>
                 <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 40%; background: #00F0FF; box-shadow: 0 0 10px #00F0FF;"></div></div>
+            </div>
+        </div>
+        """)
+
+        # Quantum Capabilities Mission Control Card - Redesigned to match Cyber Cyan Cockpit Theme
+        st.html("""
+        <div style="background: linear-gradient(135deg, rgba(11, 20, 38, 0.92) 0%, rgba(6, 12, 24, 0.98) 100%); border: 1px solid rgba(0, 240, 255, 0.22); border-radius: 18px; padding: 2.2rem 2.6rem; margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2rem; box-shadow: 0 20px 45px rgba(0,0,0,0.65), 0 0 30px rgba(0, 240, 255, 0.08); position: relative; overflow: hidden; backdrop-filter: blur(20px);">
+            <!-- Ambient Cyber Corner Glows -->
+            <div style="position: absolute; top: -50px; left: -50px; width: 160px; height: 160px; background: radial-gradient(circle, rgba(0, 240, 255, 0.15) 0%, transparent 70%); pointer-events: none;"></div>
+            <div style="position: absolute; bottom: -50px; right: 20%; width: 160px; height: 160px; background: radial-gradient(circle, rgba(45, 212, 191, 0.12) 0%, transparent 70%); pointer-events: none;"></div>
+            
+            <div style="flex: 1.3; min-width: 290px; position: relative; z-index: 2;">
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #00F0FF; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 8px;">
+                    MISSION CONTROL • ZERO LIMITATIONS
+                </div>
+                <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; color: #FFFFFF; margin: 0 0 0.6rem 0; letter-spacing: -0.02em;">
+                    Autonomous Technical SEO <span style="background: linear-gradient(135deg, #00F0FF 0%, #2DD4BF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 25px rgba(0, 240, 255, 0.4);">Intelligence</span>
+                </h2>
+                <p style="color: #94A3B8; font-size: 0.96rem; line-height: 1.65; max-width: 520px; margin: 0; font-family: 'Space Grotesk', sans-serif;">
+                    Input target URL, select crawl depth, and engage. The multi-threaded quantum engine analyzes HTTP response codes, canonical directives, metadata anomalies, and image sizes at warp speed.
+                </p>
+            </div>
+
+            <div style="flex: 1.1; min-width: 270px; position: relative; z-index: 2;">
+                <div style="display: flex; flex-direction: column; gap: 12px; font-size: 0.88rem; color: #CBD5E1; font-family: 'Space Grotesk', sans-serif;">
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #00F0FF; font-weight: 800; font-size: 1.05rem;">⚡</span> <b>High-Speed Multi-Thread Crawler</b> <span style="color: #64748B;">(10,000 URLs)</span></div>
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #34D399; font-weight: 800; font-size: 1.05rem;">⚡</span> <b>Automated SiteGround / Cloudflare WAF Bypass</b></div>
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #38BDF8; font-weight: 800; font-size: 1.05rem;">⚡</span> <b>AI Action Plan Generation</b> <span style="color: #64748B;">(Gemini 4 Argon)</span></div>
+                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFA84A; font-weight: 800; font-size: 1.05rem;">⚡</span> <b>Client-Ready Excel (.XLSX) & Word (.DOCX) Reports</b></div>
+                </div>
+            </div>
+
+            <div style="flex: 0.85; min-width: 220px; text-align: center; position: relative; z-index: 2;">
+                <div style="background: rgba(8, 14, 28, 0.95); border: 1px solid rgba(0, 240, 255, 0.25); border-radius: 14px; padding: 18px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.7), inset 0 0 15px rgba(0, 240, 255, 0.05); text-align: left;">
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #94A3B8; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.12em;">
+                        EXECUTION PIPELINE
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 9px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 700; color: #FFFFFF;">
+                            <span>01. CRAWL</span> <span style="color: #34D399; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.35); padding: 2px 7px; border-radius: 4px;">ARMED</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 600; color: #CBD5E1;">
+                            <span>02. ANALYZE</span> <span style="color: #00F0FF; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(0,240,255,0.15); border: 1px solid rgba(0,240,255,0.35); padding: 2px 7px; border-radius: 4px;">READY</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 600; color: #CBD5E1;">
+                            <span>03. FIX</span> <span style="color: #FBBF24; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.35); padding: 2px 7px; border-radius: 4px;">AUTO</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 700; color: #2DD4BF;">
+                            <span>04. DOMINATE</span> <span style="color: #FFA84A; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(255,107,74,0.18); border: 1px solid rgba(255,107,74,0.4); padding: 2px 7px; border-radius: 4px;">TARGET</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         """)
