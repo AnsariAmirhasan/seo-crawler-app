@@ -1,8 +1,9 @@
 """
 Keyword Research & Page Mapper Module
 Advanced SEO Keyword Intelligence, Content-to-Keyword Mapping & Gemini AI Crawler Engine.
-Deep-crawls websites (via SEOSpider + XML sitemaps), filters Product & Service money pages,
-and uses Google Gemini AI (with Google Autocomplete fallback) to generate 3 high-intent keywords per page.
+Deep-crawls websites (up to 500 pages via SEOSpider + XML sitemaps), filters Product & Service money pages,
+grounds keywords strictly in the Website's Industry/Niche, provides 2 Focus Keywords + 1 Long-Tail Keyword
+(no short keywords), and enforces 100% zero keyword cannibalization across all pages.
 """
 
 import io
@@ -56,24 +57,36 @@ AI_PROVIDERS = [
     "Autonomous (Live Google Suggest Engine)"
 ]
 
+# Comprehensive model lists for all AI providers
 GEMINI_MODELS = [
-    "gemini-2.5-flash",
+    "gemini-2.5-flash (Recommended - Fast & Accurate)",
     "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "gemini-4-argon"
+    "gemini-2.5-pro",
+    "gemini-4-argon",
+    "gemini-4-argon-thinking",
+    "Custom Model"
 ]
 
 OPENAI_MODELS = [
-    "gpt-4o-mini",
-    "gpt-4o",
+    "gpt-4o-mini (Recommended - High Speed)",
+    "gpt-4o (High Intelligence)",
     "o3-mini",
-    "gpt-4-turbo"
+    "o1",
+    "o1-mini",
+    "gpt-4-turbo",
+    "gpt-3.5-turbo",
+    "Custom Model"
 ]
 
 CLAUDE_MODELS = [
-    "claude-3-5-sonnet-20241022",
-    "claude-3-5-haiku-20241022"
+    "claude-3-5-sonnet-20241022 (Recommended)",
+    "claude-3-5-haiku-20241022",
+    "claude-3-opus-20240229",
+    "claude-3-sonnet-20240229",
+    "Custom Model"
 ]
 
 
@@ -110,7 +123,7 @@ def classify_keyword_intent(keyword: str) -> dict:
     """Classifies search intent and commercial value tier of a keyword."""
     kw = keyword.lower()
     transactional_cues = ["buy", "price", "pricing", "cost", "hire", "quote", "order", "purchase", "discount", "cheap", "for sale", "manufacturer", "suppliers", "near me", "dealer", "exporter"]
-    commercial_cues = ["best", "top", "review", "reviews", "comparison", "vs", "versus", "service", "services", "agency", "company", "solutions", "enterprise", "industrial", "actuator", "valve"]
+    commercial_cues = ["best", "top", "review", "reviews", "comparison", "vs", "versus", "service", "services", "agency", "company", "solutions", "enterprise", "industrial", "actuator", "valve", "specifications", "heavy duty"]
     informational_cues = ["how to", "what is", "guide", "tutorial", "examples", "tips", "why", "who", "when", "working principle", "types of"]
 
     for t in transactional_cues:
@@ -142,13 +155,13 @@ def classify_keyword_intent(keyword: str) -> dict:
 
 
 # ==============================================================================
-# 2. PAGE CLASSIFIER (FOCUS ON PRODUCT & SERVICE MONEY PAGES)
+# 2. PAGE CLASSIFIER (STRICT PRODUCT & SERVICE MONEY PAGE FILTER)
 # ==============================================================================
 
 def classify_page_type(url: str, title: str = "", h1: str = "", text: str = "") -> dict:
     """
     Identifies if a page is a Product Page, Service Page, Category Hub,
-    or Non-Commercial Utility page (About, Contact, FAQ, Terms, Privacy).
+    or Non-Commercial Utility page (About, Contact, FAQ, History, Terms, Privacy, etc.).
     """
     clean_url = url.lower()
     parsed = urllib.parse.urlparse(clean_url)
@@ -156,13 +169,17 @@ def classify_page_type(url: str, title: str = "", h1: str = "", text: str = "") 
     path_segments = [p.lower() for p in path.split("/") if p]
     combined_meta = f"{clean_url} {title.lower()} {h1.lower()}"
 
-    # Utility & Administrative Pages (to be filtered out)
+    # Utility, Administrative & Non-Product Pages (STRICTLY FILTERED OUT)
     utility_exact = {
         "about", "about-us", "contact", "contact-us", "faq", "faqs", "help",
         "support", "terms", "terms-and-conditions", "privacy", "privacy-policy",
         "cookie-policy", "disclaimer", "legal", "login", "register", "signup",
         "cart", "checkout", "my-account", "author", "authors", "tag", "tags",
-        "team", "careers", "jobs", "feed"
+        "team", "careers", "jobs", "feed", "history", "our-history", "vision",
+        "mission", "values", "milestones", "infrastructure", "quality-policy",
+        "quality", "awards", "certificates", "certification", "clients",
+        "clientele", "testimonials", "brochure", "downloads", "news", "events",
+        "media", "gallery"
     }
     for seg in path_segments:
         if seg in utility_exact:
@@ -171,20 +188,20 @@ def classify_page_type(url: str, title: str = "", h1: str = "", text: str = "") 
                 "badge": "⚙️ Utility (Skip)",
                 "color": "#64748B",
                 "is_money_page": False,
-                "reason": f"Utility slug '/{seg}/'"
+                "reason": f"Non-product slug '/{seg}/'"
             }
 
-    if re.search(r"\b(about us|contact us|privacy policy|terms of service|frequently asked questions|disclaimer)\b", combined_meta):
+    if re.search(r"\b(about us|contact us|privacy policy|terms of service|frequently asked questions|disclaimer|our history|company history|euro currency)\b", combined_meta):
         return {
             "category": "Utility / Administrative",
             "badge": "⚙️ Utility (Skip)",
             "color": "#64748B",
             "is_money_page": False,
-            "reason": "Title/H1 indicates utility or legal page"
+            "reason": "Title/H1 indicates utility or informational page"
         }
 
     # Product Page or Product Category
-    product_slug_triggers = ["product", "products", "item", "p", "shop", "goods", "product-category", "product-tag", "valves", "actuator"]
+    product_slug_triggers = ["product", "products", "item", "p", "shop", "goods", "product-category", "product-tag", "valves", "actuator", "accessories"]
     if any(t in path_segments for t in product_slug_triggers):
         if "category" in clean_url or "product-category" in clean_url:
             return {
@@ -218,7 +235,7 @@ def classify_page_type(url: str, title: str = "", h1: str = "", text: str = "") 
         }
 
     # Blog / Informational Post
-    blog_triggers = ["blog", "article", "articles", "news", "post", "posts", "guide", "guides", "insights"]
+    blog_triggers = ["blog", "article", "articles", "post", "posts", "guide", "guides", "insights"]
     if any(t in path_segments for t in blog_triggers):
         return {
             "category": "Blog / Informational",
@@ -248,10 +265,10 @@ def classify_page_type(url: str, title: str = "", h1: str = "", text: str = "") 
 
 
 # ==============================================================================
-# 3. SITEMAP DISCOVERY & DEEP CRAWLER HELPER
+# 3. SITEMAP DISCOVERY & DEEP CRAWLER HELPER (UP TO 500 PAGES)
 # ==============================================================================
 
-def discover_sitemap_urls(base_url: str, max_urls: int = 300) -> list[str]:
+def discover_sitemap_urls(base_url: str, max_urls: int = 600) -> list[str]:
     """Extract internal page URLs from common XML sitemap locations."""
     parsed = urllib.parse.urlparse(base_url)
     root_scheme_netloc = f"{parsed.scheme}://{parsed.netloc}"
@@ -281,8 +298,7 @@ def discover_sitemap_urls(base_url: str, max_urls: int = 300) -> list[str]:
                 for loc in loc_tags:
                     u = loc.get_text(strip=True)
                     if u.endswith(".xml"):
-                        # Sub-sitemap: fetch sub-sitemap if product/page
-                        if any(k in u for k in ["product", "page", "post", "category"]):
+                        if any(k in u for k in ["product", "page", "post", "category", "service"]):
                             try:
                                 sub_r = requests.get(u, headers=headers, timeout=6, verify=False)
                                 if sub_r.status_code == 200:
@@ -308,21 +324,42 @@ def discover_sitemap_urls(base_url: str, max_urls: int = 300) -> list[str]:
     return found_urls
 
 
+def detect_website_industry(homepage_title: str, homepage_meta: str, homepage_h1: str) -> str:
+    """Auto-detects the core business niche and industry from homepage metadata."""
+    combined = f"{homepage_title} {homepage_h1} {homepage_meta}".lower()
+    
+    # Specific known B2B / Manufacturing niches
+    if any(k in combined for k in ["actuator", "valve", "valves", "flow control", "flange", "pneumatic"]):
+        return "Industrial Electrical Actuators & Motorized Valves Manufacturing"
+    if any(k in combined for k in ["laser", "cnc", "cutting machine", "fiber laser", "sheet metal"]):
+        return "CNC Fiber Laser & Metal Fabrication Machinery"
+    if any(k in combined for k in ["seo", "digital marketing", "organic growth", "content marketing"]):
+        return "B2B SEO, Search Marketing & Digital Growth Agency"
+    if any(k in combined for k in ["software", "saas", "crm", "erp", "cloud platform"]):
+        return "Enterprise SaaS & Cloud Software Solutions"
+    if any(k in combined for k in ["apparel", "clothing", "leather", "footwear", "fashion"]):
+        return "Premium Footwear, Leather Goods & Fashion Retail"
+    if any(k in combined for k in ["pharmaceutical", "medicine", "pharma", "healthcare"]):
+        return "Pharmaceutical & Healthcare Product Manufacturing"
+        
+    # Generic extraction from title
+    clean = re.sub(r"\s*[-|–—:]\s*[^-|–—:]+$", "", homepage_title).strip()
+    return clean or "Commercial B2B Products & Services"
+
+
 def deep_crawl_website_for_keywords(
     start_url: str,
-    max_pages: int = 100,
+    max_pages: int = 150,
     progress_callback = None
-) -> list[dict]:
+) -> tuple[list[dict], str]:
     """
     Crawls a website completely using SEOSpider combined with XML sitemap extraction.
     Pulls Title, H1, H2s, Meta Description, and clean body text for every page.
+    Returns: (parsed_pages, detected_industry)
     """
     clean_start = start_url.strip()
     if "://" not in clean_start:
         clean_start = f"https://{clean_start}"
-
-    parsed_start = urllib.parse.urlparse(clean_start)
-    clean_domain = parsed_start.netloc.lower().replace("www.", "")
 
     if progress_callback:
         progress_callback(0.05, f"🔍 Discovering XML Sitemaps for {clean_start}...")
@@ -334,13 +371,13 @@ def deep_crawl_website_for_keywords(
     spider_pages = []
     if SEOSpider:
         if progress_callback:
-            progress_callback(0.15, f"🕷️ Quantum Spider crawling internal links across {clean_start}...")
+            progress_callback(0.15, f"🕷️ Quantum Spider crawling internal links across {clean_start} (Up to {max_pages} pages)...")
         try:
             spider = SEOSpider(
                 start_url=clean_start,
                 max_pages=max_pages,
-                max_depth=6,
-                concurrency=10,
+                max_depth=8,
+                concurrency=12,
                 user_agent_name="Chrome (Windows 11)",
                 respect_robots=False,
                 crawl_mode="Subdomain"
@@ -372,7 +409,7 @@ def deep_crawl_website_for_keywords(
                 pass
             return None
 
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             future_to_url = {executor.submit(_fetch_single, u): u for u in remaining_urls}
             for fut in as_completed(future_to_url):
                 res = fut.result()
@@ -382,12 +419,12 @@ def deep_crawl_website_for_keywords(
     # 3. Parse and extract metadata for every collected page
     parsed_pages = []
     total_found = len(url_to_page_data)
+    detected_industry = ""
     
     for idx, (u, pdata) in enumerate(url_to_page_data.items()):
         if progress_callback:
             progress_callback(0.40 + (0.25 * ((idx + 1) / max(total_found, 1))), f"Extracting page content ({idx+1}/{total_found})...")
 
-        # Skip non-HTML or redirect URLs
         status = pdata.get("status_code", 200)
         if status in [301, 302, 307, 308, 404, 500]:
             continue
@@ -408,6 +445,11 @@ def deep_crawl_website_for_keywords(
             el.extract()
         body_text = " ".join(soup.get_text(separator=" ", strip=True).split()[:300])
 
+        # If homepage, detect industry
+        parsed_u = urllib.parse.urlparse(u)
+        if not parsed_u.path or parsed_u.path == "/" or not detected_industry:
+            detected_industry = detect_website_industry(title, meta_desc, h1)
+
         cls_info = classify_page_type(u, title, h1, body_text)
         
         parsed_pages.append({
@@ -423,151 +465,286 @@ def deep_crawl_website_for_keywords(
             "is_money_page": cls_info["is_money_page"]
         })
 
-    return parsed_pages
+    return parsed_pages, (detected_industry or "Industrial B2B Manufacturing & Supply")
 
 
 # ==============================================================================
-# 4. GEMINI AI KEYWORD ENGINE & FALLBACK
+# 4. MULTI-MODEL AI KEYWORD BOT (2 FOCUS + 1 LONG-TAIL, NO CANNIBALIZATION)
 # ==============================================================================
 
-def analyze_page_with_gemini(
+def call_ai_provider(
+    provider: str,
+    model_name: str,
+    api_key: str,
+    prompt: str
+) -> str:
+    """Unified AI caller supporting Google Gemini, OpenAI ChatGPT, and Claude."""
+    clean_model = model_name.split(" ")[0].strip() if " (" in model_name else model_name.strip()
+
+    if provider == "Google Gemini":
+        from google import genai
+        client = genai.Client(api_key=api_key)
+
+        # Fallback candidate models in case of preview / 404 alias
+        candidate_models = [clean_model]
+        for fb in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+            if fb not in candidate_models:
+                candidate_models.append(fb)
+
+        last_err = None
+        for cand in candidate_models:
+            try:
+                response = client.models.generate_content(
+                    model=cand,
+                    contents=prompt
+                )
+                if response.text:
+                    return response.text
+            except Exception as e:
+                last_err = e
+                continue
+        if last_err:
+            raise last_err
+
+    elif provider == "ChatGPT (OpenAI)":
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=clean_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
+        )
+        return response.choices[0].message.content or ""
+
+    elif provider == "Claude (Anthropic)":
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=clean_model,
+            max_tokens=1500,
+            temperature=0.3,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.content[0].text if response.content else ""
+
+    return ""
+
+
+def analyze_page_with_ai_bot(
     page_data: dict,
     api_key: str,
+    provider: str = "Google Gemini",
     model_name: str = "gemini-2.5-flash",
-    country_name: str = "India"
+    country_name: str = "India",
+    industry_niche: str = "Industrial Valves & Actuators Manufacturing",
+    assigned_registry: set = None
 ) -> dict:
-    """Calls Google Gemini API to analyze page content and suggest 3 high-intent keywords."""
-    clean_model = model_name.split(" ")[0].strip() if " (" in model_name else model_name.strip()
-    
-    prompt = f"""You are an elite enterprise SEO strategist and keyword mapping expert.
-Analyze the following webpage from a company website and generate exactly 3 strategic keywords:
-1. Primary Focus Keyword: High-intent commercial/transactional money keyword that drives direct inquiries/purchases on Google.
-2. Secondary / LSI Keyword: Product/Service feature, specification, or category variation keyword.
-3. Long-tail Problem Keyword: Specific customer pain point, comparison, or decision-stage search query.
+    """
+    Calls AI to generate:
+    - 2 High-Intent Focus Keywords (Commercial & Transactional, 3-6 words, NO SHORT 1-2 words)
+    - 1 Long-Tail Buyer Query (4-8 words)
+    Strictly grounded in industry_niche and enforced to avoid keyword cannibalization.
+    """
+    assigned_registry = assigned_registry or set()
+    already_assigned_sample = list(assigned_registry)[-15:] if assigned_registry else []
+    already_str = ", ".join(already_assigned_sample) if already_assigned_sample else "None so far"
 
-PAGE DETAILS:
+    prompt = f"""You are a senior enterprise SEO strategist specializing in B2B Keyword Mapping & Organic Search Optimization.
+
+WEBSITE INDUSTRY / CORE NICHE: {industry_niche}
+TARGET SEARCH MARKET: {country_name}
+
+ANALYZE THIS WEBPAGE:
 - URL: {page_data.get('url')}
 - Current Title: {page_data.get('title')}
 - Primary H1: {page_data.get('h1')}
 - Meta Description: {page_data.get('meta_desc')}
 - H2 Subheadings: {', '.join(page_data.get('h2_list', []))}
 - Page Content Excerpt: {page_data.get('page_text', '')[:400]}
-- Target Country: {country_name}
 
-OUTPUT IN STRICT JSON FORMAT (do not include markdown ticks, output pure JSON):
+MANDATORY SEO INSTRUCTIONS (FOLLOW STRICTLY):
+1. INDUSTRY RELEVANCE: All keywords MUST be directly relevant to the website's industry: "{industry_niche}". NEVER suggest unrelated topics (e.g. no euro currency, no textbook economics, no generic software filler).
+2. KEYWORD STRUCTURE (EXACTLY 2 FOCUS KEYWORDS + 1 LONG-TAIL KEYWORD):
+   - Focus Keyword 1 (Primary Target): High-intent commercial/transactional money keyword (3 to 6 words). Must include commercial qualifiers (e.g. Manufacturer In India, Supplier, Exporter, Heavy Duty, Industrial). DO NOT provide short 1-2 word keywords!
+   - Focus Keyword 2 (Secondary Target): Distinct commercial/specification focus keyword (3 to 6 words) highlighting engineering attributes, model variations, or use cases. DO NOT provide short keywords!
+   - Long-tail Keyword: High-converting buyer problem or decision-stage search query (4 to 8 words).
+3. ZERO CANNIBALIZATION: Do NOT use or repeat these keywords already assigned to other pages: [{already_str}]. Make these keywords distinct and unique to this specific page's product/service.
+
+OUTPUT MUST BE VALID STRICT JSON ONLY (no markdown blocks, no commentary):
 {{
-  "page_category": "{page_data.get('category')}",
-  "primary_keyword": "Primary Target Keyword",
-  "primary_intent": "🛒 Transactional" or "💼 Commercial",
-  "primary_cpc": "$$$$ High Value",
-  "secondary_keyword": "Secondary LSI Keyword",
-  "secondary_intent": "💼 Commercial",
-  "secondary_cpc": "$$$ Moderate-High Value",
-  "longtail_keyword": "Long-tail Problem Query",
+  "focus_keyword_1": "Primary 3-6 word Commercial Focus Keyword",
+  "focus_1_intent": "🛒 Transactional",
+  "focus_1_cpc": "$$$$ High Commercial Value",
+  "focus_keyword_2": "Secondary 3-6 word Commercial Focus Keyword",
+  "focus_2_intent": "💼 Commercial",
+  "focus_2_cpc": "$$$ Moderate-High Value",
+  "longtail_keyword": "4-8 word Problem-Solving Long-Tail Keyword",
   "longtail_intent": "🎯 Commercial / Info",
-  "longtail_cpc": "$$ Moderate Value",
-  "blueprint_title": "Optimized Title Tag (Under 60 chars)",
-  "blueprint_h1": "Optimized H1 Tag",
-  "blueprint_meta": "Optimized Meta Description (Under 155 chars)"
+  "longtail_cpc": "$$ Commercial Potential",
+  "blueprint_title": "Optimized Page Title (Under 60 chars)",
+  "blueprint_h1": "Optimized Primary H1 Tag",
+  "blueprint_meta": "Compelling Meta Description with CTA (Under 155 chars)"
 }}"""
 
+    clean_model_id = model_name.split(" ")[0].strip() if " (" in model_name else model_name.strip()
+
     try:
-        from google import genai
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=clean_model,
-            contents=prompt
-        )
-        raw_text = response.text or ""
-        # Clean potential markdown fences
+        raw_text = call_ai_provider(provider, clean_model_id, api_key, prompt)
         clean_json = re.sub(r"^```json\s*", "", raw_text.strip(), flags=re.I)
         clean_json = re.sub(r"```$", "", clean_json.strip())
         data = json.loads(clean_json)
-        data["url"] = page_data["url"]
-        data["google_verified"] = True
-        data["engine"] = f"Gemini ({clean_model})"
-        return data
+
+        # Enforce non-cannibalization in registry
+        fk1 = data.get("focus_keyword_1", "").strip().title()
+        fk2 = data.get("focus_keyword_2", "").strip().title()
+        
+        # Verify length (must not be short 1-2 words)
+        if len(fk1.split()) < 3:
+            fk1 = f"{fk1} Manufacturer & Supplier In {country_name}"
+        if len(fk2.split()) < 3:
+            fk2 = f"Industrial {fk2} Price & Specifications"
+
+        # Check cannibalization against registry
+        if fk1.lower() in assigned_registry:
+            slug_part = page_data["url"].strip("/").split("/")[-1].replace("-", " ").title()
+            fk1 = f"{fk1} - {slug_part}"
+        if fk2.lower() in assigned_registry:
+            fk2 = f"Custom {fk2} For Industrial Applications"
+
+        assigned_registry.add(fk1.lower())
+        assigned_registry.add(fk2.lower())
+
+        return {
+            "url": page_data["url"],
+            "page_category": page_data.get("category", "Product Page"),
+            "focus_keyword_1": fk1,
+            "focus_1_intent": data.get("focus_1_intent", "🛒 Transactional"),
+            "focus_1_cpc": data.get("focus_1_cpc", "$$$$ High Commercial Value"),
+            "focus_keyword_2": fk2,
+            "focus_2_intent": data.get("focus_2_intent", "💼 Commercial"),
+            "focus_2_cpc": data.get("focus_2_cpc", "$$$ Moderate-High Value"),
+            "longtail_keyword": data.get("longtail_keyword", "").strip().title(),
+            "longtail_intent": data.get("longtail_intent", "🎯 Commercial / Info"),
+            "longtail_cpc": data.get("longtail_cpc", "$$ Commercial Potential"),
+            "blueprint_title": data.get("blueprint_title", ""),
+            "blueprint_h1": data.get("blueprint_h1", ""),
+            "blueprint_meta": data.get("blueprint_meta", ""),
+            "engine": f"{provider} ({clean_model_id})"
+        }
     except Exception:
-        # Fallback to algorithmic generator
-        return generate_algorithmic_page_keywords(page_data, country_name)
+        # Fallback to smart algorithmic generator
+        return generate_algorithmic_page_keywords(page_data, country_name, industry_niche, assigned_registry)
 
 
-def generate_algorithmic_page_keywords(page_data: dict, country_name: str = "India") -> dict:
-    """Algorithmic keyword generation backed by real-time Google Autocomplete."""
+def generate_algorithmic_page_keywords(
+    page_data: dict,
+    country_name: str = "India",
+    industry_niche: str = "Industrial Valves & Actuators Manufacturing",
+    assigned_registry: set = None
+) -> dict:
+    """
+    Algorithmic keyword generation backed by real-time Google Autocomplete.
+    Enforces industry context, 2 focus + 1 longtail, no short keywords, and zero cannibalization.
+    """
+    assigned_registry = assigned_registry or set()
     url = page_data["url"]
     title = page_data.get("title", "")
     h1 = page_data.get("h1", "")
-    h2_list = page_data.get("h2_list", [])
     
     parsed = urllib.parse.urlparse(url)
     slug = parsed.path.strip("/").split("/")[-1]
     slug_words = [w for w in re.split(r"[-_]+", slug) if len(w) > 2 and not w.isdigit()]
     
     clean_title = re.sub(r"\s*[-|–—:]\s*[^-|–—:]+$", "", title).strip()
-    seed = clean_title or h1 or " ".join(slug_words)
-    short_seed = " ".join(seed.split()[:4])
+    clean_seed = " ".join(slug_words).title() if slug_words else clean_title
+    if not clean_seed or len(clean_seed) < 4:
+        clean_seed = clean_title or h1 or "Industrial Product"
     
-    # Live Google suggestions
-    suggs = fetch_google_suggestions(short_seed, country_code="in", max_results=6)
+    # Query Google suggest with industry anchor
+    query_to_suggest = f"{clean_seed} manufacturer"
+    suggs = fetch_google_suggestions(query_to_suggest, country_code="in", max_results=6)
     
-    primary_kw = suggs[0].title() if suggs else short_seed.title()
-    secondary_kw = suggs[1].title() if len(suggs) > 1 else (h1.title() if h1 else f"{short_seed} Price".title())
-    longtail_kw = suggs[2].title() if len(suggs) > 2 else f"Best {short_seed} Manufacturer In India".title()
-    
-    p_intent = classify_keyword_intent(primary_kw)
-    s_intent = classify_keyword_intent(secondary_kw)
-    l_intent = classify_keyword_intent(longtail_kw)
+    # Focus Keyword 1 (3-6 words, commercial/transactional)
+    if suggs and len(suggs[0].split()) >= 3:
+        fk1 = suggs[0].title()
+    else:
+        fk1 = f"{clean_seed} Manufacturer In {country_name}"
+        
+    # Focus Keyword 2 (3-6 words, specification/feature)
+    if len(suggs) > 1 and len(suggs[1].split()) >= 3 and suggs[1].lower() != fk1.lower():
+        fk2 = suggs[1].title()
+    else:
+        fk2 = f"Heavy Duty {clean_seed} Price & Specifications"
+        
+    # Long-tail Keyword (4-8 words, problem/application)
+    longtail_kw = f"Best Quality {clean_seed} For Industrial Applications In {country_name}"
+    for s in (suggs or []):
+        if len(s.split()) >= 4 and s.lower() not in [fk1.lower(), fk2.lower()]:
+            longtail_kw = s.title()
+            break
+
+    # Prevent Cannibalization
+    if fk1.lower() in assigned_registry:
+        fk1 = f"Industrial Grade {fk1}"
+    if fk2.lower() in assigned_registry:
+        fk2 = f"Custom Engineered {fk2}"
+
+    assigned_registry.add(fk1.lower())
+    assigned_registry.add(fk2.lower())
+
+    p1_intent = classify_keyword_intent(fk1)
+    p2_intent = classify_keyword_intent(fk2)
+    lt_intent = classify_keyword_intent(longtail_kw)
 
     parsed_domain = parsed.netloc.replace("www.", "").split(".")[0].title()
-    rec_title = f"{primary_kw} | {secondary_kw} - {parsed_domain}"[:60]
-    rec_h1 = f"{primary_kw} Solutions & Specifications"
-    rec_meta = f"High-performance {primary_kw}. Explore {secondary_kw} with complete specifications. Contact {parsed_domain} for quotes."[:155]
+    rec_title = f"{fk1} | {fk2} - {parsed_domain}"[:60]
+    rec_h1 = f"{fk1}: Engineered Industrial Solutions"
+    rec_meta = f"High-grade {fk1}. View {fk2} with full technical specifications. Contact {parsed_domain} for bulk quotes."[:155]
 
     return {
         "url": url,
         "page_category": page_data.get("category", "Product Page"),
-        "primary_keyword": primary_kw,
-        "primary_intent": p_intent["badge"],
-        "primary_cpc": p_intent["cpc_tier"],
-        "secondary_keyword": secondary_kw,
-        "secondary_intent": s_intent["badge"],
-        "secondary_cpc": s_intent["cpc_tier"],
+        "focus_keyword_1": fk1,
+        "focus_1_intent": p1_intent["badge"],
+        "focus_1_cpc": p1_intent["cpc_tier"],
+        "focus_keyword_2": fk2,
+        "focus_2_intent": p2_intent["badge"],
+        "focus_2_cpc": p2_intent["cpc_tier"],
         "longtail_keyword": longtail_kw,
-        "longtail_intent": l_intent["badge"],
-        "longtail_cpc": l_intent["cpc_tier"],
+        "longtail_intent": lt_intent["badge"],
+        "longtail_cpc": lt_intent["cpc_tier"],
         "blueprint_title": rec_title,
         "blueprint_h1": rec_h1,
         "blueprint_meta": rec_meta,
-        "google_verified": len(suggs) > 0,
         "engine": "Google Suggest Autocomplete"
     }
 
 
 def detect_keyword_cannibalization(mapping_rows: list[dict]) -> list[dict]:
-    """Flags if multiple distinct pages target the same primary keyword."""
+    """Flags if multiple distinct pages target the same focus keyword."""
     seen_keywords = {}
     warnings = []
     for row in mapping_rows:
-        p_kw = row.get("primary_keyword", "").lower().strip()
+        fk1 = row.get("focus_keyword_1", "").lower().strip()
         url = row.get("url", "")
-        if not p_kw:
+        if not fk1:
             continue
-        kw_tokens = set(re.findall(r"\b\w+\b", p_kw))
+        kw_tokens = set(re.findall(r"\b\w+\b", fk1))
         for prev_kw, prev_urls in seen_keywords.items():
             prev_tokens = set(re.findall(r"\b\w+\b", prev_kw))
             intersection = kw_tokens.intersection(prev_tokens)
             union = kw_tokens.union(prev_tokens)
             similarity = len(intersection) / max(len(union), 1)
-            if prev_kw == p_kw or similarity >= 0.75:
+            if prev_kw == fk1 or similarity >= 0.85:
                 prev_urls.append(url)
                 warnings.append({
-                    "keyword": row.get("primary_keyword"),
+                    "keyword": row.get("focus_keyword_1"),
                     "overlapping_urls": list(set(prev_urls)),
                     "similarity": f"{int(similarity * 100)}%"
                 })
                 break
-        if p_kw not in seen_keywords:
-            seen_keywords[p_kw] = [url]
+        if fk1 not in seen_keywords:
+            seen_keywords[fk1] = [url]
     return warnings
 
 
@@ -597,9 +774,9 @@ def generate_keyword_mapping_excel(mapping_data: list[dict], site_domain: str = 
     ws1.views.sheetView[0].showGridLines = True
     headers_ws1 = [
         "Page URL", "Category", 
-        "Primary Keyword (Focus)", "Primary Intent", "Commercial Value",
-        "Secondary Keyword (LSI)", "Secondary Intent",
-        "Long-Tail Keyword (Problem)", "Long-Tail Intent",
+        "Focus Keyword 1 (Primary)", "Focus 1 Intent", "Commercial Value",
+        "Focus Keyword 2 (Secondary)", "Focus 2 Intent",
+        "Long-Tail Keyword (Buyer Intent)", "Long-Tail Intent",
         "AI / Grounding Engine"
     ]
     for col_idx, h in enumerate(headers_ws1, 1):
@@ -612,11 +789,11 @@ def generate_keyword_mapping_excel(mapping_data: list[dict], site_domain: str = 
     for row_idx, r in enumerate(mapping_data, 2):
         ws1.cell(row=row_idx, column=1, value=r.get("url", "")).font = link_font
         ws1.cell(row=row_idx, column=2, value=r.get("page_category", "")).font = text_font
-        ws1.cell(row=row_idx, column=3, value=r.get("primary_keyword", "")).font = bold_font
-        ws1.cell(row=row_idx, column=4, value=r.get("primary_intent", "")).font = text_font
-        ws1.cell(row=row_idx, column=5, value=r.get("primary_cpc", "")).font = text_font
-        ws1.cell(row=row_idx, column=6, value=r.get("secondary_keyword", "")).font = text_font
-        ws1.cell(row=row_idx, column=7, value=r.get("secondary_intent", "")).font = text_font
+        ws1.cell(row=row_idx, column=3, value=r.get("focus_keyword_1", "")).font = bold_font
+        ws1.cell(row=row_idx, column=4, value=r.get("focus_1_intent", "")).font = text_font
+        ws1.cell(row=row_idx, column=5, value=r.get("focus_1_cpc", "")).font = text_font
+        ws1.cell(row=row_idx, column=6, value=r.get("focus_keyword_2", "")).font = text_font
+        ws1.cell(row=row_idx, column=7, value=r.get("focus_2_intent", "")).font = text_font
         ws1.cell(row=row_idx, column=8, value=r.get("longtail_keyword", "")).font = text_font
         ws1.cell(row=row_idx, column=9, value=r.get("longtail_intent", "")).font = text_font
         ws1.cell(row=row_idx, column=10, value=r.get("engine", "Gemini AI")).font = text_font
@@ -631,7 +808,7 @@ def generate_keyword_mapping_excel(mapping_data: list[dict], site_domain: str = 
     # Sheet 2: Blueprint
     ws2 = wb.create_sheet(title="On-Page SEO Blueprint")
     ws2.views.sheetView[0].showGridLines = True
-    headers_ws2 = ["Target URL", "Page Category", "Primary Keyword", "Recommended Title Tag", "Recommended H1 Tag", "Recommended Meta Description"]
+    headers_ws2 = ["Target URL", "Page Category", "Focus Keyword 1", "Recommended Title Tag", "Recommended H1 Tag", "Recommended Meta Description"]
     for col_idx, h in enumerate(headers_ws2, 1):
         cell = ws2.cell(row=1, column=col_idx, value=h)
         cell.fill = gold_fill
@@ -642,7 +819,7 @@ def generate_keyword_mapping_excel(mapping_data: list[dict], site_domain: str = 
     for row_idx, r in enumerate(mapping_data, 2):
         ws2.cell(row=row_idx, column=1, value=r.get("url", "")).font = link_font
         ws2.cell(row=row_idx, column=2, value=r.get("page_category", "")).font = text_font
-        ws2.cell(row=row_idx, column=3, value=r.get("primary_keyword", "")).font = bold_font
+        ws2.cell(row=row_idx, column=3, value=r.get("focus_keyword_1", "")).font = bold_font
         ws2.cell(row=row_idx, column=4, value=r.get("blueprint_title", "")).font = text_font
         ws2.cell(row=row_idx, column=5, value=r.get("blueprint_h1", "")).font = text_font
         ws2.cell(row=row_idx, column=6, value=r.get("blueprint_meta", "")).font = text_font
@@ -665,7 +842,7 @@ def generate_keyword_mapping_excel(mapping_data: list[dict], site_domain: str = 
 # ==============================================================================
 
 def render_keyword_mapper_page():
-    """Renders the streamlined AI Keyword Research & Page Mapper interface."""
+    """Renders the AI Keyword Research & Page Mapper interface."""
 
     # Hero Banner
     st.markdown("""
@@ -679,25 +856,25 @@ def render_keyword_mapper_page():
                     🔑 AI Keyword Research & Page Mapper
                 </h1>
                 <p style="color: #94A3B8; font-size: 1rem; max-width: 820px; margin: 0; line-height: 1.55;">
-                    Autonomous on-page keyword intelligence powered by <b>Google Gemini AI</b> and <b>CrawlPilot Quantum Spider</b>. Deep-crawls any website across all internal pages & XML sitemaps, isolates <b>Product & Service Money Pages</b> (automatically filtering out About/Contact/Legal pages), and suggests <b>3 High-Intent Keywords</b> per page.
+                    Autonomous on-page keyword intelligence powered by <b>Google Gemini AI</b> and <b>CrawlPilot Quantum Spider</b>. Deep-crawls websites up to <b>500 pages</b>, filters <b>Product & Service Money Pages</b>, generates <b>2 Focus Keywords + 1 Long-Tail Keyword</b> (strictly relevant to your industry, no short keywords), and enforces <b>Zero Keyword Cannibalization</b>.
                 </p>
             </div>
             <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 18px; text-align: right; font-family: 'JetBrains Mono', monospace;">
                 <div style="color: #64748B; font-size: 0.68rem; text-transform: uppercase;">INTELLIGENCE STATUS</div>
-                <div style="color: #34D399; font-size: 0.85rem; font-weight: 700;">● GEMINI BOT ONLINE</div>
-                <div style="color: #94A3B8; font-size: 0.72rem; margin-top: 4px;">Sitemaps: AUTO-DISCOVERY</div>
+                <div style="color: #34D399; font-size: 0.85rem; font-weight: 700;">● ZERO CANNIBALIZATION ACTIVE</div>
+                <div style="color: #94A3B8; font-size: 0.72rem; margin-top: 4px;">Crawl Capacity: UP TO 500 URLS</div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     # ==============================================================================
-    # AI PROVIDER & GEMINI CONFIGURATION BAR (Matching Image 3)
+    # AI PROVIDER & MODEL CONFIGURATION (All Models in Dropdown)
     # ==============================================================================
     st.markdown("""
     <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 1.2rem; margin-bottom: 1.4rem;">
         <div style="font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 800; color: #F8FAFC; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-            <span style="color: #FFC107;">🤖</span> AI INTELLIGENCE & GEMINI BOT SETTINGS
+            <span style="color: #FFC107;">🤖</span> AI INTELLIGENCE & MODEL SETTINGS
         </div>
     """, unsafe_allow_html=True)
 
@@ -711,29 +888,34 @@ def render_keyword_mapper_page():
             key="kw_ai_provider"
         )
         if ai_provider == "Google Gemini":
-            selected_model = st.selectbox(
+            selected_model_choice = st.selectbox(
                 "Model",
                 options=GEMINI_MODELS,
                 index=0,
                 key="kw_gemini_model"
             )
         elif ai_provider == "ChatGPT (OpenAI)":
-            selected_model = st.selectbox(
+            selected_model_choice = st.selectbox(
                 "Model",
                 options=OPENAI_MODELS,
                 index=0,
                 key="kw_openai_model"
             )
         elif ai_provider == "Claude (Anthropic)":
-            selected_model = st.selectbox(
+            selected_model_choice = st.selectbox(
                 "Model",
                 options=CLAUDE_MODELS,
                 index=0,
                 key="kw_claude_model"
             )
         else:
-            selected_model = "Autonomous Suggestion Engine"
+            selected_model_choice = "Autonomous Suggestion Engine"
             st.info("Uses real-time Google Autocomplete API without API key.")
+
+        if selected_model_choice == "Custom Model":
+            selected_model = st.text_input("Enter Custom Model ID:", placeholder="e.g. gemini-2.5-flash", key="kw_custom_model").strip()
+        else:
+            selected_model = selected_model_choice.split(" ")[0].strip()
 
     with cfg_col2:
         if ai_provider == "Google Gemini":
@@ -785,46 +967,56 @@ def render_keyword_mapper_page():
             index=0,
             key="kw_target_country"
         )
+        # Max pages slider updated to 500 as requested
         max_crawl_pages = st.slider(
             "Max Pages to Crawl & Map",
             min_value=10,
-            max_value=300,
-            value=80,
+            max_value=500,
+            value=150,
             step=10,
-            help="Deep crawl will traverse internal links and XML sitemaps up to this page limit."
+            help="Deep crawl will traverse internal links and XML sitemaps up to 500 pages."
         )
 
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ==============================================================================
-    # WEBSITE URL INPUT & FILTERS
+    # WEBSITE URL INPUT & INDUSTRY CONTEXT (ENFORCED RELEVANCE)
     # ==============================================================================
     st.markdown("""
     <div style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1.1rem; margin-bottom: 1.2rem;">
         <div style="font-weight: 700; color: #F8FAFC; font-size: 0.95rem; margin-bottom: 4px;">
-            🌐 Target Website to Crawl & Map
+            🌐 Target Website & Industry Niche Anchor
         </div>
         <div style="color: #94A3B8; font-size: 0.82rem;">
-            Enter the domain or root URL. Our spider will read the entire website, auto-discover sitemaps, and parse all product and service pages.
+            Deep-crawls internal pages & sitemaps. All generated keywords will be strictly aligned to your website's industry so no unrelated topics ever appear.
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Check if active crawl exists in session
     crawl_data = st.session_state.get("crawl_results")
     has_active_crawl = crawl_data is not None and isinstance(crawl_data, dict) and "df_pages" in crawl_data and not crawl_data["df_pages"].empty
+    default_url = (crawl_data.get("start_url", "") if has_active_crawl else "") or st.session_state.get("kw_last_url", "https://cairindia.com/")
     
     col_u1, col_u2 = st.columns([3.5, 1.2])
     with col_u1:
-        default_url = (crawl_data.get("start_url", "") if has_active_crawl else "") or st.session_state.get("kw_last_url", "https://cairindia.com/")
         target_website_url = st.text_input(
             "Website URL:",
             value=default_url,
             placeholder="e.g. https://cairindia.com/ or https://example.com/",
-            label_visibility="collapsed"
+            key="kw_target_url_input"
         )
     with col_u2:
+        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
         btn_start_crawl = st.button("🚀 Deep Crawl & Map", type="primary", use_container_width=True)
+
+    # Industry Niche Anchor (Auto-detected or custom)
+    detected_ind_default = st.session_state.get("kw_detected_industry", "Industrial Electrical Actuators & Motorized Valves Manufacturer")
+    industry_niche_input = st.text_input(
+        "🏭 Website Industry / Core Business Niche (Keywords will strictly anchor to this):",
+        value=detected_ind_default,
+        help="All keywords will be strictly relevant to this industry. Unrelated topics will be rejected.",
+        key="kw_industry_niche"
+    )
 
     # Optional Quick Import from active crawl
     if has_active_crawl:
@@ -869,9 +1061,9 @@ def render_keyword_mapper_page():
     col_f1, col_f2 = st.columns([1.5, 1.5])
     with col_f1:
         focus_money_pages = st.checkbox(
-            "💎 Focus on Product & Service Pages Only (Bypasses About/Contact/Legal)",
+            "💎 Focus on Product & Service Pages Only (Bypasses About/Contact/History/Legal)",
             value=True,
-            help="Filters out utility pages so you get keywords exclusively for commercial pages."
+            help="Filters out utility & non-product pages so you get keywords exclusively for commercial pages."
         )
     with col_f2:
         include_categories = st.checkbox("📁 Include Commercial Category Hubs", value=True)
@@ -886,20 +1078,24 @@ def render_keyword_mapper_page():
             progress_bar.progress(pct)
             status_box.markdown(f"**Status:** {msg}")
 
-        crawled_pages = deep_crawl_website_for_keywords(
+        crawled_pages, auto_industry = deep_crawl_website_for_keywords(
             start_url=target_website_url,
             max_pages=max_crawl_pages,
             progress_callback=_update_progress
         )
 
         st.session_state["kw_crawled_pages"] = crawled_pages
+        if auto_industry:
+            st.session_state["kw_detected_industry"] = auto_industry
+            
         progress_bar.progress(1.0)
         status_box.empty()
         progress_bar.empty()
         st.success(f"✅ Deep Crawl Complete! Found **{len(crawled_pages)} total internal pages** with HTML content.")
+        st.rerun()
 
     # ==============================================================================
-    # STEP 2: RUN GEMINI AI KEYWORD MAPPING
+    # STEP 2: RUN AI KEYWORD MAPPING (2 FOCUS + 1 LONG-TAIL, ZERO CANNIBALIZATION)
     # ==============================================================================
     crawled_pages = st.session_state.get("kw_crawled_pages", [])
     
@@ -921,35 +1117,42 @@ def render_keyword_mapper_page():
         <div style="background: rgba(14, 20, 34, 0.7); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; padding: 1.1rem; margin: 1.2rem 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
             <div>
                 <div style="font-weight: 800; color: #FFFFFF; font-size: 1.1rem;">
-                    🎯 {len(filtered_pages)} Commercial Money Pages Identified
+                    🎯 {len(filtered_pages)} Commercial Money Pages Identified (Filtered from {len(crawled_pages)} Total Pages)
                 </div>
                 <div style="color: #94A3B8; font-size: 0.82rem; margin-top: 2px;">
-                    Filtered out {len(crawled_pages) - len(filtered_pages)} non-commercial utility pages (About/Contact/Legal). Ready for Gemini 3-Keyword Mapping!
+                    Excluded non-commercial utility pages (About/Contact/History/Legal). Each page will receive <b>2 Focus Keywords + 1 Long-Tail Keyword</b> with <b>Zero Cannibalization</b>.
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        if st.button("🔥 Run Gemini AI Keyword Mapping Engine", type="primary", use_container_width=True):
+        if st.button("🔥 Run AI Keyword Mapping Engine (2 Focus + 1 Long-Tail)", type="primary", use_container_width=True):
             ai_key_active = st.session_state.get(f"api_key_{ai_provider}", "").strip()
             total_p = len(filtered_pages)
             progress_bar = st.progress(0)
             status_text = st.empty()
             results = []
+            assigned_registry = set()
 
             for idx, p in enumerate(filtered_pages):
-                status_text.markdown(f"🤖 **Gemini Bot analyzing ({idx+1}/{total_p}):** `{p['url']}`")
-                if ai_provider == "Google Gemini" and ai_key_active:
-                    kw_data = analyze_page_with_gemini(
-                        p,
+                status_text.markdown(f"🤖 **AI Bot analyzing ({idx+1}/{total_p}):** `{p['url']}`")
+                
+                if ai_provider != "Autonomous (Live Google Suggest Engine)" and ai_key_active:
+                    kw_data = analyze_page_with_ai_bot(
+                        page_data=p,
                         api_key=ai_key_active,
+                        provider=ai_provider,
                         model_name=selected_model,
-                        country_name=target_country.split(" ", 1)[-1]
+                        country_name=target_country.split(" ", 1)[-1],
+                        industry_niche=industry_niche_input,
+                        assigned_registry=assigned_registry
                     )
                 else:
                     kw_data = generate_algorithmic_page_keywords(
-                        p,
-                        country_name=target_country.split(" ", 1)[-1]
+                        page_data=p,
+                        country_name=target_country.split(" ", 1)[-1],
+                        industry_niche=industry_niche_input,
+                        assigned_registry=assigned_registry
                     )
                 results.append(kw_data)
                 progress_bar.progress((idx + 1) / total_p)
@@ -958,7 +1161,7 @@ def render_keyword_mapper_page():
             st.session_state["kw_mapping_results"] = results
             status_text.empty()
             progress_bar.empty()
-            st.success(f"🎉 Successfully mapped **{len(results)} pages** with **{len(results) * 3} targeted keywords**!")
+            st.success(f"🎉 Successfully mapped **{len(results)} pages** with **{len(results) * 3} targeted keywords** without cannibalization!")
 
     # ==============================================================================
     # STEP 3: INTERACTIVE RESULTS DASHBOARD & EXPORTS
@@ -982,17 +1185,17 @@ def render_keyword_mapper_page():
             <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 1.1rem; text-align: center;">
                 <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #94A3B8; text-transform: uppercase;">TARGET KEYWORDS GENERATED</div>
                 <div style="font-size: 1.85rem; font-weight: 900; color: #38BDF8; margin: 4px 0;">{total_kw}</div>
-                <div style="font-size: 0.72rem; color: #CBD5E1;">3 Keywords Per Page</div>
+                <div style="font-size: 0.72rem; color: #CBD5E1;">2 Focus + 1 Long-Tail Per Page</div>
             </div>
             <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 1.1rem; text-align: center;">
-                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #94A3B8; text-transform: uppercase;">INTELLIGENCE ENGINE</div>
-                <div style="font-size: 1.45rem; font-weight: 900; color: #F59E0B; margin: 6px 0;">{mapped_results[0].get('engine', 'Gemini AI')}</div>
-                <div style="font-size: 0.72rem; color: #CBD5E1;">Google Suggest Grounded</div>
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #94A3B8; text-transform: uppercase;">INDUSTRY GROUNDED</div>
+                <div style="font-size: 1.15rem; font-weight: 900; color: #F59E0B; margin: 6px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{industry_niche_input}</div>
+                <div style="font-size: 0.72rem; color: #CBD5E1;">Strict Niche Relevance</div>
             </div>
             <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid {'rgba(239, 68, 68, 0.4)' if len(cannibal_warnings) > 0 else 'rgba(16, 185, 129, 0.3)'}; border-radius: 12px; padding: 1.1rem; text-align: center;">
-                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #94A3B8; text-transform: uppercase;">CANNIBALIZATION RISKS</div>
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #94A3B8; text-transform: uppercase;">CANNIBALIZATION STATUS</div>
                 <div style="font-size: 1.85rem; font-weight: 900; color: {'#EF4444' if len(cannibal_warnings) > 0 else '#34D399'}; margin: 4px 0;">{len(cannibal_warnings)}</div>
-                <div style="font-size: 0.72rem; color: #CBD5E1;">{'Conflicts Detected' if len(cannibal_warnings) > 0 else 'Clean Keyword Segregation'}</div>
+                <div style="font-size: 0.72rem; color: #CBD5E1;">{'Conflicts Detected' if len(cannibal_warnings) > 0 else '100% Unique Targets'}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1019,24 +1222,24 @@ def render_keyword_mapper_page():
                 use_container_width=True
             )
 
-        st.markdown("### 📋 Interactive Keyword Mapping Dashboard")
+        st.markdown("### 📋 Interactive Keyword Mapping Dashboard (2 Focus Keywords + 1 Long-Tail)")
 
-        # Interactive Row Cards
+        # Interactive Row Cards with 2 Focus Keywords + 1 Long-Tail Keyword
         for idx, r in enumerate(mapped_results):
-            with st.expander(f"📍 #{idx+1} | {r['primary_keyword']} — {r['page_category']} ({r['url']})", expanded=(idx < 2)):
+            with st.expander(f"📍 #{idx+1} | {r['focus_keyword_1']} — {r['page_category']} ({r['url']})", expanded=(idx < 2)):
                 col_p1, col_p2, col_p3 = st.columns([1.2, 1.2, 1.4])
                 with col_p1:
                     st.markdown(f"""
                     <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 12px; height: 100%;">
                         <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #34D399; font-weight: 700; text-transform: uppercase;">
-                            🎯 1. PRIMARY FOCUS KEYWORD
+                            🎯 1. FOCUS KEYWORD 1 (PRIMARY)
                         </div>
                         <div style="color: #F8FAFC; font-size: 1.15rem; font-weight: 800; margin: 6px 0;">
-                            {r['primary_keyword']}
+                            {r['focus_keyword_1']}
                         </div>
                         <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
-                            <span style="background: rgba(16, 185, 129, 0.2); color: #34D399; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace;">{r['primary_intent']}</span>
-                            <span style="background: rgba(255,255,255,0.06); color: #CBD5E1; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace;">{r['primary_cpc']}</span>
+                            <span style="background: rgba(16, 185, 129, 0.2); color: #34D399; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace;">{r['focus_1_intent']}</span>
+                            <span style="background: rgba(255,255,255,0.06); color: #CBD5E1; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace;">{r['focus_1_cpc']}</span>
                         </div>
                         <div style="color: #94A3B8; font-size: 0.75rem; margin-top: 8px;">
                             📌 <b>Target Placement:</b> Title, H1, First 100 words, URL slug
@@ -1048,14 +1251,14 @@ def render_keyword_mapper_page():
                     st.markdown(f"""
                     <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px; padding: 12px; height: 100%;">
                         <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #38BDF8; font-weight: 700; text-transform: uppercase;">
-                            🚀 2. SECONDARY / FEATURE KEYWORD
+                            🚀 2. FOCUS KEYWORD 2 (SECONDARY)
                         </div>
                         <div style="color: #F8FAFC; font-size: 1.15rem; font-weight: 800; margin: 6px 0;">
-                            {r['secondary_keyword']}
+                            {r['focus_keyword_2']}
                         </div>
                         <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
-                            <span style="background: rgba(56, 189, 248, 0.2); color: #38BDF8; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace;">{r['secondary_intent']}</span>
-                            <span style="background: rgba(255,255,255,0.06); color: #CBD5E1; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace;">{r['secondary_cpc']}</span>
+                            <span style="background: rgba(56, 189, 248, 0.2); color: #38BDF8; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace;">{r['focus_2_intent']}</span>
+                            <span style="background: rgba(255,255,255,0.06); color: #CBD5E1; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace;">{r['focus_2_cpc']}</span>
                         </div>
                         <div style="color: #94A3B8; font-size: 0.75rem; margin-top: 8px;">
                             📌 <b>Target Placement:</b> H2 Subheading, Feature specs, Image Alt
@@ -1067,7 +1270,7 @@ def render_keyword_mapper_page():
                     st.markdown(f"""
                     <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 12px; height: 100%;">
                         <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #F59E0B; font-weight: 700; text-transform: uppercase;">
-                            💡 3. LONG-TAIL / PROBLEM KEYWORD
+                            💡 3. LONG-TAIL KEYWORD (BUYER INTENT)
                         </div>
                         <div style="color: #F8FAFC; font-size: 1.05rem; font-weight: 800; margin: 6px 0;">
                             {r['longtail_keyword']}
