@@ -636,40 +636,47 @@ def add_insight_to_task_board(task_title: str, target_url: str, priority: str, i
 def render_unified_gsc_ga4_studio():
     """Renders the complete Unified GSC + GA4 Intelligence & Opportunity Engine."""
 
-    # 1. Cockpit Hero Banner matching CrawlPilot Cyber Cockpit Theme
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, rgba(11, 20, 38, 0.92) 0%, rgba(6, 12, 24, 0.98) 100%); padding: 2.2rem 2.6rem; border-radius: 20px; border: 1px solid rgba(0, 240, 255, 0.22); margin-bottom: 1.5rem; box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 35px rgba(0, 240, 255, 0.08); position: relative; overflow: hidden; backdrop-filter: blur(20px);">
-        <!-- Ambient Cyber Corner Glows -->
-        <div style="position: absolute; top: -40px; right: 20%; width: 220px; height: 180px; background: radial-gradient(circle, rgba(0, 240, 255, 0.15) 0%, transparent 70%); pointer-events: none;"></div>
-        <div style="position: absolute; bottom: -30px; left: 10%; width: 180px; height: 140px; background: radial-gradient(circle, rgba(45, 212, 191, 0.12) 0%, transparent 70%); pointer-events: none;"></div>
+    # 1. Cockpit Hero Banner matching CrawlPilot Cyber Cockpit Theme (clean unindented HTML)
+    hero_html = (
+        '<div style="background: linear-gradient(135deg, rgba(11, 20, 38, 0.92) 0%, rgba(6, 12, 24, 0.98) 100%); '
+        'padding: 2.2rem 2.6rem; border-radius: 20px; border: 1px solid rgba(0, 240, 255, 0.22); margin-bottom: 1.5rem; '
+        'box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 35px rgba(0, 240, 255, 0.08); position: relative; overflow: hidden; backdrop-filter: blur(20px);">'
+        '<div style="position: absolute; top: -40px; right: 20%; width: 220px; height: 180px; background: radial-gradient(circle, rgba(0, 240, 255, 0.15) 0%, transparent 70%); pointer-events: none;"></div>'
+        '<div style="position: absolute; bottom: -30px; left: 10%; width: 180px; height: 140px; background: radial-gradient(circle, rgba(45, 212, 191, 0.12) 0%, transparent 70%); pointer-events: none;"></div>'
+        '<div style="position: relative; z-index: 2;">'
+        '<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem;">'
+        '<div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: \'JetBrains Mono\', monospace; box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);">'
+        '<span class="hud-beacon"></span> UNIFIED GSC + GA4 ENGINE</div>'
+        '<div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(0, 240, 255, 0.12); color: #00F0FF; border: 1px solid rgba(0, 240, 255, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: \'JetBrains Mono\', monospace; box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);">'
+        '<span>⚡</span> PRE-CLICK & POST-CLICK MERGED</div>'
+        '<div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(45, 212, 191, 0.12); color: #2DD4BF; border: 1px solid rgba(45, 212, 191, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: \'JetBrains Mono\', monospace;">'
+        '<span>🎯</span> CONVERSION & OPPORTUNITY ENGINE</div>'
+        '</div>'
+        '<div style="font-family: \'JetBrains Mono\', monospace; font-size: 0.72rem; color: #00F0FF; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 6px;">'
+        'TECHNICAL SEO ARCHITECTURE • REVENUE & TRAFFIC EXPANSION</div>'
+        '<h1 style="font-family: \'Orbitron\', \'Space Grotesk\', sans-serif; font-size: 2.7rem; font-weight: 900; color: #FFFFFF; margin: 0 0 0.5rem 0; letter-spacing: -0.01em;">'
+        '<span style="color: #FFFFFF; text-shadow: 0 0 30px rgba(255,255,255,0.4);">Unified</span> <span style="background: linear-gradient(135deg, #00F0FF 0%, #2DD4BF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 30px rgba(0, 240, 255, 0.45);">(GSC + GA4) Intelligence</span></h1>'
+        '<p style="color: #94A3B8; font-size: 0.98rem; max-width: 860px; margin: 0; line-height: 1.65; font-family: \'Space Grotesk\', sans-serif;">'
+        'Actionable SEO Planning & Opportunity Engine that joins pre-click rankings and search intent with post-click behavioral analytics and conversions. Uncover striking distance keywords, CTR opportunities, keyword cannibalization, content decay, and revenue projections.'
+        '</p></div></div>'
+    )
+    st.markdown(hero_html, unsafe_allow_html=True)
 
-        <div style="position: relative; z-index: 2;">
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem;">
-                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);">
-                    <span class="hud-beacon"></span> UNIFIED GSC + GA4 ENGINE
-                </div>
-                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(0, 240, 255, 0.12); color: #00F0FF; border: 1px solid rgba(0, 240, 255, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);">
-                    <span>⚡</span> PRE-CLICK & POST-CLICK MERGED
-                </div>
-                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(45, 212, 191, 0.12); color: #2DD4BF; border: 1px solid rgba(45, 212, 191, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
-                    <span>🎯</span> CONVERSION & OPPORTUNITY ENGINE
-                </div>
-            </div>
+    tab_suite, tab_opps = st.tabs([
+        "🧭 15-Tab Full SEO Intelligence Suite & Future Roadmap",
+        "⚡ Striking Distance, Cannibalization & Revenue Modules"
+    ])
 
-            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #00F0FF; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 6px;">
-                TECHNICAL SEO ARCHITECTURE • REVENUE & TRAFFIC EXPANSION
-            </div>
+    with tab_suite:
+        from gsc_advanced_analyzer import render_advance_gsc_analysis_page
+        render_advance_gsc_analysis_page(standalone_header=False)
 
-            <h1 style="font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 2.7rem; font-weight: 900; color: #FFFFFF; margin: 0 0 0.5rem 0; letter-spacing: -0.01em;">
-                <span style="color: #FFFFFF; text-shadow: 0 0 30px rgba(255,255,255,0.4);">Unified</span> <span style="background: linear-gradient(135deg, #00F0FF 0%, #2DD4BF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 30px rgba(0, 240, 255, 0.45);">(GSC + GA4) Intelligence</span>
-            </h1>
+    with tab_opps:
+        _render_unified_opportunity_modules()
 
-            <p style="color: #94A3B8; font-size: 0.98rem; max-width: 860px; margin: 0; line-height: 1.65; font-family: 'Space Grotesk', sans-serif;">
-                Actionable SEO Planning & Opportunity Engine that joins pre-click rankings and search intent with post-click behavioral analytics and conversions. Uncover striking distance keywords, CTR opportunities, keyword cannibalization, content decay, and revenue projections.
-            </p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+
+def _render_unified_opportunity_modules():
+    """Renders the 6 deep-dive conversion, cannibalization, decay & revenue modules."""
 
     # 2. Ingestion Options (OAuth 2.0 vs Manual Upload)
     data_source_mode = st.radio(
@@ -715,17 +722,16 @@ def render_unified_gsc_ga4_studio():
             active_creds = get_authenticated_credentials()
 
             if active_creds:
-                st.markdown("""
-                <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 12, 24, 0.9) 100%); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 14px; padding: 1.1rem 1.6rem; margin-bottom: 1.3rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span class="hud-beacon"></span>
-                        <div>
-                            <div style="color: #34D399; font-weight: 800; font-size: 1.05rem; font-family: 'Space Grotesk', sans-serif;">Live Google Account Connected</div>
-                            <div style="color: #94A3B8; font-size: 0.82rem; font-family: 'Space Grotesk', sans-serif;">Direct API link active. Select properties to join GSC & GA4 performance data.</div>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(
+                    '<div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 12, 24, 0.9) 100%); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 14px; padding: 1.1rem 1.6rem; margin-bottom: 1.3rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: gap: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">'
+                    '<div style="display: flex; align-items: center; gap: 12px;">'
+                    '<span class="hud-beacon"></span>'
+                    '<div>'
+                    '<div style="color: #34D399; font-weight: 800; font-size: 1.05rem; font-family: \'Space Grotesk\', sans-serif;">Live Google Account Connected</div>'
+                    '<div style="color: #94A3B8; font-size: 0.82rem; font-family: \'Space Grotesk\', sans-serif;">Direct API link active. Select properties to join GSC & GA4 performance data.</div>'
+                    '</div></div></div>',
+                    unsafe_allow_html=True
+                )
 
                 with st.spinner("Auto-detecting verified Search Console & GA4 properties..."):
                     gsc_properties = fetch_live_gsc_properties(active_creds)
@@ -815,16 +821,16 @@ def render_unified_gsc_ga4_studio():
 
             else:
                 # Login Banner
-                st.markdown("""
-                <div style="background: linear-gradient(135deg, rgba(11, 20, 38, 0.92) 0%, rgba(6, 12, 24, 0.98) 100%); border: 1px solid rgba(0, 240, 255, 0.22); border-radius: 16px; padding: 1.6rem 2rem; margin-bottom: 1.3rem; box-shadow: 0 15px 35px rgba(0,0,0,0.65), 0 0 25px rgba(0, 240, 255, 0.08); backdrop-filter: blur(20px);">
-                    <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 800; color: #FFFFFF; font-size: 1.25rem; margin-bottom: 6px; display: flex; align-items: center; gap: 10px;">
-                        <span style="color: #00F0FF; font-size: 1.3rem;">🔗</span> Connect Your Google Account
-                    </div>
-                    <div style="color: #94A3B8; font-size: 0.92rem; line-height: 1.6; font-family: 'Space Grotesk', sans-serif;">
-                        One-click sign in via Google OAuth 2.0 to access your verified Search Console domains and GA4 properties.
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(
+                    '<div style="background: linear-gradient(135deg, rgba(11, 20, 38, 0.92) 0%, rgba(6, 12, 24, 0.98) 100%); border: 1px solid rgba(0, 240, 255, 0.22); border-radius: 16px; padding: 1.6rem 2rem; margin-bottom: 1.3rem; box-shadow: 0 15px 35px rgba(0,0,0,0.65), 0 0 25px rgba(0, 240, 255, 0.08); backdrop-filter: blur(20px);">'
+                    '<div style="font-family: \'Space Grotesk\', sans-serif; font-weight: 800; color: #FFFFFF; font-size: 1.25rem; margin-bottom: 6px; display: flex; align-items: center; gap: 10px;">'
+                    '<span style="color: #00F0FF; font-size: 1.3rem;">🔗</span> Connect Your Google Account'
+                    '</div>'
+                    '<div style="color: #94A3B8; font-size: 0.92rem; line-height: 1.6; font-family: \'Space Grotesk\', sans-serif;">'
+                    'One-click sign in via Google OAuth 2.0 to access your verified Search Console domains and GA4 properties.'
+                    '</div></div>',
+                    unsafe_allow_html=True
+                )
 
                 with st.expander("⚙️ Configure Google OAuth Credentials", expanded=(not client_id or not client_secret)):
                     ui_cid = st.text_input("Client ID", value=client_id, placeholder="xxxx.apps.googleusercontent.com", key="m_oauth_cid")
@@ -944,15 +950,15 @@ def render_unified_gsc_ga4_studio():
     # --------------------------------------------------------------------------
     master_data = st.session_state.get("master_dataset")
     if not master_data or master_data.get("queries") is None or master_data["queries"].empty:
-        st.markdown("""
-        <div style="background: rgba(11, 20, 38, 0.6); border: 1px dashed rgba(0, 240, 255, 0.25); border-radius: 16px; padding: 2.8rem 2rem; text-align: center; margin-top: 1.5rem;">
-            <div style="font-size: 3rem; margin-bottom: 0.8rem;">⚡</div>
-            <h3 style="color: #FFFFFF; font-weight: 800; margin-bottom: 0.5rem; font-family: 'Space Grotesk', sans-serif;">Awaiting GSC & GA4 Data</h3>
-            <p style="color: #94A3B8; font-size: 0.98rem; max-width: 620px; margin: 0 auto 1.5rem; line-height: 1.6; font-family: 'Space Grotesk', sans-serif;">
-                Click <b>'Sign In With Google'</b> above for instant automatic fetching, or click <b>'Load Industrial Demo Dataset'</b> to inspect all 6 modules immediately.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div style="background: rgba(11, 20, 38, 0.6); border: 1px dashed rgba(0, 240, 255, 0.25); border-radius: 16px; padding: 2.8rem 2rem; text-align: center; margin-top: 1.5rem;">'
+            '<div style="font-size: 3rem; margin-bottom: 0.8rem;">⚡</div>'
+            '<h3 style="color: #FFFFFF; font-weight: 800; margin-bottom: 0.5rem; font-family: \'Space Grotesk\', sans-serif;">Awaiting GSC & GA4 Data</h3>'
+            '<p style="color: #94A3B8; font-size: 0.98rem; max-width: 620px; margin: 0 auto 1.5rem; line-height: 1.6; font-family: \'Space Grotesk\', sans-serif;">'
+            'Click <b>\'Sign In With Google\'</b> above for instant automatic fetching, or click <b>\'Load Industrial Demo Dataset\'</b> to inspect all 6 modules immediately.'
+            '</p></div>',
+            unsafe_allow_html=True
+        )
         return
 
     # --------------------------------------------------------------------------
@@ -986,75 +992,47 @@ def render_unified_gsc_ga4_studio():
     decay_count = len(audit_buckets["decay"])
     striking_count = len(opportunities["striking"])
 
-    st.markdown(f"""
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 1.6rem;">
-        <!-- 1. GSC Clicks -->
-        <div class="kpi-card-hud">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                <div style="font-size: 1.25rem;">🔍</div>
-                <span class="kpi-badge kpi-badge-cyan">Pre-Click</span>
-            </div>
-            <div class="kpi-label">TOTAL GSC CLICKS</div>
-            <div class="kpi-value" style="color: #00F0FF; text-shadow: 0 0 20px rgba(0, 240, 255, 0.45);">{tot_clicks:,}</div>
-            <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 70%; background: #00F0FF; box-shadow: 0 0 10px #00F0FF;"></div></div>
-        </div>
-
-        <!-- 2. GA4 Sessions -->
-        <div class="kpi-card-hud">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                <div style="font-size: 1.25rem;">📊</div>
-                <span class="kpi-badge kpi-badge-teal">Post-Click</span>
-            </div>
-            <div class="kpi-label">GA4 SESSIONS</div>
-            <div class="kpi-value" style="color: #2DD4BF; text-shadow: 0 0 20px rgba(45, 212, 191, 0.45);">{tot_sessions:,}</div>
-            <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 65%; background: #2DD4BF; box-shadow: 0 0 10px #2DD4BF;"></div></div>
-        </div>
-
-        <!-- 3. Conversions -->
-        <div class="kpi-card-hud">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                <div style="font-size: 1.25rem;">🎯</div>
-                <span class="kpi-badge kpi-badge-green">Outcomes</span>
-            </div>
-            <div class="kpi-label">GA4 KEY EVENTS</div>
-            <div class="kpi-value" style="color: #34D399; text-shadow: 0 0 20px rgba(52, 211, 153, 0.45);">{tot_conv:,}</div>
-            <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 55%; background: #34D399; box-shadow: 0 0 10px #34D399;"></div></div>
-        </div>
-
-        <!-- 4. Striking Distance -->
-        <div class="kpi-card-hud">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                <div style="font-size: 1.25rem;">⚡</div>
-                <span class="kpi-badge kpi-badge-amber">Quick Wins</span>
-            </div>
-            <div class="kpi-label">STRIKING KEYWORDS</div>
-            <div class="kpi-value" style="color: #FBBF24; text-shadow: 0 0 20px rgba(251, 191, 36, 0.45);">{striking_count:,}</div>
-            <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 50%; background: #FBBF24; box-shadow: 0 0 10px #FBBF24;"></div></div>
-        </div>
-
-        <!-- 5. Content Decay -->
-        <div class="kpi-card-hud">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                <div style="font-size: 1.25rem;">📉</div>
-                <span class="kpi-badge kpi-badge-red">>20% Loss</span>
-            </div>
-            <div class="kpi-label">DECAYING PAGES</div>
-            <div class="kpi-value" style="color: #FF6B4A; text-shadow: 0 0 20px rgba(255, 107, 74, 0.45);">{decay_count:,}</div>
-            <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 45%; background: #FF6B4A; box-shadow: 0 0 10px #FF6B4A;"></div></div>
-        </div>
-
-        <!-- 6. Cannibalization -->
-        <div class="kpi-card-hud">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                <div style="font-size: 1.25rem;">⚔️</div>
-                <span class="kpi-badge kpi-badge-red">SERP Conflict</span>
-            </div>
-            <div class="kpi-label">CANNIBALIZED QUERIES</div>
-            <div class="kpi-value" style="color: #F87171; text-shadow: 0 0 20px rgba(248, 113, 113, 0.45);">{len(cannibal_df):,}</div>
-            <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 40%; background: #F87171; box-shadow: 0 0 10px #F87171;"></div></div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    kpi_grid_html = (
+        '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 1.6rem;">'
+        '<div class="kpi-card-hud">'
+        '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">'
+        '<div style="font-size: 1.25rem;">🔍</div><span class="kpi-badge kpi-badge-cyan">Pre-Click</span></div>'
+        '<div class="kpi-label">TOTAL GSC CLICKS</div>'
+        f'<div class="kpi-value" style="color: #00F0FF; text-shadow: 0 0 20px rgba(0, 240, 255, 0.45);">{tot_clicks:,}</div>'
+        '<div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 70%; background: #00F0FF; box-shadow: 0 0 10px #00F0FF;"></div></div></div>'
+        '<div class="kpi-card-hud">'
+        '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">'
+        '<div style="font-size: 1.25rem;">📊</div><span class="kpi-badge kpi-badge-teal">Post-Click</span></div>'
+        '<div class="kpi-label">GA4 SESSIONS</div>'
+        f'<div class="kpi-value" style="color: #2DD4BF; text-shadow: 0 0 20px rgba(45, 212, 191, 0.45);">{tot_sessions:,}</div>'
+        '<div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 65%; background: #2DD4BF; box-shadow: 0 0 10px #2DD4BF;"></div></div></div>'
+        '<div class="kpi-card-hud">'
+        '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">'
+        '<div style="font-size: 1.25rem;">🎯</div><span class="kpi-badge kpi-badge-green">Outcomes</span></div>'
+        '<div class="kpi-label">GA4 KEY EVENTS</div>'
+        f'<div class="kpi-value" style="color: #34D399; text-shadow: 0 0 20px rgba(52, 211, 153, 0.45);">{tot_conv:,}</div>'
+        '<div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 55%; background: #34D399; box-shadow: 0 0 10px #34D399;"></div></div></div>'
+        '<div class="kpi-card-hud">'
+        '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">'
+        '<div style="font-size: 1.25rem;">⚡</div><span class="kpi-badge kpi-badge-amber">Quick Wins</span></div>'
+        '<div class="kpi-label">STRIKING KEYWORDS</div>'
+        f'<div class="kpi-value" style="color: #FBBF24; text-shadow: 0 0 20px rgba(251, 191, 36, 0.45);">{striking_count:,}</div>'
+        '<div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 50%; background: #FBBF24; box-shadow: 0 0 10px #FBBF24;"></div></div></div>'
+        '<div class="kpi-card-hud">'
+        '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">'
+        '<div style="font-size: 1.25rem;">📉</div><span class="kpi-badge kpi-badge-red">>20% Loss</span></div>'
+        '<div class="kpi-label">DECAYING PAGES</div>'
+        f'<div class="kpi-value" style="color: #FF6B4A; text-shadow: 0 0 20px rgba(255, 107, 74, 0.45);">{decay_count:,}</div>'
+        '<div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 45%; background: #FF6B4A; box-shadow: 0 0 10px #FF6B4A;"></div></div></div>'
+        '<div class="kpi-card-hud">'
+        '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">'
+        '<div style="font-size: 1.25rem;">⚔️</div><span class="kpi-badge kpi-badge-red">SERP Conflict</span></div>'
+        '<div class="kpi-label">CANNIBALIZED QUERIES</div>'
+        f'<div class="kpi-value" style="color: #F87171; text-shadow: 0 0 20px rgba(248, 113, 113, 0.45);">{len(cannibal_df):,}</div>'
+        '<div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 40%; background: #F87171; box-shadow: 0 0 10px #F87171;"></div></div></div>'
+        '</div>'
+    )
+    st.markdown(kpi_grid_html, unsafe_allow_html=True)
 
     # --------------------------------------------------------------------------
     # 6 SPECIALIZED PLANNING TABS (FLOATING RIBBON)

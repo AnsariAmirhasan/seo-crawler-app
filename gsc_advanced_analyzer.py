@@ -1013,23 +1013,25 @@ def generate_sample_gsc_data() -> Dict[str, pd.DataFrame]:
     }
 
 
-def render_advance_gsc_analysis_page():
+def render_advance_gsc_analysis_page(standalone_header: bool = True):
     """Main Streamlit renderer for the Advance GSC data Analysis service."""
 
     # 1. Header Banner
-    st.markdown("""
-    <div style="background: radial-gradient(130% 120% at 50% -10%, #1e1b4b 0%, #0F172A 60%, #020617 100%); padding: 2.5rem 2rem 2rem; border-radius: 20px; border: 1px solid rgba(139, 92, 246, 0.35); text-align: center; margin-bottom: 2rem; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.6);">
-        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.4); padding: 5px 16px; border-radius: 999px; margin-bottom: 12px;">
-            <span style="font-size: 0.85rem; font-weight: 800; color: #C4B5FD; letter-spacing: 0.06em; text-transform: uppercase;">📈 Google Search Console Deep Intelligence</span>
-        </div>
-        <h1 style="font-size: 2.75rem; font-weight: 900; color: #FFFFFF; letter-spacing: -0.03em; margin: 0 0 0.6rem 0; line-height: 1.15;">
-            Advance GSC Data Analysis
-        </h1>
-        <p style="color: #94A3B8; font-size: 1.05rem; max-width: 780px; margin: 0 auto; line-height: 1.6;">
-            Deep-dive into your Google Search Console performance data. Map every query to accurate target URLs (Brand ➔ Homepage), optimize CTR, and generate AI-powered Title, H1, Meta Descriptions, and complete action plan exports.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    if standalone_header:
+        st.markdown(
+            '<div style="background: radial-gradient(130% 120% at 50% -10%, #1e1b4b 0%, #0F172A 60%, #020617 100%); padding: 2.5rem 2rem 2rem; border-radius: 20px; border: 1px solid rgba(139, 92, 246, 0.35); text-align: center; margin-bottom: 2rem; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.6);">'
+            '<div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.4); padding: 5px 16px; border-radius: 999px; margin-bottom: 12px;">'
+            '<span style="font-size: 0.85rem; font-weight: 800; color: #C4B5FD; letter-spacing: 0.06em; text-transform: uppercase;">📈 Google Search Console Deep Intelligence</span>'
+            '</div>'
+            '<h1 style="font-size: 2.75rem; font-weight: 900; color: #FFFFFF; letter-spacing: -0.03em; margin: 0 0 0.6rem 0; line-height: 1.15;">'
+            'Advance GSC Data Analysis'
+            '</h1>'
+            '<p style="color: #94A3B8; font-size: 1.05rem; max-width: 780px; margin: 0 auto; line-height: 1.6;">'
+            'Deep-dive into your Google Search Console performance data. Map every query to accurate target URLs (Brand ➔ Homepage), optimize CTR, and generate AI-powered Title, H1, Meta Descriptions, and complete action plan exports.'
+            '</p>'
+            '</div>',
+            unsafe_allow_html=True
+        )
 
     # 2. Connection Area: Google OAuth Direct API / File Upload / Interactive Demo
     tab_conn_oauth, tab_conn_upload, tab_conn_sample = st.tabs([
