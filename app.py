@@ -5,7 +5,7 @@ import json
 from urllib.parse import urlparse, urljoin
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import requests
@@ -313,9 +313,7 @@ def api_audit(url: str = Query(..., description="Target website URL to audit")):
     result = audit_single_url(url)
     return JSONResponse(content=result)
 
-@app.get("/", response_class=HTMLResponse)
-def index():
-    html_content = """<!DOCTYPE html>
+HTML_CONTENT = """<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
@@ -1089,4 +1087,27 @@ def index():
 </body>
 </html>
 """
-    return HTMLResponse(content=html_content)
+
+@app.get("/", response_class=HTMLResponse)
+@app.get("/api", response_class=HTMLResponse)
+@app.get("/api/index", response_class=HTMLResponse)
+@app.get("/api/index.py", response_class=HTMLResponse)
+@app.get("/index.py", response_class=HTMLResponse)
+def index():
+    return HTMLResponse(content=HTML_CONTENT)
+
+@app.get("/audit")
+@app.get("/api/index.py/api/audit")
+@app.get("/api/index.py/audit")
+def api_audit_alt(url: str = Query(..., description="Target website URL to audit")):
+    return JSONResponse(content=audit_single_url(url))
+
+@app.exception_handler(404)
+async def custom_404_handler(request: Request, exc):
+    path = request.url.path
+    if "audit" in path:
+        url = request.query_params.get("url")
+        if url:
+            return JSONResponse(content=audit_single_url(url))
+        return JSONResponse(content={"error": True, "message": "Missing url parameter"}, status_code=400)
+    return HTMLResponse(content=HTML_CONTENT)
