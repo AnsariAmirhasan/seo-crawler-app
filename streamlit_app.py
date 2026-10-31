@@ -120,11 +120,11 @@ button[data-testid="stSidebarCollapseButton"],
     justify-content: center !important;
     visibility: visible !important;
     opacity: 1 !important;
-    color: #FFC107 !important;
-    background: rgba(14, 20, 34, 0.9) !important;
-    border: 1px solid rgba(245, 158, 11, 0.5) !important;
+    color: #00F0FF !important;
+    background: rgba(11, 20, 38, 0.92) !important;
+    border: 1px solid rgba(0, 240, 255, 0.4) !important;
     border-radius: 9px !important;
-    box-shadow: 0 0 16px rgba(245, 158, 11, 0.3) !important;
+    box-shadow: 0 0 16px rgba(0, 240, 255, 0.25) !important;
     cursor: pointer !important;
     transition: all 0.22s ease !important;
     z-index: 999999 !important;
@@ -132,37 +132,37 @@ button[data-testid="stSidebarCollapseButton"],
 button[data-testid="stExpandSidebarButton"]:hover,
 button[data-testid="stSidebarCollapseButton"]:hover,
 [data-testid="collapsedControl"]:hover {
-    background: rgba(245, 158, 11, 0.25) !important;
-    border-color: #FFC107 !important;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.65) !important;
+    background: rgba(0, 240, 255, 0.2) !important;
+    border-color: #00F0FF !important;
+    box-shadow: 0 0 25px rgba(0, 240, 255, 0.6) !important;
     transform: scale(1.08) !important;
 }
 button[data-testid="stExpandSidebarButton"] svg,
 button[data-testid="stSidebarCollapseButton"] svg,
 [data-testid="collapsedControl"] svg {
-    fill: #FFC107 !important;
-    color: #FFC107 !important;
+    fill: #00F0FF !important;
+    color: #00F0FF !important;
 }
 
-/* Futuristic Deep-Space Cyber Background */
+/* Futuristic Deep-Space Cyber Background with Cyan Tech Grid */
 .stApp {
-    background-color: #06080F !important;
+    background-color: #060B14 !important;
     background-image: 
-        radial-gradient(ellipse 90% 50% at 50% -12%, rgba(245, 158, 11, 0.16) 0%, transparent 55%),
-        radial-gradient(ellipse 70% 40% at 95% 15%, rgba(6, 182, 212, 0.10) 0%, transparent 50%),
-        radial-gradient(ellipse 60% 35% at 5% 85%, rgba(139, 92, 246, 0.08) 0%, transparent 45%),
-        linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px) !important;
-    background-size: 100% 100%, 100% 100%, 100% 100%, 36px 36px, 36px 36px !important;
+        radial-gradient(ellipse 90% 50% at 50% -10%, rgba(0, 240, 255, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 90% 20%, rgba(45, 212, 191, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 35% at 10% 85%, rgba(14, 165, 233, 0.05) 0%, transparent 45%),
+        linear-gradient(rgba(0, 240, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.035) 1px, transparent 1px) !important;
+    background-size: 100% 100%, 100% 100%, 100% 100%, 34px 34px, 34px 34px !important;
     color: #F8FAFC !important;
 }
 
 /* Cyber Cockpit Sidebar */
 section[data-testid="stSidebar"] {
-    background: rgba(7, 10, 18, 0.94) !important;
+    background: rgba(7, 13, 24, 0.95) !important;
     backdrop-filter: blur(28px) !important;
-    border-right: 1px solid rgba(245, 158, 11, 0.22) !important;
-    box-shadow: 12px 0 35px rgba(0, 0, 0, 0.75), inset -1px 0 0 rgba(255, 255, 255, 0.03) !important;
+    border-right: 1px solid rgba(0, 240, 255, 0.16) !important;
+    box-shadow: 12px 0 35px rgba(0, 0, 0, 0.8), inset -1px 0 0 rgba(0, 240, 255, 0.05) !important;
 }
 
 /* Radio Navigation Pills in Sidebar - Futuristic HUD Modules */
@@ -173,8 +173,8 @@ div[data-testid="stRadio"] div[role="radiogroup"] > label {
     border-radius: 11px !important;
     padding: 10px 14px !important;
     margin-bottom: 2px !important;
-    background: rgba(14, 20, 34, 0.55) !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    background: rgba(11, 20, 38, 0.55) !important;
+    border: 1px solid rgba(0, 240, 255, 0.08) !important;
     backdrop-filter: blur(12px) !important;
     position: relative !important;
     overflow: hidden !important;
@@ -193,14 +193,14 @@ div[data-testid="stRadio"] div[role="radiogroup"] > label::before {
     transition: all 0.2s ease;
 }
 div[data-testid="stRadio"] div[role="radiogroup"] > label:hover {
-    background: rgba(245, 158, 11, 0.12) !important;
-    border-color: rgba(245, 158, 11, 0.45) !important;
+    background: rgba(0, 240, 255, 0.1) !important;
+    border-color: rgba(0, 240, 255, 0.35) !important;
     transform: translateX(4px) !important;
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.18) !important;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.18) !important;
 }
 div[data-testid="stRadio"] div[role="radiogroup"] > label:hover::before {
-    background: #FFC107;
-    box-shadow: 0 0 10px #FFC107;
+    background: #00F0FF;
+    box-shadow: 0 0 10px #00F0FF;
 }
 div[data-testid="stRadio"] div[role="radiogroup"] > label:hover p,
 div[data-testid="stRadio"] div[role="radiogroup"] > label:hover span {
@@ -210,37 +210,38 @@ div[data-testid="stRadio"] div[role="radiogroup"] > label:hover span {
 div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child {
     display: none !important;
 }
-/* Active Radio Item - Solid Cyber Amber HUD Glow */
+/* Active Radio Item - Sleek Glowing Dark Cyan Cockpit Pill */
 div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"],
 div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) {
-    background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%) !important;
-    border-color: #FDE047 !important;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.4) !important;
+    background: rgba(14, 30, 52, 0.88) !important;
+    border-color: #00F0FF !important;
+    box-shadow: 0 0 22px rgba(0, 240, 255, 0.35), inset 0 0 14px rgba(0, 240, 255, 0.12) !important;
     transform: translateX(5px) !important;
 }
 div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked)::before {
-    background: #000000;
+    background: #00F0FF;
+    box-shadow: 0 0 12px #00F0FF;
 }
 div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"] p,
 div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) p,
 div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"] span,
 div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) span {
-    color: #000000 !important;
-    font-weight: 800 !important;
+    color: #00F0FF !important;
+    font-weight: 700 !important;
     font-family: 'Space Grotesk', sans-serif !important;
 }
 
-/* Primary Button Styling - Luminous Plasma Energy */
+/* Primary Button Styling - Luminous Coral / Orange Energy Pill */
 button[kind="primary"],
 button[data-testid="baseButton-primary"] {
-    background: linear-gradient(135deg, #FFC107 0%, #D97706 100%) !important;
-    color: #000000 !important;
+    background: linear-gradient(135deg, #FF6B4A 0%, #FFA84A 100%) !important;
+    color: #FFFFFF !important;
     font-family: 'Space Grotesk', sans-serif !important;
     font-weight: 800 !important;
     letter-spacing: 0.05em !important;
-    border: 1px solid #FDE047 !important;
-    border-radius: 11px !important;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.5) !important;
+    border: 1px solid rgba(255, 255, 255, 0.35) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 20px rgba(255, 107, 74, 0.45), 0 0 25px rgba(255, 168, 74, 0.25) !important;
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
     position: relative !important;
     overflow: hidden !important;
@@ -248,42 +249,42 @@ button[data-testid="baseButton-primary"] {
 button[kind="primary"]:hover,
 button[data-testid="baseButton-primary"]:hover {
     transform: translateY(-2px) scale(1.02) !important;
-    box-shadow: 0 0 35px rgba(245, 158, 11, 0.75), 0 8px 25px rgba(0, 0, 0, 0.5) !important;
+    box-shadow: 0 6px 28px rgba(255, 107, 74, 0.7), 0 0 35px rgba(255, 168, 74, 0.4) !important;
 }
 button[kind="secondary"],
 button[data-testid="baseButton-secondary"] {
-    background: rgba(14, 20, 32, 0.75) !important;
-    color: #E2E8F0 !important;
+    background: rgba(11, 19, 36, 0.75) !important;
+    color: #CBD5E1 !important;
     font-family: 'Space Grotesk', sans-serif !important;
     font-weight: 700 !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border: 1px solid rgba(0, 240, 255, 0.18) !important;
     border-radius: 11px !important;
     backdrop-filter: blur(12px) !important;
     transition: all 0.25s ease !important;
 }
 button[kind="secondary"]:hover,
 button[data-testid="baseButton-secondary"]:hover {
-    border-color: #38BDF8 !important;
-    color: #38BDF8 !important;
-    box-shadow: 0 0 20px rgba(56, 189, 248, 0.35) !important;
-    background: rgba(56, 189, 248, 0.12) !important;
+    border-color: #00F0FF !important;
+    color: #00F0FF !important;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.3) !important;
+    background: rgba(0, 240, 255, 0.1) !important;
     transform: translateY(-1px) !important;
 }
 
 /* Modern HUD Pill Tab Ribbon */
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px !important;
-    background: rgba(10, 14, 24, 0.9) !important;
+    background: rgba(8, 14, 28, 0.88) !important;
     padding: 8px 12px !important;
-    border-radius: 14px !important;
-    border: 1px solid rgba(245, 158, 11, 0.22) !important;
+    border-radius: 9999px !important;
+    border: 1px solid rgba(0, 240, 255, 0.16) !important;
     backdrop-filter: blur(20px) !important;
-    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.65), 0 0 22px rgba(245, 158, 11, 0.1) !important;
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.65), 0 0 22px rgba(0, 240, 255, 0.08) !important;
     margin-bottom: 1.6rem !important;
 }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 10px !important;
-    padding: 9px 18px !important;
+    border-radius: 9999px !important;
+    padding: 8px 18px !important;
     font-family: 'Space Grotesk', sans-serif !important;
     font-weight: 600 !important;
     font-size: 0.88rem !important;
@@ -297,28 +298,28 @@ button[data-testid="baseButton-secondary"]:hover {
     box-shadow: 0 0 15px rgba(255, 255, 255, 0.12) !important;
 }
 .stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%) !important;
-    color: #000000 !important;
+    background: #34D399 !important;
+    color: #060B14 !important;
     font-weight: 800 !important;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.4) !important;
+    box-shadow: 0 0 25px rgba(52, 211, 153, 0.65) !important;
 }
 .stTabs [aria-selected="true"] p,
 .stTabs [aria-selected="true"] span {
-    color: #000000 !important;
+    color: #060B14 !important;
     font-weight: 800 !important;
 }
 
 /* Input & Select Custom Styling - Futuristic Terminal Cockpit */
 div[data-baseweb="input"] {
-    background-color: rgba(11, 16, 26, 0.92) !important;
-    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    background-color: rgba(9, 16, 30, 0.92) !important;
+    border: 1px solid rgba(0, 240, 255, 0.18) !important;
     border-radius: 11px !important;
     backdrop-filter: blur(14px) !important;
     transition: all 0.25s ease !important;
 }
 div[data-baseweb="input"]:focus-within {
-    border-color: #FFC107 !important;
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.4), inset 0 0 12px rgba(245, 158, 11, 0.1) !important;
+    border-color: #00F0FF !important;
+    box-shadow: 0 0 25px rgba(0, 240, 255, 0.4), inset 0 0 12px rgba(0, 240, 255, 0.1) !important;
 }
 div[data-baseweb="input"] input {
     font-family: 'JetBrains Mono', 'Space Grotesk', monospace !important;
@@ -326,51 +327,93 @@ div[data-baseweb="input"] input {
     color: #F8FAFC !important;
 }
 div[data-baseweb="select"] > div {
-    background-color: rgba(11, 16, 26, 0.92) !important;
-    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    background-color: rgba(9, 16, 30, 0.92) !important;
+    border: 1px solid rgba(0, 240, 255, 0.18) !important;
     border-radius: 11px !important;
     backdrop-filter: blur(14px) !important;
     transition: all 0.25s ease !important;
 }
 div[data-baseweb="select"] > div:focus-within {
-    border-color: #38BDF8 !important;
-    box-shadow: 0 0 22px rgba(56, 189, 248, 0.35) !important;
+    border-color: #00F0FF !important;
+    box-shadow: 0 0 22px rgba(0, 240, 255, 0.35) !important;
 }
 
-/* Cyber HUD KPI Metric Cards */
-.kpi-card-gold {
-    background: linear-gradient(145deg, rgba(14, 20, 32, 0.88) 0%, rgba(8, 12, 20, 0.96) 100%);
-    padding: 1.25rem 1.3rem;
+/* Cyber HUD KPI Metric Cards matching CrawlPilot Screenshot */
+.kpi-card-hud {
+    background: linear-gradient(145deg, rgba(11, 20, 38, 0.85) 0%, rgba(6, 12, 24, 0.95) 100%);
+    padding: 1.15rem 1.25rem;
     border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(0, 240, 255, 0.12);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.55);
     position: relative;
     overflow: hidden;
-    backdrop-filter: blur(20px);
-    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+    backdrop-filter: blur(16px);
+    transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
 }
-.kpi-card-gold::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 32px;
-    height: 2px;
-    background: linear-gradient(90deg, #FFC107, transparent);
+.kpi-card-hud:hover {
+    transform: translateY(-3px);
+    border-color: rgba(0, 240, 255, 0.35);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.65), 0 0 20px rgba(0, 240, 255, 0.15);
 }
-.kpi-card-gold::after {
-    content: "";
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    width: 32px;
-    height: 2px;
-    background: linear-gradient(270deg, #38BDF8, transparent);
+.kpi-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #94A3B8;
+    letter-spacing: 0.1em;
+    font-family: 'Space Grotesk', sans-serif;
+    margin-top: 4px;
 }
-.kpi-card-gold:hover {
-    transform: translateY(-4px) scale(1.01);
-    border-color: rgba(245, 158, 11, 0.55);
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7), 0 0 25px rgba(245, 158, 11, 0.22);
+.kpi-value {
+    font-size: 2.15rem;
+    font-weight: 800;
+    font-family: 'Orbitron', 'Space Grotesk', sans-serif;
+    margin-top: 4px;
+    letter-spacing: -0.02em;
+}
+.kpi-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2px 7px;
+    border-radius: 9999px;
+}
+.kpi-badge-green {
+    background: rgba(16, 185, 129, 0.14);
+    color: #34D399;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.kpi-badge-red {
+    background: rgba(239, 68, 68, 0.14);
+    color: #F87171;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.kpi-badge-teal {
+    background: rgba(45, 212, 191, 0.14);
+    color: #2DD4BF;
+    border: 1px solid rgba(45, 212, 191, 0.35);
+}
+.kpi-line-bg {
+    margin-top: 10px;
+    height: 3px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.kpi-line-fill {
+    height: 100%;
+    border-radius: 2px;
+}
+
+/* Radar Animation Keyframes */
+@keyframes radar-sweep {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+@keyframes radar-pulse {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 12px rgba(45, 212, 191, 0.8)); }
+    50% { transform: scale(1.08); filter: drop-shadow(0 0 22px rgba(0, 240, 255, 1)); }
 }
 
 /* Futuristic Pulsing Beacons */
@@ -467,63 +510,57 @@ div[data-baseweb="select"] > div:focus-within {
 with st.sidebar:
     app_icon_b64 = get_asset_base64(APP_ICON_PATH)
     st.markdown(f"""
-    <div style="padding: 0.4rem 0 1.2rem; border-bottom: 1px solid rgba(245, 158, 11, 0.2); margin-bottom: 1.2rem; position: relative;">
+    <div style="padding: 0.2rem 0 1rem; border-bottom: 1px solid rgba(0, 240, 255, 0.16); margin-bottom: 1.1rem; position: relative;">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="position: relative; flex-shrink: 0;">
-                <img src="data:image/png;base64,{app_icon_b64}" width="52" height="52" style="border-radius: 14px; box-shadow: 0 0 20px rgba(245, 158, 11, 0.4), 0 4px 14px rgba(0,0,0,0.8); border: 1px solid rgba(255, 193, 7, 0.4);" />
-                <span class="hud-beacon" style="position: absolute; bottom: -2px; right: -2px;"></span>
+            <div style="position: relative; flex-shrink: 0; width: 46px; height: 46px; border-radius: 12px; background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.4); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 18px rgba(0, 240, 255, 0.35);">
+                <span style="font-size: 1.6rem; filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.8));">🕷️</span>
             </div>
             <div>
-                <div style="font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 1.55rem; font-weight: 900; line-height: 1.1; letter-spacing: -0.01em;">
-                    <span style="color: #FFFFFF; text-shadow: 0 0 15px rgba(255,255,255,0.4);">CRAWL</span><span style="color: #FFC107; text-shadow: 0 0 20px rgba(255, 193, 7, 0.6);">PILOT</span>
+                <div style="font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 1.35rem; font-weight: 900; line-height: 1.1; letter-spacing: 0.02em;">
+                    <span style="color: #FFFFFF; text-shadow: 0 0 15px rgba(255,255,255,0.4);">CRAWL</span><span style="color: #00F0FF; text-shadow: 0 0 20px rgba(0, 240, 255, 0.7);">PILOT</span>
                 </div>
-                <div style="font-size: 0.58rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: 0.16em; margin-top: 4px; text-transform: uppercase; white-space: nowrap;">
-                    QUANTUM TECHNICAL SEO
+                <div style="font-size: 0.58rem; color: #2DD4BF; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: 0.18em; margin-top: 3px; text-transform: uppercase; white-space: nowrap;">
+                    QUANTUM TECH SEO
                 </div>
             </div>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 4px 8px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 5px 10px; background: rgba(9, 18, 34, 0.85); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 9999px; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;">
             <span style="color: #34D399; display: flex; align-items: center; gap: 6px;"><span class="hud-beacon"></span> CORE SYSTEM</span>
-            <span style="color: #94A3B8;">v2.4 [ACTIVE]</span>
+            <span style="color: #94A3B8;">v2.4</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<div style='font-family: \"JetBrains Mono\", monospace; font-size: 0.72rem; font-weight: 700; color: #64748B; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px;'>[ HUD_MODULES ]</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family: \"JetBrains Mono\", monospace; font-size: 0.72rem; font-weight: 700; color: #38BDF8; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 8px;'>// MODULES</div>", unsafe_allow_html=True)
     selected_tool = st.radio(
         "Select Active Tool",
         options=[
-            "🕷️ CrawlPilot Engine",
-            "🔑 AI Keyword Research & Page Mapper",
-            "🔍 Full Site SEO Audit (GSC + GA4)",
+            "🕸️ CrawlPilot Engine",
+            "🔑 AI Keyword Research",
+            "🔍 Full Site SEO Audit",
             "🗺️ XML Sitemap Generator",
             "🎯 Query Fan-Out Extractor",
-            "🏛️ AI Silo / Competitor / Blog Topic",
+            "🏛️ AI Silo & Competitors",
             "📱 AI Social Content Studio",
-            "📈 Advance GSC data Analysis",
-            "📊 SERP Rank Tracker (Coming Soon)",
-            "🔗 Backlink Explorer (Coming Soon)",
-            "⚡ Core Web Vitals (Coming Soon)"
+            "📈 Advanced GSC Analysis",
+            "📊 SERP Rank Tracker (Soon)",
+            "🔗 Backlink Explorer (Soon)",
+            "⚡ Core Web Vitals (Soon)"
         ],
         index=0,
         label_visibility="collapsed"
     )
 
     st.markdown("""
-    <div style="background: linear-gradient(145deg, rgba(14, 20, 32, 0.9) 0%, rgba(8, 12, 20, 0.95) 100%); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 14px; padding: 1.1rem; margin-top: 1.2rem; box-shadow: 0 8px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05); position: relative; overflow: hidden;">
-        <div style="position: absolute; top: 0; right: 0; width: 45px; height: 45px; background: radial-gradient(circle at top right, rgba(245, 158, 11, 0.28), transparent 70%);"></div>
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px;">
-            <div style="font-weight: 800; color: #F8FAFC; font-size: 0.78rem; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; display: flex; align-items: center; gap: 7px;">
-                <span style="color: #FFC107;">⚡</span> ENGINE TELEMETRY
-            </div>
-            <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: #34D399; background: rgba(16, 185, 129, 0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.3);">ONLINE</span>
+    <div style="background: linear-gradient(145deg, rgba(9, 16, 32, 0.92) 0%, rgba(6, 11, 24, 0.98) 100%); border: 1px solid rgba(0, 240, 255, 0.22); border-radius: 12px; padding: 1rem; margin-top: 1.2rem; box-shadow: 0 8px 24px rgba(0,0,0,0.6); position: relative; overflow: hidden;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(0, 240, 255, 0.15); padding-bottom: 6px;">
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #94A3B8; font-weight: 700; letter-spacing: 0.12em;">TELEMETRY</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #34D399; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">• LIVE</span>
         </div>
-        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #CBD5E1; line-height: 2.1;">
-            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">CAPACITY:</span> <b style="color: #FFC107;">10,000 URLs</b></div>
-            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">CLICK DEPTH:</span> <b style="color: #38BDF8;">25 Clicks (Deep)</b></div>
-            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">WORKERS:</span> <b style="color: #A78BFA;">12 Concurrent</b></div>
-            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">WAF SHIELD:</span> <b style="color: #34D399;">Active (Chrome v130)</b></div>
-            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: #94A3B8;">EXPORTS:</span> <b style="color: #F8FAFC;">Multi-Tab Excel+Doc</b></div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.74rem; color: #CBD5E1; line-height: 2.0;">
+            <div style="display: flex; justify-content: space-between;"><span style="color: #94A3B8;">Capacity</span> <b style="color: #F8FAFC;">10,000 URLs</b></div>
+            <div style="display: flex; justify-content: space-between;"><span style="color: #94A3B8;">Depth</span> <b style="color: #F8FAFC;">25 clicks</b></div>
+            <div style="display: flex; justify-content: space-between;"><span style="color: #94A3B8;">Workers</span> <b style="color: #F8FAFC;">12 parallel</b></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -826,41 +863,41 @@ def render_xml_sitemap_generator():
             3. Click **Submit Sitemap** and enter `{domain}/sitemap.xml`.
             """)
 
-if selected_tool == "🔑 AI Keyword Research & Page Mapper":
+if "AI Keyword Research" in selected_tool:
     render_keyword_mapper_page()
     st.stop()
 
-if selected_tool == "🔍 Full Site SEO Audit (GSC + GA4)":
+if "Full Site SEO Audit" in selected_tool:
     render_full_site_seo_audit_page()
     st.stop()
 
-if selected_tool == "🗺️ XML Sitemap Generator":
+if "XML Sitemap Generator" in selected_tool:
     render_xml_sitemap_generator()
     st.stop()
 
-if selected_tool == "🎯 Query Fan-Out Extractor":
+if "Query Fan-Out Extractor" in selected_tool:
     render_query_fanout_page()
     st.stop()
 
-if selected_tool == "🏛️ AI Silo / Competitor / Blog Topic":
+if "AI Silo" in selected_tool:
     render_silo_architect_page()
     st.stop()
 
-if selected_tool == "📱 AI Social Content Studio":
+if "AI Social Content Studio" in selected_tool:
     render_brand_first_content_page()
     st.stop()
 
-if selected_tool == "📈 Advance GSC data Analysis":
+if "GSC" in selected_tool:
     render_advance_gsc_analysis_page()
     st.stop()
 
-if selected_tool != "🕷️ CrawlPilot Engine":
+if not ("CrawlPilot Engine" in selected_tool):
     st.markdown(f"""
-    <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 16px; padding: 3rem 2rem; text-align: center; margin-top: 1.5rem; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+    <div style="background: rgba(14, 24, 44, 0.7); border: 1px solid rgba(0, 240, 255, 0.3); border-radius: 16px; padding: 3rem 2rem; text-align: center; margin-top: 1.5rem; box-shadow: 0 8px 32px rgba(0,0,0,0.4);">
         <div style="font-size: 3.2rem; margin-bottom: 1rem;">🚧</div>
         <h2 style="font-size: 1.85rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.5rem;">{selected_tool}</h2>
         <p style="color: #94A3B8; font-size: 1.05rem; max-width: 620px; margin: 0 auto 1.5rem; line-height: 1.6;">
-            This module is currently being built for <b>CrawlPilot SEO Suite</b>. In the sidebar, select <b>'🕷️ CrawlPilot Engine'</b> to use the active technical crawler.
+            This module is currently being built for <b>CrawlPilot SEO Suite</b>. In the sidebar, select <b>'🕸️ CrawlPilot Engine'</b> to use the active technical crawler.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -876,49 +913,64 @@ is_crawling_active = st.session_state.get("is_crawling", False)
 if not has_crawl_results and not is_crawling_active:
     spider_logo_b64 = get_asset_base64(SPIDER_LOGO_PATH)
     st.html(f"""
-    <div style="background: radial-gradient(125% 120% at 85% 25%, rgba(245, 158, 11, 0.18) 0%, rgba(18, 24, 38, 0.9) 45%, rgba(6, 9, 16, 0.98) 100%); padding: 2.4rem 2.8rem; border-radius: 20px; border: 1px solid rgba(245, 158, 11, 0.35); margin-bottom: 1.6rem; box-shadow: 0 24px 50px -10px rgba(0,0,0,0.8), 0 0 35px rgba(245, 158, 11, 0.12); position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 24px; backdrop-filter: blur(20px);">
+    <div style="background: linear-gradient(135deg, rgba(11, 20, 38, 0.92) 0%, rgba(6, 12, 24, 0.98) 100%); padding: 2.2rem 2.6rem; border-radius: 20px; border: 1px solid rgba(0, 240, 255, 0.22); margin-bottom: 1.5rem; box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 35px rgba(0, 240, 255, 0.08); position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 24px; backdrop-filter: blur(20px);">
         <!-- Ambient Cyber Glows -->
-        <div style="position: absolute; top: -40px; right: 15%; width: 220px; height: 180px; background: radial-gradient(circle, rgba(245, 158, 11, 0.25) 0%, transparent 70%); pointer-events: none;"></div>
-        <div style="position: absolute; bottom: -30px; left: 10%; width: 180px; height: 140px; background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 70%); pointer-events: none;"></div>
+        <div style="position: absolute; top: -40px; right: 20%; width: 220px; height: 180px; background: radial-gradient(circle, rgba(0, 240, 255, 0.15) 0%, transparent 70%); pointer-events: none;"></div>
+        <div style="position: absolute; bottom: -30px; left: 10%; width: 180px; height: 140px; background: radial-gradient(circle, rgba(45, 212, 191, 0.12) 0%, transparent 70%); pointer-events: none;"></div>
         
-        <div style="flex: 1.3; min-width: 320px; z-index: 2;">
+        <div style="flex: 1.4; min-width: 320px; z-index: 2;">
             <!-- Telemetry Status Pills -->
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 1.1rem;">
                 <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em; box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);">
                     <span class="hud-beacon"></span> SYSTEM ONLINE
                 </div>
                 <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(245, 158, 11, 0.1); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.3); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
-                    <span>⚡</span> QUANTUM SPIDER V2.4
+                    <span>⚡</span> QUANTUM SPIDER 2.4
                 </div>
-                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(6, 182, 212, 0.1); color: #38BDF8; border: 1px solid rgba(6, 182, 212, 0.3); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
-                    <span>🤖</span> AI: GEMINI 4 ARGON
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(6, 182, 212, 0.12); color: #38BDF8; border: 1px solid rgba(6, 182, 212, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
+                    <span>🤖</span> AI CORE
                 </div>
             </div>
 
-            <h1 style="font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 3.1rem; font-weight: 900; margin: 0 0 0.3rem 0; line-height: 1.08; letter-spacing: -0.02em;">
-                <span style="color: #FFFFFF; text-shadow: 0 0 35px rgba(255,255,255,0.4);">CRAWL</span><span style="background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 35px rgba(255,193,7,0.5);">PILOT</span>
+            <!-- Giant Futuristic CRAWLPILOT Title -->
+            <h1 style="font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 3.3rem; font-weight: 900; margin: 0 0 0.35rem 0; line-height: 1.05; letter-spacing: 0.02em;">
+                <span style="color: #FFFFFF; text-shadow: 0 0 35px rgba(255,255,255,0.45);">CRAWL</span><span style="color: #2DD4BF; text-shadow: 0 0 35px rgba(45, 212, 191, 0.7);">PILOT</span>
             </h1>
-            <div style="font-size: 0.76rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; margin-bottom: 0.95rem;">
-                CRAWL <span style="color: #FFC107;">•</span> ANALYZE <span style="color: #38BDF8;">•</span> OPTIMIZE <span style="color: #10B981;">•</span> DOMINATE
+            
+            <div style="font-size: 0.76rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 0.95rem;">
+                CRAWL <span style="color: #FF6B4A;">•</span> ANALYZE <span style="color: #2DD4BF;">•</span> OPTIMIZE <span style="color: #34D399;">•</span> DOMINATE
             </div>
-            <p style="color: #CBD5E1; font-size: 1.02rem; max-width: 660px; margin: 0; line-height: 1.65; font-family: 'Space Grotesk', sans-serif;">
-                High-precision autonomous technical SEO crawler. Deep audit internal links, canonical integrity, metadata, status codes, and Core Web Vitals up to 10,000 URLs with automated WAF bypass.
+            
+            <p style="color: #94A3B8; font-size: 0.96rem; max-width: 660px; margin: 0; line-height: 1.6; font-family: 'Space Grotesk', sans-serif;">
+                High-precision autonomous SEO crawler. Audit internal links, canonicals, metadata, status codes and Core Web Vitals across up to 10,000 URLs.
             </p>
         </div>
 
-        <div style="position: relative; text-align: center; z-index: 2; padding: 10px 20px;">
-            <div style="position: relative; display: inline-block; padding: 14px; background: rgba(10, 14, 24, 0.6); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 50%; box-shadow: 0 0 35px rgba(245, 158, 11, 0.25), inset 0 0 20px rgba(245, 158, 11, 0.15);">
-                <img src="data:image/png;base64,{spider_logo_b64}" width="165" style="filter: drop-shadow(0 0 25px rgba(255, 193, 7, 0.55)); display: block;" />
+        <!-- Right Side: Animated Cyber Radar HUD Widget -->
+        <div style="position: relative; text-align: center; z-index: 2; padding: 6px 15px;">
+            <div style="position: relative; width: 160px; height: 160px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                <!-- Outer Ring -->
+                <div style="position: absolute; width: 154px; height: 154px; border-radius: 50%; border: 1px solid rgba(0, 240, 255, 0.3); background: radial-gradient(circle, rgba(11, 24, 46, 0.95) 0%, rgba(6, 12, 24, 0.98) 100%); box-shadow: 0 0 25px rgba(0, 240, 255, 0.15), inset 0 0 20px rgba(0, 240, 255, 0.08);"></div>
+                <!-- Middle Dashed Ring -->
+                <div style="position: absolute; width: 104px; height: 104px; border-radius: 50%; border: 1px dashed rgba(0, 240, 255, 0.35);"></div>
+                <!-- Inner Ring -->
+                <div style="position: absolute; width: 56px; height: 56px; border-radius: 50%; border: 1px solid rgba(45, 212, 191, 0.45);"></div>
+                <!-- Rotating Radar Scanner Beam -->
+                <div style="position: absolute; width: 154px; height: 154px; border-radius: 50%; background: conic-gradient(from 0deg, rgba(45, 212, 191, 0.45) 0deg, rgba(0, 240, 255, 0.12) 35deg, transparent 75deg); animation: radar-sweep 3.5s linear infinite; pointer-events: none;"></div>
+                <!-- Centered Glowing Spider Icon -->
+                <div style="position: relative; z-index: 3; font-size: 2.2rem; filter: drop-shadow(0 0 16px rgba(45, 212, 191, 0.9)); animation: radar-pulse 2.5s ease-in-out infinite;">
+                    🕷️
+                </div>
             </div>
-            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #FCD34D; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 10px; text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);">
-                TARGET RADAR :: ARMED
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #2DD4BF; font-weight: 700; letter-spacing: 0.2em; text-align: center; margin-top: 8px; text-transform: uppercase;">
+                RADAR :: ARMED
             </div>
         </div>
     </div>
     """)
 
 # 6. Screaming Frog Top Search Bar
-col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([4.8, 2.2, 1.8, 1.2])
+col_sf_url, col_sf_mode, col_sf_start, col_sf_clear = st.columns([5.0, 2.0, 1.8, 1.2])
 
 with col_sf_url:
     target_url = st.text_input(
@@ -926,7 +978,7 @@ with col_sf_url:
         value=st.session_state.get("cfg_target_url", ""),
         placeholder="https://www.example.com/",
         label_visibility="collapsed",
-        help="Enter starting website URL (e.g. https://www.cairnindia.com/)"
+        help="Enter starting website URL (e.g. https://www.example.com/)"
     )
 
 with col_sf_mode:
@@ -939,10 +991,10 @@ with col_sf_mode:
     )
 
 with col_sf_start:
-    btn_start = st.button("▶ Start Crawl", type="primary", use_container_width=True)
+    btn_start = st.button("▶ START CRAWL", type="primary", use_container_width=True)
 
 with col_sf_clear:
-    btn_clear = st.button("🗑️ Clear", use_container_width=True)
+    btn_clear = st.button("Clear", use_container_width=True)
 
 if btn_clear:
     st.session_state["crawl_results"] = None
@@ -1021,21 +1073,21 @@ if btn_start:
 
 # Main Application Tabs
 tab_overview, tab_issues, tab_minify, tab_pages, tab_responses, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_extractor, tab_inspector, tab_sitemap = st.tabs([
-    "📊 Overview",
-    "❗ Issues & Fixes",
-    "⚡ Minify JS & CSS",
-    "📄 Internal Pages",
-    "</> Response Codes",
-    "🔗 Canonicals",
-    "T Page Titles",
-    "📄 Meta Description",
-    "H Headings (H1/H2)",
-    "🔗 Link Analysis",
-    "🖼️ Images Audit",
-    "🧭 Site Structure",
-    "📑 Audit Report",
-    "🔍 Quick Inspector",
-    "🤖 Robots & Sitemap"
+    "Overview",
+    "Issues & Fixes",
+    "Minify JS & CSS",
+    "Internal Pages",
+    "Response Codes",
+    "Canonicals",
+    "Page Titles",
+    "Meta Description",
+    "Headings",
+    "Link Analysis",
+    "Images Audit",
+    "Site Structure",
+    "Audit Report",
+    "Quick Inspector",
+    "Robots & Sitemap"
 ])
 
 results = st.session_state.get("crawl_results")
@@ -1046,62 +1098,62 @@ active_crawl_site = (results.get("start_url", "") if isinstance(results, dict) e
 # ==============================================================================
 with tab_overview:
     if not results:
-        # 6 Futuristic Cyber HUD Telemetry Cards Showcase
+        # 5 Futuristic Cyber HUD Telemetry Cards Showcase matching CrawlPilot Screenshot
         st.html("""
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 1.6rem;">
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(255, 193, 7, 0.25);">🔗</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↑ 12%</span>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 1.6rem;">
+            <!-- 1. INTERNAL LINKS -->
+            <div class="kpi-card-hud">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="font-size: 1.25rem; color: #38BDF8;">🔗</div>
+                    <span class="kpi-badge kpi-badge-green">+12%</span>
                 </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Internal Links</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">2,458</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 78%; height: 100%; background: linear-gradient(90deg, #FFC107, transparent);"></div></div>
+                <div class="kpi-label">INTERNAL LINKS</div>
+                <div class="kpi-value" style="color: #00F0FF; text-shadow: 0 0 20px rgba(0, 240, 255, 0.45);">2,458</div>
+                <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 75%; background: #00F0FF; box-shadow: 0 0 10px #00F0FF;"></div></div>
             </div>
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(99, 102, 241, 0.25);">📄</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↑ 8%</span>
+            
+            <!-- 2. PAGES CRAWLED -->
+            <div class="kpi-card-hud">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="font-size: 1.25rem; color: #34D399;">📄</div>
+                    <span class="kpi-badge kpi-badge-green">+8%</span>
                 </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Pages Crawled</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">1,245</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 62%; height: 100%; background: linear-gradient(90deg, #818CF8, transparent);"></div></div>
+                <div class="kpi-label">PAGES CRAWLED</div>
+                <div class="kpi-value" style="color: #34D399; text-shadow: 0 0 20px rgba(52, 211, 153, 0.45);">1,245</div>
+                <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 65%; background: #34D399; box-shadow: 0 0 10px #34D399;"></div></div>
             </div>
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(239, 68, 68, 0.25);">❗</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 24%</span>
+
+            <!-- 3. ISSUES FOUND -->
+            <div class="kpi-card-hud">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="font-size: 1.25rem; color: #F87171;">⚠️</div>
+                    <span class="kpi-badge kpi-badge-red">-24%</span>
                 </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Issues Found</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #F87171; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(239, 68, 68, 0.3);">186</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 45%; height: 100%; background: linear-gradient(90deg, #EF4444, transparent);"></div></div>
+                <div class="kpi-label">ISSUES FOUND</div>
+                <div class="kpi-value" style="color: #F87171; text-shadow: 0 0 20px rgba(248, 113, 113, 0.45);">186</div>
+                <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 45%; background: #F87171; box-shadow: 0 0 10px #F87171;"></div></div>
             </div>
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(245, 158, 11, 0.25);">🏷️</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 40%</span>
+
+            <!-- 4. MISSING TITLES -->
+            <div class="kpi-card-hud">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="font-size: 1.25rem; color: #FBBF24;">🏷️</div>
+                    <span class="kpi-badge kpi-badge-red">-40%</span>
                 </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Missing Titles</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">12</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 25%; height: 100%; background: linear-gradient(90deg, #F59E0B, transparent);"></div></div>
+                <div class="kpi-label">MISSING TITLES</div>
+                <div class="kpi-value" style="color: #FBBF24; text-shadow: 0 0 20px rgba(251, 191, 36, 0.45);">12</div>
+                <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 25%; background: #FBBF24; box-shadow: 0 0 10px #FBBF24;"></div></div>
             </div>
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(6, 182, 212, 0.12); border: 1px solid rgba(6, 182, 212, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(6, 182, 212, 0.25);">🖼️</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 18%</span>
+
+            <!-- 5. MISSING ALT -->
+            <div class="kpi-card-hud">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div style="font-size: 1.25rem; color: #2DD4BF;">🖼️</div>
+                    <span class="kpi-badge kpi-badge-teal">-18%</span>
                 </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Missing Images Alt</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #FFFFFF; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(255,255,255,0.25);">34</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 40%; height: 100%; background: linear-gradient(90deg, #06B6D4, transparent);"></div></div>
-            </div>
-            <div class="kpi-card-gold">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="width: 40px; height: 40px; border-radius: 11px; background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; box-shadow: 0 0 14px rgba(255, 193, 7, 0.25);">⚡</div>
-                    <span style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">↓ 28%</span>
-                </div>
-                <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.1em; font-family: 'Space Grotesk', sans-serif;">Avg. Latency</div>
-                <div style="font-size: 2.1rem; font-weight: 800; font-family: 'Space Grotesk', sans-serif; color: #38BDF8; margin-top: 4px; letter-spacing: -0.03em; text-shadow: 0 0 20px rgba(56, 189, 248, 0.3);">312 ms</div>
-                <div style="margin-top: 8px; height: 3px; width: 100%; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;"><div style="width: 85%; height: 100%; background: linear-gradient(90deg, #38BDF8, transparent);"></div></div>
+                <div class="kpi-label">MISSING ALT</div>
+                <div class="kpi-value" style="color: #00F0FF; text-shadow: 0 0 20px rgba(0, 240, 255, 0.45);">34</div>
+                <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 40%; background: #00F0FF; box-shadow: 0 0 10px #00F0FF;"></div></div>
             </div>
         </div>
         """)
