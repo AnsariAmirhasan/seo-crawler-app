@@ -59,11 +59,11 @@ AI_PROVIDERS = [
 
 # Comprehensive model lists for all AI providers
 GEMINI_MODELS = [
-    "gemini-2.5-flash (Recommended - Fast & Accurate)",
-    "gemini-2.0-flash",
+    "gemini-2.0-flash (Recommended - Fast & Accurate)",
     "gemini-2.0-flash-lite",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
+    "gemini-2.5-flash",
     "gemini-2.5-pro",
     "gemini-4-argon",
     "gemini-4-argon-thinking",
@@ -374,6 +374,66 @@ def detect_website_industry(homepage_title: str, homepage_meta: str, homepage_h1
     return clean or "Commercial B2B Products & Services"
 
 
+GENERIC_SLUGS = {
+    'shop', 'store', 'product', 'products', 'item', 'items', 'service', 'services',
+    'catalog', 'catalogue', 'all', 'collection', 'collections', 'category', 'categories',
+    'buy', 'order', 'index', 'home', 'default', 'cart', 'checkout', 'page'
+}
+
+def extract_core_topic_from_page(
+    url: str,
+    title: str,
+    h1: str,
+    headings: list[str],
+    body_text: str,
+    industry_niche: str = ""
+) -> tuple[str, list[str]]:
+    """
+    Carefully inspects the page's actual content (Title, H1, H2, H3, product listings, body text)
+    to discover the true commercial product/service offering, completely ignoring generic slug noise (e.g. /shop/).
+    """
+    parsed = urllib.parse.urlparse(url)
+    slug = parsed.path.strip("/").split("/")[-1].lower() if parsed.path.strip("/") else ""
+    domain = parsed.netloc.replace("www.", "").split(".")[0].lower()
+    
+    # Clean brand names and generic prefixes from title
+    clean_t = title
+    if domain:
+        clean_t = re.sub(re.escape(domain), "", clean_t, flags=re.I)
+    clean_t = re.sub(r"\b(yukon\s*valve|yukon\s*industries|yukon|cairn|vedanta)\b", "", clean_t, flags=re.I)
+    clean_t = re.sub(r"^(shop|store|buy|our products|products|welcome to)\s*[-|–—:]*\s*", "", clean_t, flags=re.I)
+    clean_t = re.sub(r"\s*[-|–—:]\s*$", "", clean_t)
+    clean_t = re.sub(r"^\s*[-|–—:]\s*", "", clean_t)
+    
+    title_parts = [p.strip() for p in re.split(r"[-|–—:]", clean_t) if len(p.strip()) > 3]
+    
+    # Clean headings of numbers '(12)' and nav junk
+    clean_headings = []
+    for h in headings:
+        cleaned_h = re.sub(r"\s*\(\d+\)\s*", "", h).strip()
+        if len(cleaned_h) > 2 and not any(j in cleaned_h.lower() for j in ["search", "filter", "cart", "sort by", "view", "recently", "showing"]):
+            if cleaned_h not in clean_headings:
+                clean_headings.append(cleaned_h)
+
+    # If slug is generic or empty (like /shop/, /products/, /)
+    if not slug or slug in GENERIC_SLUGS:
+        if title_parts and len(title_parts[0]) > 4:
+            return title_parts[0], clean_headings
+        elif clean_headings:
+            return clean_headings[0], clean_headings
+        else:
+            return industry_niche or "Commercial Products & Equipment", clean_headings
+            
+    # If slug is specific (e.g. 'cpvc-butterfly-valve' or 'ball-valve')
+    slug_phrase = slug.replace("-", " ").title()
+    matched_h = next((h for h in clean_headings if slug.replace("-", " ") in h.lower()), None)
+    if matched_h:
+        return matched_h, clean_headings
+    if title_parts:
+        return title_parts[0], clean_headings
+    return slug_phrase, clean_headings
+
+
 def deep_crawl_website_for_keywords(
     start_url: str,
     max_pages: int = 150,
@@ -381,7 +441,7 @@ def deep_crawl_website_for_keywords(
 ) -> tuple[list[dict], str]:
     """
     Crawls a website completely using SEOSpider combined with XML sitemap extraction.
-    Pulls Title, H1, H2s, Meta Description, and clean body text for every page.
+    Pulls Title, H1, H2s, H3s, Meta Description, and clean body text for every page.
     Returns: (parsed_pages, detected_industry)
     """
     clean_start = start_url.strip()
@@ -472,19 +532,44 @@ def deep_crawl_website_for_keywords(
         h1 = soup.find("h1").get_text(strip=True) if soup.find("h1") else ""
         desc_meta = soup.find("meta", attrs={"name": re.compile(r"description", re.I)})
         meta_desc = desc_meta["content"].strip() if desc_meta and desc_meta.get("content") else ""
-        h2s = [h.get_text(strip=True) for h in soup.find_all("h2") if h.get_text(strip=True)][:6]
+        
+        # Extract H1, H2, and H3 headings & product cards (WooCommerce / Shopify / Custom)
+        raw_headings = []
+        for tag in ["h1", "h2", "h3"]:
+            for el in soup.find_all(tag):
+                t = el.get_text(strip=True)
+                if t and len(t) > 2 and t not in raw_headings:
+                    raw_headings.append(t)
+                    
+        # Extract product loop cards if present
+        for card in soup.select(".woocommerce-loop-product__title, .product-title, .product_title, .entry-title")[:10]:
+            ct = card.get_text(strip=True)
+            if ct and ct not in raw_headings:
+                raw_headings.append(ct)
 
         for el in soup(["script", "style", "nav", "footer", "header", "noscript"]):
             el.extract()
-        body_text = " ".join(soup.get_text(separator=" ", strip=True).split()[:280])
+        body_text = " ".join(soup.get_text(separator=" ", strip=True).split()[:400])
 
         cls_info = classify_page_type(u, title, h1, body_text)
+        
+        core_topic, clean_heads = extract_core_topic_from_page(
+            url=u,
+            title=title,
+            h1=h1,
+            headings=raw_headings,
+            body_text=body_text,
+            industry_niche=""
+        )
+
         return {
             "url": u,
             "title": title,
             "h1": h1,
             "meta_desc": meta_desc,
-            "h2_list": h2s,
+            "h2_list": clean_heads[:8],
+            "all_headings": clean_heads[:15],
+            "core_topic": core_topic,
             "page_text": body_text,
             "category": cls_info["category"],
             "badge": cls_info["badge"],
@@ -525,11 +610,11 @@ def call_ai_provider(
 
     if provider == "Google Gemini":
         from google import genai
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=api_key.strip())
 
-        # Fallback candidate models in case of preview / 404 alias
+        # Fallback candidate models that exist in Google AI Studio
         candidate_models = [clean_model]
-        for fb in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+        for fb in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
             if fb not in candidate_models:
                 candidate_models.append(fb)
 
@@ -550,7 +635,7 @@ def call_ai_provider(
 
     elif provider == "ChatGPT (OpenAI)":
         from openai import OpenAI
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key.strip())
         response = client.chat.completions.create(
             model=clean_model,
             messages=[{"role": "user", "content": prompt}],
@@ -560,7 +645,7 @@ def call_ai_provider(
 
     elif provider == "Claude (Anthropic)":
         import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=api_key.strip())
         response = client.messages.create(
             model=clean_model,
             max_tokens=1500,
@@ -576,7 +661,7 @@ def analyze_page_with_ai_bot(
     page_data: dict,
     api_key: str,
     provider: str = "Google Gemini",
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = "gemini-2.0-flash",
     country_name: str = "India",
     industry_niche: str = "Industrial Valves & Actuators Manufacturing",
     assigned_registry: set = None
@@ -585,32 +670,37 @@ def analyze_page_with_ai_bot(
     Calls AI to generate:
     - 2 High-Intent Focus Keywords (Commercial & Transactional, 3-6 words, NO SHORT 1-2 words)
     - 1 Long-Tail Buyer Query (4-8 words)
-    Strictly grounded in industry_niche and enforced to avoid keyword cannibalization.
+    Reads and inspects page content FIRST, strictly grounded in industry_niche and enforced to avoid keyword cannibalization.
     """
     assigned_registry = assigned_registry or set()
     already_assigned_sample = list(assigned_registry)[-15:] if assigned_registry else []
     already_str = ", ".join(already_assigned_sample) if already_assigned_sample else "None so far"
+
+    core_topic = page_data.get("core_topic") or page_data.get("title", "")
+    clean_heads = page_data.get("all_headings", page_data.get("h2_list", []))[:10]
+    headings_sample = ", ".join(clean_heads) if clean_heads else "None detected"
 
     prompt = f"""You are a senior enterprise SEO strategist specializing in B2B Keyword Mapping & Organic Search Optimization.
 
 WEBSITE INDUSTRY / CORE NICHE: {industry_niche}
 TARGET SEARCH MARKET: {country_name}
 
-ANALYZE THIS WEBPAGE:
+PAGE CONTENT & SPECIFICATIONS (READ CAREFULLY BEFORE GENERATING KEYWORDS):
 - URL: {page_data.get('url')}
-- Current Title: {page_data.get('title')}
-- Primary H1: {page_data.get('h1')}
-- Meta Description: {page_data.get('meta_desc')}
-- H2 Subheadings: {', '.join(page_data.get('h2_list', []))}
-- Page Content Excerpt: {page_data.get('page_text', '')[:400]}
+- Page Category: {page_data.get('category')}
+- Page Title: {page_data.get('title')}
+- Primary Core Offering on Page: {core_topic}
+- Headings & Product Sections (H1, H2, H3): {headings_sample}
+- Page Content Excerpt: {page_data.get('page_text', '')[:700]}
 
 MANDATORY SEO INSTRUCTIONS (FOLLOW STRICTLY):
-1. INDUSTRY RELEVANCE: All keywords MUST be directly relevant to the website's industry: "{industry_niche}". NEVER suggest unrelated topics (e.g. no euro currency, no textbook economics, no generic software filler).
-2. KEYWORD STRUCTURE (EXACTLY 2 FOCUS KEYWORDS + 1 LONG-TAIL KEYWORD):
-   - Focus Keyword 1 (Primary Target): High-intent commercial/transactional money keyword (3 to 6 words). Must include commercial qualifiers (e.g. Manufacturer In India, Supplier, Exporter, Heavy Duty, Industrial). DO NOT provide short 1-2 word keywords!
+1. READ CONTENT FIRST: All keywords MUST directly describe the actual products/services found in the page content above. If this is a shop or catalog page (e.g. '/shop/'), DO NOT suggest generic retail terms (e.g. NEVER suggest "shop in shop examples" or retail format queries). Suggest high-intent commercial B2B supplier keywords for the specific industrial products offered on this page (e.g. "{core_topic}").
+2. INDUSTRY RELEVANCE: Keywords must strictly anchor to "{industry_niche}".
+3. KEYWORD STRUCTURE (EXACTLY 2 FOCUS KEYWORDS + 1 LONG-TAIL KEYWORD):
+   - Focus Keyword 1 (Primary Target): High-intent commercial/transactional money keyword (3 to 6 words) with buyer qualifiers (e.g. Manufacturer In India, Supplier, Exporter, Heavy Duty, Industrial). DO NOT provide short 1-2 word keywords!
    - Focus Keyword 2 (Secondary Target): Distinct commercial/specification focus keyword (3 to 6 words) highlighting engineering attributes, model variations, or use cases. DO NOT provide short keywords!
    - Long-tail Keyword: High-converting buyer problem or decision-stage search query (4 to 8 words).
-3. ZERO CANNIBALIZATION: Do NOT use or repeat these keywords already assigned to other pages: [{already_str}]. Make these keywords distinct and unique to this specific page's product/service.
+4. ZERO CANNIBALIZATION: Do NOT repeat these already assigned keywords: [{already_str}]. Make these keywords distinct and unique to this specific page's product/service.
 
 OUTPUT MUST BE VALID STRICT JSON ONLY (no markdown blocks, no commentary):
 {{
@@ -673,8 +763,9 @@ OUTPUT MUST BE VALID STRICT JSON ONLY (no markdown blocks, no commentary):
             "blueprint_meta": data.get("blueprint_meta", ""),
             "engine": f"{provider} ({clean_model_id})"
         }
-    except Exception:
-        # Fallback to smart algorithmic generator
+    except Exception as e:
+        print(f"[AI GENERATION FAILED, FALLING BACK TO CONTENT ENGINE]: {e}")
+        # Fallback to smart content-grounded algorithmic generator
         return generate_algorithmic_page_keywords(page_data, country_name, industry_niche, assigned_registry)
 
 
@@ -686,41 +777,59 @@ def generate_algorithmic_page_keywords(
 ) -> dict:
     """
     Algorithmic keyword generation backed by real-time Google Autocomplete.
-    Enforces industry context, 2 focus + 1 longtail, no short keywords, and zero cannibalization.
+    Checks page content FIRST, extracts true product/service offerings,
+    and enforces industry context, 2 focus + 1 longtail, no short keywords, and zero cannibalization.
     """
     assigned_registry = assigned_registry or set()
     url = page_data["url"]
     title = page_data.get("title", "")
     h1 = page_data.get("h1", "")
-    
-    parsed = urllib.parse.urlparse(url)
-    slug = parsed.path.strip("/").split("/")[-1]
-    slug_words = [w for w in re.split(r"[-_]+", slug) if len(w) > 2 and not w.isdigit()]
-    
-    clean_title = re.sub(r"\s*[-|–—:]\s*[^-|–—:]+$", "", title).strip()
-    clean_seed = " ".join(slug_words).title() if slug_words else clean_title
-    if not clean_seed or len(clean_seed) < 4:
-        clean_seed = clean_title or h1 or "Industrial Product"
-    
-    # Query Google suggest with industry anchor
-    query_to_suggest = f"{clean_seed} manufacturer"
-    suggs = fetch_google_suggestions(query_to_suggest, country_code="in", max_results=6)
-    
+    headings = page_data.get("all_headings", page_data.get("h2_list", []))
+    body_text = page_data.get("page_text", "")
+
+    # Extract core product/service topic from actual page content
+    core_topic, clean_headings = extract_core_topic_from_page(
+        url=url,
+        title=title,
+        h1=h1,
+        headings=headings,
+        body_text=body_text,
+        industry_niche=industry_niche
+    )
+
+    # Build concise search seed for Google Suggest (2-3 words)
+    # e.g. "Industrial Valves", "Ball Valve", "Gate Valve", "Butterfly Valve"
+    clean_seed = core_topic
+    seed_words = [w for w in re.split(r"[,/|–—&]+", clean_seed) if len(w.strip()) > 3]
+    prime_seed = seed_words[0].strip() if seed_words else clean_seed
+    prime_seed = re.sub(r"\b(parts|equipment|solutions)\b", "", prime_seed, flags=re.I).strip()
+    if not prime_seed or len(prime_seed) < 4:
+        prime_seed = "Industrial Valves"
+
+    # Query Google Autocomplete with commercial anchor
+    suggs = fetch_google_suggestions(f"{prime_seed} manufacturer", country_code="in", max_results=6)
+    if not suggs or len(suggs) < 2:
+        suggs = fetch_google_suggestions(f"{prime_seed} supplier", country_code="in", max_results=6)
+
     # Focus Keyword 1 (3-6 words, commercial/transactional)
-    if suggs and len(suggs[0].split()) >= 3:
-        fk1 = suggs[0].title()
+    candidate_suggs = [s for s in (suggs or []) if not any(j in s.lower() for j in ["example", "direct shops", "format", "retail", "job", "career"])]
+    if candidate_suggs and len(candidate_suggs[0].split()) >= 3:
+        fk1 = candidate_suggs[0].title()
     else:
-        fk1 = f"{clean_seed} Manufacturer In {country_name}"
-        
-    # Focus Keyword 2 (3-6 words, specification/feature)
-    if len(suggs) > 1 and len(suggs[1].split()) >= 3 and suggs[1].lower() != fk1.lower():
-        fk2 = suggs[1].title()
+        fk1 = f"{prime_seed} Manufacturer In {country_name}"
+
+    # Focus Keyword 2 (3-6 words, secondary specification/product from page headings)
+    secondary_product = clean_headings[1] if len(clean_headings) > 1 and clean_headings[1].lower() not in fk1.lower() else ""
+    if secondary_product and len(secondary_product.split()) >= 2:
+        fk2 = f"{secondary_product} Supplier In {country_name}"
+    elif len(candidate_suggs) > 1 and len(candidate_suggs[1].split()) >= 3 and candidate_suggs[1].lower() != fk1.lower():
+        fk2 = candidate_suggs[1].title()
     else:
-        fk2 = f"Heavy Duty {clean_seed} Price & Specifications"
-        
-    # Long-tail Keyword (4-8 words, problem/application)
-    longtail_kw = f"Best Quality {clean_seed} For Industrial Applications In {country_name}"
-    for s in (suggs or []):
+        fk2 = f"Heavy Duty {prime_seed} Price & Specifications"
+
+    # Long-tail Keyword (4-8 words, buyer problem/intent)
+    longtail_kw = f"Best Quality {prime_seed} For Industrial Applications In {country_name}"
+    for s in candidate_suggs:
         if len(s.split()) >= 4 and s.lower() not in [fk1.lower(), fk2.lower()]:
             longtail_kw = s.title()
             break
@@ -738,7 +847,7 @@ def generate_algorithmic_page_keywords(
     p2_intent = classify_keyword_intent(fk2)
     lt_intent = classify_keyword_intent(longtail_kw)
 
-    parsed_domain = parsed.netloc.replace("www.", "").split(".")[0].title()
+    parsed_domain = urllib.parse.urlparse(url).netloc.replace("www.", "").split(".")[0].title()
     rec_title = f"{fk1} | {fk2} - {parsed_domain}"[:60]
     rec_h1 = f"{fk1}: Engineered Industrial Solutions"
     rec_meta = f"High-grade {fk1}. View {fk2} with full technical specifications. Contact {parsed_domain} for bulk quotes."[:155]
@@ -758,7 +867,7 @@ def generate_algorithmic_page_keywords(
         "blueprint_title": rec_title,
         "blueprint_h1": rec_h1,
         "blueprint_meta": rec_meta,
-        "engine": "Google Suggest Autocomplete"
+        "engine": "Content-Grounded Suggest Engine"
     }
 
 
