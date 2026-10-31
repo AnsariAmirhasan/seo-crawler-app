@@ -206,18 +206,10 @@ div[data-testid="stRadio"] div[role="radiogroup"] > label:hover p,
 div[data-testid="stRadio"] div[role="radiogroup"] > label:hover span {
     color: #FFFFFF !important;
 }
-/* Custom Cyber Styling for Streamlit Radio Circles */
+/* Hide circular radio buttons for sleek cyber menu navigation matching screenshot */
 div[data-testid="stRadio"] [role="radiogroup"] [data-testid="stWidgetSelectionFilter"],
 div[data-testid="stRadio"] [role="radiogroup"] div[data-baseweb="radio"] > div:first-child {
-    border-color: rgba(0, 240, 255, 0.45) !important;
-    background-color: transparent !important;
-}
-div[data-testid="stRadio"] [role="radiogroup"] label[data-checked="true"] [data-testid="stWidgetSelectionFilter"],
-div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) [data-testid="stWidgetSelectionFilter"],
-div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) div[data-baseweb="radio"] > div:first-child {
-    border-color: #00F0FF !important;
-    background-color: #00F0FF !important;
-    box-shadow: 0 0 14px #00F0FF !important;
+    display: none !important;
 }
 
 /* Active Radio Item - Sleek Glowing Dark Cyan Cockpit Pill */
@@ -281,42 +273,90 @@ button[data-testid="baseButton-secondary"]:hover {
     transform: translateY(-1px) !important;
 }
 
-/* Modern HUD Pill Tab Ribbon */
+/* Tab Navigation Ribbon - Clean Cyber Floating Tab Bar matching CrawlPilot UI */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 8px !important;
-    background: rgba(8, 14, 28, 0.88) !important;
-    padding: 8px 12px !important;
-    border-radius: 9999px !important;
-    border: 1px solid rgba(0, 240, 255, 0.16) !important;
-    backdrop-filter: blur(20px) !important;
-    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.65), 0 0 22px rgba(0, 240, 255, 0.08) !important;
-    margin-bottom: 1.6rem !important;
-}
-.stTabs [data-baseweb="tab"] {
-    border-radius: 9999px !important;
-    padding: 8px 18px !important;
-    font-family: 'Space Grotesk', sans-serif !important;
-    font-weight: 600 !important;
-    font-size: 0.88rem !important;
-    color: #94A3B8 !important;
+    background: transparent !important;
     border: none !important;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+    padding: 6px 0 14px 0 !important;
+    gap: 22px !important;
+    align-items: center !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none !important;
+    margin-bottom: 1.2rem !important;
 }
+
+.stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* Remove default Streamlit tab borders and highlight underlines */
+div[data-baseweb="tab-highlight"],
+div[data-baseweb="tab-border"],
+.stTabs [data-baseweb="tab-border"] {
+    display: none !important;
+}
+
+/* Inactive Tabs: Sleek Slate Text Links */
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    border: none !important;
+    border-bottom: none !important;
+    border-radius: 0 !important;
+    padding: 8px 6px !important;
+    font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 0.94rem !important;
+    color: #94A3B8 !important;
+    box-shadow: none !important;
+    white-space: nowrap !important;
+    transition: color 0.2s ease, opacity 0.2s ease !important;
+    cursor: pointer !important;
+}
+
+.stTabs [data-baseweb="tab"] p,
+.stTabs [data-baseweb="tab"] span {
+    color: #94A3B8 !important;
+    font-weight: 500 !important;
+    font-size: 0.94rem !important;
+    transition: color 0.2s ease !important;
+}
+
+/* Inactive Tab Hover: Crisp White */
 .stTabs [data-baseweb="tab"]:hover {
     color: #FFFFFF !important;
-    background: rgba(255, 255, 255, 0.08) !important;
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.12) !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
+
+.stTabs [data-baseweb="tab"]:hover p,
+.stTabs [data-baseweb="tab"]:hover span {
+    color: #FFFFFF !important;
+}
+
+/* Active Tab: Bright Mint Green Capsule Pill */
 .stTabs [aria-selected="true"] {
-    background: #34D399 !important;
-    color: #060B14 !important;
-    font-weight: 800 !important;
-    box-shadow: 0 0 25px rgba(52, 211, 153, 0.65) !important;
+    background: #5EEAD4 !important;
+    color: #06191D !important;
+    font-weight: 700 !important;
+    border-radius: 9999px !important;
+    padding: 8px 24px !important;
+    box-shadow: 0 0 22px rgba(94, 234, 212, 0.45) !important;
+    border: none !important;
+    border-bottom: none !important;
 }
+
 .stTabs [aria-selected="true"] p,
-.stTabs [aria-selected="true"] span {
-    color: #060B14 !important;
-    font-weight: 800 !important;
+.stTabs [aria-selected="true"] span,
+.stTabs [aria-selected="true"] div {
+    color: #06191D !important;
+    font-weight: 700 !important;
+}
+
+.stTabs [aria-selected="true"]:hover {
+    background: #4EF2BB !important;
 }
 
 /* Input & Select Custom Styling - Futuristic Terminal Cockpit */
