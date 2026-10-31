@@ -60,6 +60,7 @@ from brand_content_generator import render_brand_first_content_page
 from gsc_advanced_analyzer import render_advance_gsc_analysis_page
 from keyword_research_mapper import render_keyword_mapper_page
 from full_site_seo_audit import render_full_site_seo_audit_page
+from unified_gsc_ga4_studio import render_unified_gsc_ga4_studio
 
 @functools.lru_cache(maxsize=16)
 def get_asset_base64(filepath: str) -> str:
@@ -596,6 +597,7 @@ with st.sidebar:
         "Select Active Tool",
         options=[
             "🕸️ CrawlPilot Engine",
+            "🚀 Unified (GSC + GA4) Intelligence",
             "🔑 AI Keyword Research",
             "🔍 (GSC + GA4) SEO Audit",
             "🗺️ XML Sitemap Generator",
@@ -920,11 +922,15 @@ def render_xml_sitemap_generator():
             3. Click **Submit Sitemap** and enter `{domain}/sitemap.xml`.
             """)
 
+if "Unified" in selected_tool:
+    render_unified_gsc_ga4_studio()
+    st.stop()
+
 if "AI Keyword Research" in selected_tool:
     render_keyword_mapper_page()
     st.stop()
 
-if "(GSC + GA4) SEO Audit" in selected_tool or "Full Site SEO Audit" in selected_tool or "GSC" in selected_tool and "GA4" in selected_tool:
+if "(GSC + GA4) SEO Audit" in selected_tool or "Full Site SEO Audit" in selected_tool:
     render_full_site_seo_audit_page()
     st.stop()
 
