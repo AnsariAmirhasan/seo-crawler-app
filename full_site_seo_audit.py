@@ -661,19 +661,38 @@ def fetch_live_ga4_traffic(creds, ga4_property_id: str, start_date: str, end_dat
 # ==============================================================================
 
 def render_full_site_seo_audit_page():
-    """Renders the Full Site SEO Audit (GSC + GA4) Dashboard in CrawlPilot."""
+    """Renders the (GSC + GA4) SEO Audit Dashboard in CrawlPilot."""
     st.markdown("""
-    <div style="background: radial-gradient(125% 120% at 85% 25%, rgba(245, 158, 11, 0.18) 0%, rgba(18, 24, 38, 0.9) 45%, rgba(6, 9, 16, 0.98) 100%); padding: 2.2rem 2.6rem; border-radius: 20px; border: 1px solid rgba(245, 158, 11, 0.35); margin-bottom: 1.6rem; box-shadow: 0 24px 50px -10px rgba(0,0,0,0.8); position: relative; overflow: hidden;">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.8rem;">
-            <span style="background: rgba(16, 185, 129, 0.15); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); padding: 3px 10px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">GSC + GA4 AUDIT ENGINE</span>
-            <span style="background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.3); padding: 3px 10px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">LIVE GOOGLE OAUTH 2.0 CONNECTED</span>
+    <div style="background: linear-gradient(135deg, rgba(11, 20, 38, 0.92) 0%, rgba(6, 12, 24, 0.98) 100%); padding: 2.2rem 2.6rem; border-radius: 20px; border: 1px solid rgba(0, 240, 255, 0.22); margin-bottom: 1.5rem; box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 35px rgba(0, 240, 255, 0.08); position: relative; overflow: hidden; backdrop-filter: blur(20px);">
+        <!-- Ambient Cyber Corner Glows -->
+        <div style="position: absolute; top: -40px; right: 20%; width: 220px; height: 180px; background: radial-gradient(circle, rgba(0, 240, 255, 0.15) 0%, transparent 70%); pointer-events: none;"></div>
+        <div style="position: absolute; bottom: -30px; left: 10%; width: 180px; height: 140px; background: radial-gradient(circle, rgba(45, 212, 191, 0.12) 0%, transparent 70%); pointer-events: none;"></div>
+        
+        <div style="position: relative; z-index: 2;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem;">
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);">
+                    <span class="hud-beacon"></span> GSC + GA4 AUDIT ENGINE
+                </div>
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(0, 240, 255, 0.12); color: #00F0FF; border: 1px solid rgba(0, 240, 255, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);">
+                    <span>⚡</span> LIVE GOOGLE OAUTH 2.0 CONNECTED
+                </div>
+                <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(45, 212, 191, 0.12); color: #2DD4BF; border: 1px solid rgba(45, 212, 191, 0.35); padding: 4px 12px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
+                    <span>🤖</span> AI ACTION PLAN
+                </div>
+            </div>
+            
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #00F0FF; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 6px;">
+                QUANTUM TELEMETRY • LIVE GOOGLE INTEL
+            </div>
+            
+            <h1 style="font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 2.7rem; font-weight: 900; color: #FFFFFF; margin: 0 0 0.5rem 0; letter-spacing: -0.01em;">
+                <span style="color: #FFFFFF; text-shadow: 0 0 30px rgba(255,255,255,0.4);">(GSC + GA4)</span> <span style="background: linear-gradient(135deg, #00F0FF 0%, #2DD4BF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 30px rgba(0, 240, 255, 0.45);">SEO Audit</span>
+            </h1>
+            
+            <p style="color: #94A3B8; font-size: 0.98rem; max-width: 840px; margin: 0; line-height: 1.65; font-family: 'Space Grotesk', sans-serif;">
+                Deep diagnostic audit powered by real Google Search Console & GA4 data: Indexation anomalies, <b style="color: #F8FAFC;">Decaying Pages (>25% drop)</b>, <b style="color: #F8FAFC;">CTR Anomalies</b>, <b style="color: #F8FAFC;">Striking Distance Quick Wins (Pos 8-20)</b>, <b style="color: #F8FAFC;">Keyword Cannibalization</b>, and <b style="color: #F8FAFC;">GA4 AI Referral Traffic</b>.
+            </p>
         </div>
-        <h1 style="font-family: 'Orbitron', 'Space Grotesk', sans-serif; font-size: 2.5rem; font-weight: 900; color: #FFFFFF; margin: 0 0 0.4rem 0;">
-            🔍 Full Site SEO Audit <span style="background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">(GSC + GA4)</span>
-        </h1>
-        <p style="color: #CBD5E1; font-size: 1.02rem; max-width: 820px; margin: 0; line-height: 1.6;">
-            Deep diagnostic audit powered by your real Google Search Console & GA4 data: Indexation anomalies, <b>Decaying Pages (>25% drop)</b>, <b>CTR Anomalies</b>, <b>Striking Distance Quick Wins (Pos 8-20)</b>, <b>Keyword Cannibalization</b>, and <b>AI Referral Traffic</b>.
-        </p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -833,11 +852,11 @@ def render_full_site_seo_audit_page():
         else:
             # User not yet authenticated
             st.markdown("""
-            <div style="background: rgba(14, 20, 32, 0.7); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 14px; padding: 1.4rem; margin-bottom: 1.2rem;">
-                <div style="font-weight: 800; color: #FFFFFF; font-size: 1.1rem; margin-bottom: 4px;">
-                    🔗 Connect Your Google Account
+            <div style="background: linear-gradient(135deg, rgba(11, 20, 38, 0.92) 0%, rgba(6, 12, 24, 0.98) 100%); border: 1px solid rgba(0, 240, 255, 0.22); border-radius: 16px; padding: 1.6rem 2rem; margin-bottom: 1.3rem; box-shadow: 0 15px 35px rgba(0,0,0,0.65), 0 0 25px rgba(0, 240, 255, 0.08); backdrop-filter: blur(20px);">
+                <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 800; color: #FFFFFF; font-size: 1.25rem; margin-bottom: 6px; display: flex; align-items: center; gap: 10px;">
+                    <span style="color: #00F0FF; font-size: 1.3rem;">🔗</span> Connect Your Google Account
                 </div>
-                <div style="color: #94A3B8; font-size: 0.88rem; line-height: 1.55;">
+                <div style="color: #94A3B8; font-size: 0.92rem; line-height: 1.6; font-family: 'Space Grotesk', sans-serif;">
                     Sign in with your Google account just like Looker Studio / Data Studio. This tool will auto-discover your Search Console domains and GA4 properties to pull accurate clicks, impressions, CTR anomalies, decaying pages, and AI referral traffic.
                 </div>
             </div>
@@ -934,62 +953,76 @@ def render_full_site_seo_audit_page():
     prop_info = f" • Property: <b>{audit_data.get('property_gsc')}</b>" if audit_data.get("property_gsc") else ""
 
     st.markdown(f"""
-    <div style="background: rgba(14, 20, 34, 0.85); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 16px; padding: 1.6rem 2rem; margin: 1.4rem 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
-        <div style="flex: 2; min-width: 280px;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <span style="background: rgba(56, 189, 248, 0.15); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.35); padding: 2px 8px; border-radius: 9999px; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">{source_tag}</span>
-                <span style="color: #94A3B8; font-size: 0.78rem;">{prop_info}</span>
+    <div style="background: linear-gradient(135deg, rgba(11, 20, 38, 0.92) 0%, rgba(6, 12, 24, 0.98) 100%); border: 1px solid rgba(0, 240, 255, 0.22); border-radius: 18px; padding: 1.8rem 2.2rem; margin: 1.5rem 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 24px; box-shadow: 0 20px 45px rgba(0,0,0,0.7), 0 0 30px rgba(0, 240, 255, 0.08); backdrop-filter: blur(20px);">
+        <div style="flex: 2; min-width: 290px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span style="background: rgba(0, 240, 255, 0.12); color: #00F0FF; border: 1px solid rgba(0, 240, 255, 0.35); padding: 3px 10px; border-radius: 9999px; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">{source_tag}</span>
+                <span style="color: #94A3B8; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;">{prop_info}</span>
             </div>
-            <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.35rem; font-weight: 800; color: #FFFFFF;">
+            <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.45rem; font-weight: 800; color: #FFFFFF;">
                 🏛️ Executive Audit Verdict: <span style="color: {score_color};">{ 'SITE HEALTHY WITH QUICK WINS' if score >= 80 else 'ACTION REQUIRED: REVENUE DECAY DETECTED' }</span>
             </div>
-            <div style="color: #94A3B8; font-size: 0.9rem; margin-top: 6px; line-height: 1.55;">
-                Identified <b>{len(audit_results['decaying_pages'])} decaying pages</b> losing clicks, <b>{len(audit_results['ctr_anomalies'])} CTR anomalies</b> in Top 5 rankings, and <b>{len(audit_results['striking_distance'])} striking-distance keywords</b> ready for Page 1.
+            <div style="color: #94A3B8; font-size: 0.94rem; margin-top: 8px; line-height: 1.6; font-family: 'Space Grotesk', sans-serif;">
+                Identified <b style="color: #F8FAFC;">{len(audit_results['decaying_pages'])} decaying pages</b> losing clicks, <b style="color: #F8FAFC;">{len(audit_results['ctr_anomalies'])} CTR anomalies</b> in Top 5 rankings, and <b style="color: #F8FAFC;">{len(audit_results['striking_distance'])} striking-distance keywords</b> ready for Page 1.
             </div>
         </div>
-        <div style="text-align: right; background: rgba(0,0,0,0.3); padding: 12px 24px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
-            <div style="font-size: 0.72rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace; text-transform: uppercase;">Organic Health Score</div>
-            <div style="font-family: 'Orbitron', monospace; font-size: 2.6rem; font-weight: 900; color: {score_color}; line-height: 1.1;">
+        <div style="text-align: right; background: rgba(8, 14, 28, 0.9); padding: 14px 28px; border-radius: 14px; border: 1px solid rgba(0, 240, 255, 0.2); box-shadow: inset 0 0 15px rgba(0, 240, 255, 0.05);">
+            <div style="font-size: 0.7rem; color: #94A3B8; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.1em;">Organic Health Score</div>
+            <div style="font-family: 'Orbitron', monospace; font-size: 2.8rem; font-weight: 900; color: {score_color}; line-height: 1.1; text-shadow: 0 0 20px {score_color}60;">
                 {score}<span style="font-size: 1.1rem; color: #64748B;">/100</span>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # 4 Quick Metric Cards
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        st.markdown(f"""
-        <div style="background: rgba(14, 20, 32, 0.75); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 12px; padding: 1.1rem; text-align: center;">
-            <div style="color: #EF4444; font-size: 1.8rem; font-weight: 900; font-family: 'Orbitron';">{len(audit_results['decaying_pages'])}</div>
-            <div style="color: #CBD5E1; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-top: 4px;">Decaying Pages</div>
-            <div style="color: #94A3B8; font-size: 0.72rem;">>25% Click Drops</div>
+    # 4 Futuristic Cyber HUD Metric Cards matching CrawlPilot Engine
+    st.markdown(f"""
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 1.6rem;">
+        <!-- 1. Decaying Pages -->
+        <div class="kpi-card-hud">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <div style="font-size: 1.25rem;">📉</div>
+                <span class="kpi-badge kpi-badge-red">>25% Loss</span>
+            </div>
+            <div class="kpi-label">DECAYING PAGES</div>
+            <div class="kpi-value" style="color: #FF6B4A; text-shadow: 0 0 20px rgba(255, 107, 74, 0.45);">{len(audit_results['decaying_pages'])}</div>
+            <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 50%; background: #FF6B4A; box-shadow: 0 0 10px #FF6B4A;"></div></div>
         </div>
-        """, unsafe_allow_html=True)
-    with m2:
-        st.markdown(f"""
-        <div style="background: rgba(14, 20, 32, 0.75); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; padding: 1.1rem; text-align: center;">
-            <div style="color: #F59E0B; font-size: 1.8rem; font-weight: 900; font-family: 'Orbitron';">{len(audit_results['ctr_anomalies'])}</div>
-            <div style="color: #CBD5E1; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-top: 4px;">CTR Anomalies</div>
-            <div style="color: #94A3B8; font-size: 0.72rem;">Top 5 Rank, CTR < 2%</div>
+        
+        <!-- 2. CTR Anomalies -->
+        <div class="kpi-card-hud">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <div style="font-size: 1.25rem;">🎯</div>
+                <span class="kpi-badge kpi-badge-amber">CTR &lt; 2%</span>
+            </div>
+            <div class="kpi-label">CTR ANOMALIES</div>
+            <div class="kpi-value" style="color: #FBBF24; text-shadow: 0 0 20px rgba(251, 191, 36, 0.45);">{len(audit_results['ctr_anomalies'])}</div>
+            <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 45%; background: #FBBF24; box-shadow: 0 0 10px #FBBF24;"></div></div>
         </div>
-        """, unsafe_allow_html=True)
-    with m3:
-        st.markdown(f"""
-        <div style="background: rgba(14, 20, 32, 0.75); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 12px; padding: 1.1rem; text-align: center;">
-            <div style="color: #38BDF8; font-size: 1.8rem; font-weight: 900; font-family: 'Orbitron';">{len(audit_results['striking_distance'])}</div>
-            <div style="color: #CBD5E1; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-top: 4px;">Striking Distance</div>
-            <div style="color: #94A3B8; font-size: 0.72rem;">Positions 8 to 20</div>
+        
+        <!-- 3. Striking Distance -->
+        <div class="kpi-card-hud">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <div style="font-size: 1.25rem;">🚀</div>
+                <span class="kpi-badge kpi-badge-cyan">Pos 8-20</span>
+            </div>
+            <div class="kpi-label">STRIKING DISTANCE</div>
+            <div class="kpi-value" style="color: #00F0FF; text-shadow: 0 0 20px rgba(0, 240, 255, 0.45);">{len(audit_results['striking_distance'])}</div>
+            <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 65%; background: #00F0FF; box-shadow: 0 0 10px #00F0FF;"></div></div>
         </div>
-        """, unsafe_allow_html=True)
-    with m4:
-        st.markdown(f"""
-        <div style="background: rgba(14, 20, 32, 0.75); border: 1px solid rgba(167, 139, 250, 0.35); border-radius: 12px; padding: 1.1rem; text-align: center;">
-            <div style="color: #A78BFA; font-size: 1.8rem; font-weight: 900; font-family: 'Orbitron';">{audit_results['total_ai_sessions']}</div>
-            <div style="color: #CBD5E1; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-top: 4px;">GA4 AI Referrals</div>
-            <div style="color: #94A3B8; font-size: 0.72rem;">ChatGPT & Perplexity</div>
+        
+        <!-- 4. GA4 AI Referrals -->
+        <div class="kpi-card-hud">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <div style="font-size: 1.25rem;">🤖</div>
+                <span class="kpi-badge kpi-badge-teal">ChatGPT/Perplexity</span>
+            </div>
+            <div class="kpi-label">GA4 AI REFERRALS</div>
+            <div class="kpi-value" style="color: #2DD4BF; text-shadow: 0 0 20px rgba(45, 212, 191, 0.45);">{audit_results['total_ai_sessions']}</div>
+            <div class="kpi-line-bg"><div class="kpi-line-fill" style="width: 55%; background: #2DD4BF; box-shadow: 0 0 10px #2DD4BF;"></div></div>
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
 

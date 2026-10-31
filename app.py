@@ -443,6 +443,16 @@ div[data-baseweb="select"] > div:focus-within {
     color: #2DD4BF;
     border: 1px solid rgba(45, 212, 191, 0.35);
 }
+.kpi-badge-cyan {
+    background: rgba(0, 240, 255, 0.14);
+    color: #00F0FF;
+    border: 1px solid rgba(0, 240, 255, 0.35);
+}
+.kpi-badge-amber {
+    background: rgba(245, 158, 11, 0.14);
+    color: #FBBF24;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
 .kpi-line-bg {
     margin-top: 10px;
     height: 3px;
@@ -587,7 +597,7 @@ with st.sidebar:
         options=[
             "🕸️ CrawlPilot Engine",
             "🔑 AI Keyword Research",
-            "🔍 Full Site SEO Audit",
+            "🔍 (GSC + GA4) SEO Audit",
             "🗺️ XML Sitemap Generator",
             "🎯 Query Fan-Out Extractor",
             "🏛️ AI Silo & Competitors",
@@ -914,7 +924,7 @@ if "AI Keyword Research" in selected_tool:
     render_keyword_mapper_page()
     st.stop()
 
-if "Full Site SEO Audit" in selected_tool:
+if "(GSC + GA4) SEO Audit" in selected_tool or "Full Site SEO Audit" in selected_tool or "GSC" in selected_tool and "GA4" in selected_tool:
     render_full_site_seo_audit_page()
     st.stop()
 
