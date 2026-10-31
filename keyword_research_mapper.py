@@ -269,7 +269,7 @@ def classify_page_type(url: str, title: str = "", h1: str = "", text: str = "") 
 # ==============================================================================
 
 def discover_sitemap_urls(base_url: str, max_urls: int = 600) -> list[str]:
-    """Extract internal page URLs from common XML sitemap locations."""
+    """Extract internal page URLs from common XML sitemap locations in parallel."""
     parsed = urllib.parse.urlparse(base_url)
     root_scheme_netloc = f"{parsed.scheme}://{parsed.netloc}"
     sitemap_paths = [
@@ -285,39 +285,64 @@ def discover_sitemap_urls(base_url: str, max_urls: int = 600) -> list[str]:
         "Accept": "text/xml, application/xml, */*"
     }
     
+    def _fetch_sm(p):
+        sm_url = urllib.parse.urljoin(root_scheme_netloc, p)
+        try:
+            r = requests.get(sm_url, headers=headers, timeout=3, verify=False)
+            if r.status_code == 200 and ("xml" in r.headers.get("Content-Type", "") or "<loc>" in r.text):
+                return r.text
+        except Exception:
+            pass
+        return None
+
+    # Fetch all sitemaps in parallel
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        xml_texts = list(executor.map(_fetch_sm, sitemap_paths))
+
     found_urls = []
     seen = set()
 
-    for p in sitemap_paths:
-        sm_url = urllib.parse.urljoin(root_scheme_netloc, p)
+    for xml_text in xml_texts:
+        if not xml_text:
+            continue
         try:
-            r = requests.get(sm_url, headers=headers, timeout=6, verify=False)
-            if r.status_code == 200 and ("xml" in r.headers.get("Content-Type", "") or "<loc>" in r.text):
-                soup = BeautifulSoup(r.text, "html.parser")
-                loc_tags = soup.find_all("loc")
-                for loc in loc_tags:
-                    u = loc.get_text(strip=True)
-                    if u.endswith(".xml"):
-                        if any(k in u for k in ["product", "page", "post", "category", "service"]):
-                            try:
-                                sub_r = requests.get(u, headers=headers, timeout=6, verify=False)
-                                if sub_r.status_code == 200:
-                                    sub_soup = BeautifulSoup(sub_r.text, "html.parser")
-                                    for sub_loc in sub_soup.find_all("loc"):
-                                        sub_u = sub_loc.get_text(strip=True)
-                                        if sub_u not in seen and not sub_u.endswith(".xml"):
-                                            seen.add(sub_u)
-                                            found_urls.append(sub_u)
-                                            if len(found_urls) >= max_urls:
-                                                return found_urls
-                            except Exception:
-                                pass
-                    else:
-                        if u not in seen and not re.search(r"\.(pdf|png|jpg|jpeg|gif|svg|zip)$", u, re.I):
-                            seen.add(u)
-                            found_urls.append(u)
-                            if len(found_urls) >= max_urls:
-                                return found_urls
+            soup = BeautifulSoup(xml_text, "html.parser")
+            loc_tags = soup.find_all("loc")
+            sub_sitemaps = []
+            for loc in loc_tags:
+                u = loc.get_text(strip=True)
+                if u.endswith(".xml"):
+                    if any(k in u for k in ["product", "page", "post", "category", "service"]):
+                        sub_sitemaps.append(u)
+                else:
+                    if u not in seen and not re.search(r"\.(pdf|png|jpg|jpeg|gif|svg|zip)$", u, re.I):
+                        seen.add(u)
+                        found_urls.append(u)
+                        if len(found_urls) >= max_urls:
+                            return found_urls
+                            
+            # Fetch sub-sitemaps in parallel if found
+            if sub_sitemaps:
+                def _fetch_sub(sub_u):
+                    try:
+                        sr = requests.get(sub_u, headers=headers, timeout=3, verify=False)
+                        if sr.status_code == 200:
+                            return sr.text
+                    except Exception:
+                        pass
+                    return None
+                with ThreadPoolExecutor(max_workers=4) as sub_ex:
+                    sub_texts = list(sub_ex.map(_fetch_sub, sub_sitemaps[:5]))
+                for stxt in sub_texts:
+                    if stxt:
+                        sub_soup = BeautifulSoup(stxt, "html.parser")
+                        for sloc in sub_soup.find_all("loc"):
+                            su = sloc.get_text(strip=True)
+                            if su not in seen and not su.endswith(".xml"):
+                                seen.add(su)
+                                found_urls.append(su)
+                                if len(found_urls) >= max_urls:
+                                    return found_urls
         except Exception:
             continue
 
@@ -330,6 +355,8 @@ def detect_website_industry(homepage_title: str, homepage_meta: str, homepage_h1
     
     # Specific known B2B / Manufacturing niches
     if any(k in combined for k in ["actuator", "valve", "valves", "flow control", "flange", "pneumatic"]):
+        if any(k in combined for k in ["plastic", "upvc", "cpvc", "pvdf", "pp", "non metallic", "non-metallic"]):
+            return "Industrial Plastic & Non-Metallic Valves Manufacturer"
         return "Industrial Electrical Actuators & Motorized Valves Manufacturing"
     if any(k in combined for k in ["laser", "cnc", "cutting machine", "fiber laser", "sheet metal"]):
         return "CNC Fiber Laser & Metal Fabrication Machinery"
@@ -364,27 +391,34 @@ def deep_crawl_website_for_keywords(
     if progress_callback:
         progress_callback(0.05, f"🔍 Discovering XML Sitemaps for {clean_start}...")
 
-    # 1. Discover URLs from XML Sitemaps
-    sitemap_urls = discover_sitemap_urls(clean_start, max_urls=max_pages * 2)
+    # 1. Discover URLs from XML Sitemaps (Parallel & Fast)
+    sitemap_urls = discover_sitemap_urls(clean_start, max_urls=max_pages)
 
-    # 2. Run SEOSpider for deep crawling
+    # 2. Run SEOSpider for deep crawling with live progress callback
     spider_pages = []
     if SEOSpider:
         if progress_callback:
-            progress_callback(0.15, f"🕷️ Quantum Spider crawling internal links across {clean_start} (Up to {max_pages} pages)...")
+            progress_callback(0.12, f"🕷️ Quantum Spider starting deep crawl on {clean_start} (Up to {max_pages} pages)...")
         try:
+            def _spider_prog(crawled_count=0, max_pages=1, current_url="", status_code=200, **kwargs):
+                if progress_callback:
+                    pct = min(0.12 + (0.70 * (crawled_count / max(max_pages, 1))), 0.85)
+                    progress_callback(pct, f"🕷️ Spider crawled **{crawled_count}** pages: `{str(current_url)[:60]}` [{status_code}]")
+
             spider = SEOSpider(
                 start_url=clean_start,
                 max_pages=max_pages,
-                max_depth=8,
-                concurrency=12,
+                max_depth=6,
+                concurrency=15,
+                timeout=5,
                 user_agent_name="Chrome (Windows 11)",
                 respect_robots=False,
                 crawl_mode="Subdomain"
             )
-            raw_res = spider.crawl()
+            raw_res = spider.crawl(progress_callback=_spider_prog)
             spider_pages = raw_res.get("crawled_pages", [])
-        except Exception:
+        except Exception as spider_err:
+            print(f"[ERROR] SEOSpider deep crawl exception: {spider_err}")
             spider_pages = []
 
     # Combine URLs
@@ -394,44 +428,44 @@ def deep_crawl_website_for_keywords(
         if u and p.get("status_code", 0) in [200, 301, 302]:
             url_to_page_data[u] = p
 
-    # If sitemap had URLs not visited by spider, add them to crawl queue
+    # If sitemap had URLs not visited by spider, add them to crawl queue in parallel
     remaining_urls = [u for u in sitemap_urls if u not in url_to_page_data][:max_pages]
     if remaining_urls:
         if progress_callback:
-            progress_callback(0.35, f"📄 Fetching {len(remaining_urls)} sitemap pages...")
+            progress_callback(0.86, f"📄 Fetching {len(remaining_urls)} sitemap pages...")
             
         def _fetch_single(target_u):
             try:
-                r = requests.get(target_u, headers={"User-Agent": DEFAULT_UA}, timeout=8, verify=False)
+                r = requests.get(target_u, headers={"User-Agent": DEFAULT_UA}, timeout=5, verify=False)
                 if r.status_code == 200:
                     return {"url": target_u, "status_code": 200, "html": r.text}
             except Exception:
                 pass
             return None
 
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=12) as executor:
             future_to_url = {executor.submit(_fetch_single, u): u for u in remaining_urls}
             for fut in as_completed(future_to_url):
                 res = fut.result()
                 if res:
                     url_to_page_data[res["url"]] = res
 
-    # 3. Parse and extract metadata for every collected page
-    parsed_pages = []
-    total_found = len(url_to_page_data)
-    detected_industry = ""
-    
-    for idx, (u, pdata) in enumerate(url_to_page_data.items()):
-        if progress_callback:
-            progress_callback(0.40 + (0.25 * ((idx + 1) / max(total_found, 1))), f"Extracting page content ({idx+1}/{total_found})...")
+    # 3. Parse and extract metadata for every collected page in parallel
+    if progress_callback:
+        progress_callback(0.90, f"⚡ Extracting SEO metadata & text content across {len(url_to_page_data)} pages...")
 
+    parsed_pages = []
+    detected_industry = ""
+
+    def _parse_page_content(item):
+        u, pdata = item
         status = pdata.get("status_code", 200)
         if status in [301, 302, 307, 308, 404, 500]:
-            continue
+            return None
 
         html = pdata.get("html", "")
         if not html:
-            continue
+            return None
 
         soup = BeautifulSoup(html, "html.parser")
         title = soup.title.string.strip() if soup.title and soup.title.string else ""
@@ -440,19 +474,12 @@ def deep_crawl_website_for_keywords(
         meta_desc = desc_meta["content"].strip() if desc_meta and desc_meta.get("content") else ""
         h2s = [h.get_text(strip=True) for h in soup.find_all("h2") if h.get_text(strip=True)][:6]
 
-        # Clean text
         for el in soup(["script", "style", "nav", "footer", "header", "noscript"]):
             el.extract()
-        body_text = " ".join(soup.get_text(separator=" ", strip=True).split()[:300])
-
-        # If homepage, detect industry
-        parsed_u = urllib.parse.urlparse(u)
-        if not parsed_u.path or parsed_u.path == "/" or not detected_industry:
-            detected_industry = detect_website_industry(title, meta_desc, h1)
+        body_text = " ".join(soup.get_text(separator=" ", strip=True).split()[:280])
 
         cls_info = classify_page_type(u, title, h1, body_text)
-        
-        parsed_pages.append({
+        return {
             "url": u,
             "title": title,
             "h1": h1,
@@ -463,9 +490,24 @@ def deep_crawl_website_for_keywords(
             "badge": cls_info["badge"],
             "color": cls_info["color"],
             "is_money_page": cls_info["is_money_page"]
-        })
+        }
+
+    with ThreadPoolExecutor(max_workers=16) as parse_pool:
+        results = list(parse_pool.map(_parse_page_content, url_to_page_data.items()))
+        parsed_pages = [r for r in results if r is not None]
+
+    # Detect industry from homepage
+    for p in parsed_pages:
+        pu = urllib.parse.urlparse(p["url"])
+        if not pu.path or pu.path == "/" or pu.path.strip("/") == "":
+            detected_industry = detect_website_industry(p["title"], p["meta_desc"], p["h1"])
+            break
+            
+    if not detected_industry and parsed_pages:
+        detected_industry = detect_website_industry(parsed_pages[0]["title"], parsed_pages[0]["meta_desc"], parsed_pages[0]["h1"])
 
     return parsed_pages, (detected_industry or "Industrial B2B Manufacturing & Supply")
+
 
 
 # ==============================================================================
@@ -1090,9 +1132,7 @@ def render_keyword_mapper_page():
             
         progress_bar.progress(1.0)
         status_box.empty()
-        progress_bar.empty()
         st.success(f"✅ Deep Crawl Complete! Found **{len(crawled_pages)} total internal pages** with HTML content.")
-        st.rerun()
 
     # ==============================================================================
     # STEP 2: RUN AI KEYWORD MAPPING (2 FOCUS + 1 LONG-TAIL, ZERO CANNIBALIZATION)
