@@ -28,14 +28,29 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Google OAuth & API client imports
-import google.auth
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
-from googleapiclient.discovery import build
-from google.analytics.admin import AnalyticsAdminServiceClient
-from google.analytics.data_v1beta import BetaAnalyticsDataClient
-from google.analytics.data_v1beta.types import DateRange, Dimension, Metric, RunReportRequest
+# Google OAuth & API client imports (safe import wrapped with try...except)
+try:
+    import google.auth
+    from google.oauth2.credentials import Credentials
+    from google_auth_oauthlib.flow import Flow
+    from googleapiclient.discovery import build
+    from google.analytics.admin import AnalyticsAdminServiceClient
+    from google.analytics.data_v1beta import BetaAnalyticsDataClient
+    from google.analytics.data_v1beta.types import DateRange, Dimension, Metric, RunReportRequest
+    GOOGLE_OAUTH_LIBS_AVAILABLE = True
+    GOOGLE_OAUTH_IMPORT_ERROR = None
+except ImportError as e:
+    GOOGLE_OAUTH_LIBS_AVAILABLE = False
+    GOOGLE_OAUTH_IMPORT_ERROR = str(e)
+    Credentials = None
+    Flow = None
+    build = None
+    AnalyticsAdminServiceClient = None
+    BetaAnalyticsDataClient = None
+    DateRange = None
+    Dimension = None
+    Metric = None
+    RunReportRequest = None
 
 # Relax OAuth transport restrictions for seamless localhost / Cloud redirection
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -364,8 +379,10 @@ def get_oauth_config() -> tuple[str, str, str]:
     return client_id.strip(), client_secret.strip(), redirect_uri.strip()
 
 
-def create_oauth_flow(client_id: str, client_secret: str, redirect_uri: str) -> Flow:
+def create_oauth_flow(client_id: str, client_secret: str, redirect_uri: str):
     """Builds google_auth_oauthlib Flow object."""
+    if not GOOGLE_OAUTH_LIBS_AVAILABLE or Flow is None:
+        return None
     client_config = {
         "web": {
             "client_id": client_id,
@@ -384,6 +401,8 @@ def create_oauth_flow(client_id: str, client_secret: str, redirect_uri: str) -> 
 
 def get_authenticated_creds():
     """Reconstructs Credentials object from stored session state and refreshes if expired."""
+    if not GOOGLE_OAUTH_LIBS_AVAILABLE or Credentials is None:
+        return None
     creds_dict = st.session_state.get("g_oauth_creds")
     if not creds_dict:
         return None
@@ -405,9 +424,13 @@ def get_authenticated_creds():
         print(f"Error restoring credentials: {e}")
         return None
 
+get_authenticated_credentials = get_authenticated_creds
+
 
 def fetch_live_gsc_properties(creds) -> list[str]:
     """Auto-detects and lists all verified Search Console properties for the account."""
+    if not GOOGLE_OAUTH_LIBS_AVAILABLE or build is None or creds is None:
+        return []
     try:
         service = build('searchconsole', 'v1', credentials=creds, cache_discovery=False)
         sites_res = service.sites().list().execute()
@@ -421,6 +444,8 @@ def fetch_live_gsc_properties(creds) -> list[str]:
 
 def fetch_live_ga4_properties(creds) -> list[dict]:
     """Auto-detects and lists all GA4 properties across all accounts."""
+    if not GOOGLE_OAUTH_LIBS_AVAILABLE or AnalyticsAdminServiceClient is None or creds is None:
+        return []
     properties = []
     try:
         admin_client = AnalyticsAdminServiceClient(credentials=creds)
@@ -665,6 +690,16 @@ def render_full_site_seo_audit_page():
     # OPTION 1: LIVE GOOGLE OAUTH 2.0 INTEGRATION
     # --------------------------------------------------------------------------
     if "Connect Live Google Account" in data_source_mode:
+        if not GOOGLE_OAUTH_LIBS_AVAILABLE:
+            st.warning(
+                f"⚠️ **Google OAuth packages are currently being installed or not available on this server.**\n\n"
+                f"Import error details: `{GOOGLE_OAUTH_IMPORT_ERROR}`\n\n"
+                "**What you can do:**\n"
+                "- If deploying on Streamlit Community Cloud, packages in `requirements.txt` (`google-auth`, `google-auth-oauthlib`, etc.) may take 1-2 minutes to finish installing during app reboot.\n"
+                "- Meanwhile, you can switch to the **'📁 Manual CSV / ZIP Upload'** option above to run your SEO Audit immediately using CSV/ZIP exports or sample data!"
+            )
+            return
+
         # Check OAuth callback in query_params
         auth_code = st.query_params.get("code")
         if auth_code and client_id and client_secret:

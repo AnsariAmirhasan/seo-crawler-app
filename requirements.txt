@@ -14,8 +14,9 @@ Pillow>=10.0.0
 python-docx>=1.1.0
 wordcloud>=1.9.3
 matplotlib>=3.7.0
-google-auth>=2.29.0
-google-auth-oauthlib>=1.2.0
-google-api-python-client>=2.120.0
-google-analytics-admin>=0.22.0
-google-analytics-data>=0.18.0
+google-auth
+google-auth-oauthlib
+google-api-python-client
+google-analytics-admin
+google-analytics-data
+
