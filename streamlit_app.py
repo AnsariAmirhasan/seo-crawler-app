@@ -542,10 +542,7 @@ with st.sidebar:
             "🎯 Query Fan-Out Extractor",
             "🏛️ AI Silo & Competitors",
             "📱 AI Social Content Studio",
-            "📈 Advanced GSC Analysis",
-            "📊 SERP Rank Tracker (Soon)",
-            "🔗 Backlink Explorer (Soon)",
-            "⚡ Core Web Vitals (Soon)"
+            "📈 Advanced GSC Analysis"
         ],
         index=0,
         label_visibility="collapsed"
@@ -1158,55 +1155,7 @@ with tab_overview:
         </div>
         """)
 
-        # Quantum Capabilities Matrix Showcase Card
-        st.html("""
-        <div style="background: linear-gradient(135deg, rgba(16, 22, 36, 0.92) 0%, rgba(9, 13, 22, 0.98) 100%); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 18px; padding: 2.4rem 2.6rem; margin-top: 0.8rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2rem; box-shadow: 0 20px 45px rgba(0,0,0,0.65), 0 0 30px rgba(245, 158, 11, 0.08); position: relative; overflow: hidden; backdrop-filter: blur(20px);">
-            <div style="position: absolute; top: -50px; left: -50px; width: 150px; height: 150px; background: radial-gradient(circle, rgba(245, 158, 11, 0.18) 0%, transparent 70%); pointer-events: none;"></div>
-            
-            <div style="flex: 1.2; min-width: 280px; position: relative; z-index: 2;">
-                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #FFC107; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 6px;">
-                    MISSION CONTROL • ZERO LIMITATIONS
-                </div>
-                <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.95rem; font-weight: 800; color: #FFFFFF; margin: 0 0 0.6rem 0; letter-spacing: -0.02em;">
-                    Autonomous Technical SEO <span style="background: linear-gradient(135deg, #FFC107 0%, #F59E0B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Intelligence</span>
-                </h2>
-                <p style="color: #94A3B8; font-size: 0.98rem; line-height: 1.65; max-width: 520px; margin: 0; font-family: 'Space Grotesk', sans-serif;">
-                    Input target URL, select crawl depth, and engage. The multi-threaded quantum engine analyzes HTTP response codes, canonical directives, metadata anomalies, and image sizes at warp speed.
-                </p>
-            </div>
 
-            <div style="flex: 1; min-width: 260px; position: relative; z-index: 2;">
-                <div style="display: flex; flex-direction: column; gap: 11px; font-size: 0.88rem; color: #CBD5E1; font-family: 'Space Grotesk', sans-serif;">
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #34D399; font-weight: 800;">⚡</span> <b>High-Speed Multi-Thread Crawler</b> (10,000 URLs)</div>
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #38BDF8; font-weight: 800;">⚡</span> <b>Automated SiteGround / Cloudflare WAF Bypass</b></div>
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #FFC107; font-weight: 800;">⚡</span> <b>AI Action Plan Generation</b> (Gemini 4 Argon)</div>
-                    <div style="display: flex; align-items: center; gap: 10px;"><span style="color: #A78BFA; font-weight: 800;">⚡</span> <b>Client-Ready Excel (.XLSX) & Word (.DOCX) Reports</b></div>
-                </div>
-            </div>
-
-            <div style="flex: 0.8; min-width: 220px; text-align: center; position: relative; z-index: 2;">
-                <div style="background: rgba(8, 12, 22, 0.95); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 14px; padding: 18px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.7), inset 0 0 15px rgba(245, 158, 11, 0.05); text-align: left;">
-                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #94A3B8; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.1em;">
-                        EXECUTION PIPELINE
-                    </div>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 700; color: #FFFFFF;">
-                            <span>01. CRAWL</span> <span style="color: #34D399; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(16,185,129,0.1); padding: 2px 6px; border-radius: 4px;">ARMED</span>
-                        </div>
-                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 600; color: #CBD5E1;">
-                            <span>02. ANALYZE</span> <span style="color: #38BDF8; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px;">READY</span>
-                        </div>
-                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 600; color: #CBD5E1;">
-                            <span>03. FIX</span> <span style="color: #FFC107; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(255,193,7,0.1); padding: 2px 6px; border-radius: 4px;">AUTO</span>
-                        </div>
-                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; font-weight: 700; color: #FFC107;">
-                            <span>04. DOMINATE</span> <span style="color: #A78BFA; font-size: 0.72rem; font-family: 'JetBrains Mono'; background: rgba(167,139,250,0.1); padding: 2px 6px; border-radius: 4px;">TARGET</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """)
 
     else:
         summary = results.get("summary", {})
