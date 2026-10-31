@@ -1153,25 +1153,49 @@ def render_advance_gsc_analysis_page(standalone_header: bool = True):
             </div>
             """, unsafe_allow_html=True)
 
+            # OAuth Configuration Expander
+            with st.expander("⚙️ Configure Google OAuth Credentials", expanded=(not client_id or not client_secret)):
+                ui_cid = st.text_input("Client ID", value=client_id, placeholder="xxxx.apps.googleusercontent.com", key="gsc_oauth_cid")
+                ui_csec = st.text_input("Client Secret", value=client_secret, type="password", placeholder="GOCSPX-xxxx", key="gsc_oauth_csec")
+                ui_ruri = st.text_input("Authorized Redirect URI", value=redirect_uri, key="gsc_oauth_ruri")
+                if ui_cid:
+                    st.session_state["oauth_custom_client_id"] = ui_cid.strip()
+                    client_id = ui_cid.strip()
+                if ui_csec:
+                    st.session_state["oauth_custom_client_secret"] = ui_csec.strip()
+                    client_secret = ui_csec.strip()
+                if ui_ruri:
+                    st.session_state["oauth_custom_redirect_uri"] = ui_ruri.strip()
+                    redirect_uri = ui_ruri.strip()
+
             if client_id and client_secret and create_oauth_flow:
                 try:
                     flow = create_oauth_flow(client_id, client_secret, redirect_uri)
                     auth_url, _ = flow.authorization_url(
                         access_type="offline",
                         include_granted_scopes="true",
-                        prompt="consent"
+                        prompt="select_account consent"
                     )
-                    st.markdown(f"""
-                    <div style="text-align: center;">
-                        <a href="{auth_url}" target="_self" style="display: inline-flex; align-items: center; gap: 10px; background: #0284C7; color: #FFFFFF; font-weight: 800; font-size: 1rem; padding: 12px 28px; border-radius: 10px; text-decoration: none; box-shadow: 0 4px 20px rgba(2, 132, 199, 0.4);">
-                            <span>🔐 Sign In with Google</span>
-                        </a>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.link_button(
+                        "🔐 Sign In with Google",
+                        url=auth_url,
+                        use_container_width=True,
+                        type="primary"
+                    )
+                    st.markdown(
+                        f'<div style="text-align: center; margin-top: 8px; margin-bottom: 8px;">'
+                        f'<a href="{auth_url}" target="_blank" rel="noopener noreferrer" style="color: #38BDF8; font-size: 0.88rem; text-decoration: underline; font-weight: 600;">'
+                        f'↗ Open Google Sign-In in a new tab'
+                        f'</a>'
+                        f'<div style="color: #94A3B8; font-size: 0.78rem; margin-top: 4px;">'
+                        f'Tip: Opens account chooser outside the iframe to prevent 403 multi-account conflicts.'
+                        f'</div></div>',
+                        unsafe_allow_html=True
+                    )
                 except Exception as e_url:
                     st.warning(f"OAuth URL initialization notice: {e_url}")
             else:
-                st.info("💡 Google OAuth credentials not found in Streamlit Secrets. You can use the **'📤 Upload GSC Export'** or **'🧪 Interactive Demo'** tabs right now!")
+                st.info("💡 Google OAuth credentials not found. Configure them above, or use the **'📤 Upload GSC Export'** or **'🧪 Interactive Demo'** tabs right now!")
 
     # TAB B: Manual CSV / ZIP Upload
     with tab_conn_upload:

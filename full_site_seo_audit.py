@@ -367,8 +367,12 @@ def analyze_full_site_audit(data_dict: dict) -> dict:
 # ==============================================================================
 
 def get_oauth_config() -> tuple[str, str, str]:
-    """Retrieve Client ID, Client Secret, and Redirect URI from secrets or session state."""
-    sec = st.secrets.get("google_oauth", {}) if hasattr(st, "secrets") else {}
+    sec = {}
+    try:
+        if hasattr(st, "secrets") and "google_oauth" in st.secrets:
+            sec = st.secrets["google_oauth"]
+    except Exception:
+        sec = {}
     client_id = sec.get("client_id", "") or st.session_state.get("oauth_custom_client_id", "")
     client_secret = sec.get("client_secret", "") or st.session_state.get("oauth_custom_client_secret", "")
     redirect_uri = (
@@ -880,7 +884,7 @@ def render_full_site_seo_audit_page():
             if client_id and client_secret:
                 try:
                     auth_flow = create_oauth_flow(client_id, client_secret, redirect_uri)
-                    auth_url, _ = auth_flow.authorization_url(prompt='consent', access_type='offline', include_granted_scopes='true')
+                    auth_url, _ = auth_flow.authorization_url(prompt='select_account consent', access_type='offline', include_granted_scopes='true')
                     
                     st.link_button(
                         "🔗 Sign In With Google (Connect GSC & GA4)",

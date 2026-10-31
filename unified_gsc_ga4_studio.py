@@ -849,8 +849,15 @@ def _render_unified_opportunity_modules():
                 if client_id and client_secret:
                     try:
                         auth_flow = create_oauth_flow(client_id, client_secret, redirect_uri)
-                        auth_url, _ = auth_flow.authorization_url(prompt='consent', access_type='offline', include_granted_scopes='true')
+                        auth_url, _ = auth_flow.authorization_url(prompt='select_account consent', access_type='offline', include_granted_scopes='true')
                         st.link_button("🔗 Sign In With Google (Connect GSC & GA4)", url=auth_url, use_container_width=True, type="primary")
+                        st.markdown(
+                            f'<div style="text-align: center; margin-top: 8px; margin-bottom: 8px;">'
+                            f'<a href="{auth_url}" target="_blank" rel="noopener noreferrer" style="color: #38BDF8; font-size: 0.88rem; text-decoration: underline; font-weight: 600;">'
+                            f'↗ Open Google Sign-In in a new tab'
+                            f'</a></div>',
+                            unsafe_allow_html=True
+                        )
                     except Exception as flow_err:
                         st.error(f"Could not initialize Google OAuth flow: {flow_err}")
 
