@@ -592,10 +592,7 @@ with st.sidebar:
             "🎯 Query Fan-Out Extractor",
             "🏛️ AI Silo & Competitors",
             "📱 AI Social Content Studio",
-            "📈 Advanced GSC Analysis",
-            "📊 SERP Rank Tracker (Soon)",
-            "🔗 Backlink Explorer (Soon)",
-            "⚡ Core Web Vitals (Soon)"
+            "📈 Advanced GSC Analysis"
         ],
         index=0,
         label_visibility="collapsed"
@@ -1122,7 +1119,7 @@ if btn_start:
         st.rerun()
 
 # Main Application Tabs
-tab_overview, tab_issues, tab_minify, tab_pages, tab_responses, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_extractor, tab_inspector, tab_sitemap = st.tabs([
+tab_overview, tab_issues, tab_minify, tab_pages, tab_responses, tab_canonicals, tab_titles, tab_descriptions, tab_headings, tab_links, tab_images, tab_architecture, tab_extractor = st.tabs([
     "Overview",
     "Issues & Fixes",
     "Minify JS & CSS",
@@ -1135,9 +1132,7 @@ tab_overview, tab_issues, tab_minify, tab_pages, tab_responses, tab_canonicals, 
     "Link Analysis",
     "Images Audit",
     "Site Structure",
-    "Audit Report",
-    "Quick Inspector",
-    "Robots & Sitemap"
+    "Audit Report"
 ])
 
 results = st.session_state.get("crawl_results")
@@ -3880,122 +3875,4 @@ with tab_extractor:
                     hide_index=True
                 )
 
-# ==============================================================================
-# TAB 11: SINGLE URL QUICK INSPECTOR
-# ==============================================================================
-with tab_inspector:
-    st.subheader("🔍 Single URL Instant Inspector")
-    st.caption("Perform an instant deep technical audit on any single URL without crawling the full website.")
-    
-    col_in1, col_in2 = st.columns([3, 1])
-    with col_in1:
-        inspect_url = st.text_input("Enter Page URL to Inspect:", value="https://example.com")
-    with col_in2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        btn_inspect = st.button("🔎 Inspect Page Now", type="primary", use_container_width=True)
 
-    if btn_inspect and inspect_url:
-        with st.spinner("Fetching and inspecting technical SEO factors..."):
-            spider_temp = SEOSpider(start_url=inspect_url, max_pages=1, max_depth=0)
-            fetch_res = spider_temp.fetch_single_url(inspect_url)
-            audit = parse_page_seo(fetch_res)
-            st.session_state["single_inspect_result"] = audit
-
-    inspect_data = st.session_state.get("single_inspect_result")
-    if inspect_data:
-        st.markdown("---")
-        col_i1, col_i2, col_i3, col_i4 = st.columns(4)
-        with col_i1:
-            st.metric("HTTP Status", inspect_data.get("status_code", 0))
-        with col_i2:
-            st.metric("Latency", f"{inspect_data.get('latency_ms', 0)} ms")
-        with col_i3:
-            st.metric("Word Count", inspect_data.get("word_count", 0))
-        with col_i4:
-            st.metric("Indexable", "Yes ✅" if inspect_data.get("is_indexable") else "No ❌")
-
-        st.markdown("### 📋 Meta & Technical Elements")
-        st.json({
-            "Title": inspect_data.get("title"),
-            "Title Length": inspect_data.get("title_length"),
-            "Title Pixel Width": inspect_data.get("title_pixel_width"),
-            "Meta Description": inspect_data.get("meta_description"),
-            "H1 Heading": inspect_data.get("h1"),
-            "Canonical URL": inspect_data.get("canonical_url"),
-            "Canonical Status": inspect_data.get("canonical_status"),
-            "Meta Robots": inspect_data.get("meta_robots") or "None (Default Index, Follow)",
-            "Open Graph Title": inspect_data.get("og_title"),
-            "Open Graph Image": inspect_data.get("og_image"),
-            "Schema.org Types Detected": inspect_data.get("schema_types", []),
-        })
-
-        if inspect_data.get("issues"):
-            st.markdown("### 🚨 Issues Detected on Page")
-            st.dataframe(pd.DataFrame(inspect_data["issues"]), use_container_width=True)
-
-# ==============================================================================
-# TAB 11: ROBOTS & SITEMAP TOOL
-# ==============================================================================
-with tab_sitemap:
-    st.subheader("🤖 Robots.txt & XML Sitemap Validator")
-    st.caption("Verify crawl accessibility directives and XML sitemap integrity.")
-    
-    site_base = st.text_input("Enter Root Website URL:", value="https://example.com")
-    
-    col_r1, col_r2 = st.columns(2)
-    with col_r1:
-        if st.button("📄 Fetch robots.txt", use_container_width=True):
-            try:
-                parsed = urlparse(site_base)
-                robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
-                r = requests.get(robots_url, timeout=10)
-                st.write(f"Status: **{r.status_code}** (`{robots_url}`)")
-                st.code(r.text, language="text")
-            except Exception as e:
-                st.error(f"Failed to fetch robots.txt: {e}")
-
-    with col_r2:
-        if st.button("🗺️ Fetch & Parse sitemap.xml", use_container_width=True):
-            try:
-                parsed = urlparse(site_base)
-                sitemap_url = f"{parsed.scheme}://{parsed.netloc}/sitemap.xml"
-                r = requests.get(sitemap_url, timeout=10)
-                st.write(f"Status: **{r.status_code}** (`{sitemap_url}`)")
-                if r.status_code == 200:
-                    root = ET.fromstring(r.content)
-                    urls = [loc.text for loc in root.iter('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
-                    st.success(f"Discovered **{len(urls)}** URLs in sitemap:")
-                    st.dataframe(pd.DataFrame(urls, columns=["Sitemap URL"]), use_container_width=True)
-                else:
-                    st.warning("sitemap.xml not found or returned non-200 code.")
-            except Exception as e:
-                st.error(f"Failed to parse sitemap: {e}")
-
-    # Instant Sitemap Export from Current Crawl
-    st.markdown("---")
-    st.markdown("### ⚡ Instant XML Sitemap Export from Current Audit")
-    crawl_data = st.session_state.get("crawl_results")
-    if crawl_data and "df_pages" in crawl_data and not crawl_data["df_pages"].empty:
-        df_p = crawl_data["df_pages"]
-        # Only clean 200 OK indexable pages
-        status_col = df_p["status_code"] if "status_code" in df_p.columns else 200
-        idx_col = df_p["is_indexable"] if "is_indexable" in df_p.columns else True
-        valid_idx = df_p[(status_col == 200) & (idx_col != False)]
-        
-        st.success(f"📊 Current audit contains **{len(df_p)} total pages**, with **{len(valid_idx)} clean 200 OK indexable URLs** ready to export as sitemaps.")
-        
-        pages_records = valid_idx.to_dict(orient="records")
-        target_site = crawl_data.get("start_url", "https://example.com")
-        
-        xml_from_crawl = build_xml_sitemap(pages_records, default_changefreq="weekly", auto_priority=True, auto_lastmod=True)
-        gz_from_crawl = build_gzipped_xml(xml_from_crawl)
-        txt_from_crawl = build_urllist_txt(pages_records)
-        html_from_crawl = build_html_sitemap(pages_records, target_site)
-
-        c1, c2, c3, c4 = st.columns(4)
-        c1.download_button("📥 sitemap.xml", data=xml_from_crawl, file_name=make_clean_export_filename("Sitemap", target_site, "xml"), mime="application/xml", use_container_width=True, key="spider_dl_xml")
-        c2.download_button("🗜️ sitemap.xml.gz", data=gz_from_crawl, file_name=make_clean_export_filename("Sitemap", target_site, "xml.gz"), mime="application/gzip", use_container_width=True, key="spider_dl_gz")
-        c3.download_button("📄 urllist.txt", data=txt_from_crawl, file_name=make_clean_export_filename("URL_List", target_site, "txt"), mime="text/plain", use_container_width=True, key="spider_dl_txt")
-        c4.download_button("🌐 sitemap.html", data=html_from_crawl, file_name=make_clean_export_filename("Sitemap", target_site, "html"), mime="text/html", use_container_width=True, key="spider_dl_html")
-    else:
-        st.info("ℹ️ Run an audit from the sidebar to immediately export standard sitemaps, or select **'🗺️ XML Sitemap Generator'** in the sidebar to generate a sitemap on-demand.")
