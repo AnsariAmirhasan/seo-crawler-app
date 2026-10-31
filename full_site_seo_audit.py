@@ -376,26 +376,30 @@ def get_oauth_config() -> tuple[str, str, str]:
         st.session_state.get("oauth_custom_redirect_uri", "") or 
         "https://seo-crawler-app-amirs-spider.streamlit.app/"
     )
-    return client_id.strip(), client_secret.strip(), redirect_uri.strip()
+    return str(client_id).strip(), str(client_secret).strip(), str(redirect_uri).strip()
 
 
 def create_oauth_flow(client_id: str, client_secret: str, redirect_uri: str):
-    """Builds google_auth_oauthlib Flow object."""
+    """Builds google_auth_oauthlib Flow object without PKCE to prevent state loss across redirects."""
     if not GOOGLE_OAUTH_LIBS_AVAILABLE or Flow is None:
         return None
+    c_id = str(client_id or "").strip()
+    c_sec = str(client_secret or "").strip()
+    r_uri = str(redirect_uri or "").strip()
     client_config = {
         "web": {
-            "client_id": client_id,
-            "client_secret": client_secret,
+            "client_id": c_id,
+            "client_secret": c_sec,
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": [redirect_uri]
+            "redirect_uris": [r_uri]
         }
     }
     return Flow.from_client_config(
         client_config=client_config,
         scopes=GOOGLE_OAUTH_SCOPES,
-        redirect_uri=redirect_uri
+        redirect_uri=r_uri,
+        autogenerate_code_verifier=False
     )
 
 
@@ -859,13 +863,22 @@ def render_full_site_seo_audit_page():
                     auth_flow = create_oauth_flow(client_id, client_secret, redirect_uri)
                     auth_url, _ = auth_flow.authorization_url(prompt='consent', access_type='offline', include_granted_scopes='true')
                     
+                    st.link_button(
+                        "🔗 Sign In With Google (Connect GSC & GA4)",
+                        url=auth_url,
+                        use_container_width=True,
+                        type="primary"
+                    )
+                    
                     st.markdown(f"""
-                    <a href="{auth_url}" target="_self" style="text-decoration:none;">
-                        <div style="background: linear-gradient(135deg, #4285F4 0%, #1A73E8 100%); color: #FFFFFF; font-weight: 700; font-family: 'Space Grotesk', sans-serif; font-size: 1.05rem; padding: 13px 28px; border-radius: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 4px 18px rgba(66, 133, 244, 0.4); display: flex; align-items: center; justify-content: center; gap: 12px; margin: 1.2rem 0; cursor: pointer; transition: all 0.2s ease;">
-                            <svg width="22" height="22" viewBox="0 0 24 24"><path fill="#ffffff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#ffffff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#ffffff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#ffffff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
-                            <span>Sign In With Google (Connect GSC & GA4)</span>
+                    <div style="text-align: center; margin-top: 8px; margin-bottom: 12px;">
+                        <a href="{auth_url}" target="_blank" rel="noopener noreferrer" style="color: #60A5FA; font-size: 0.88rem; text-decoration: underline; font-weight: 500;">
+                            ↗ Open Google Sign-In in a new tab
+                        </a>
+                        <div style="color: #94A3B8; font-size: 0.78rem; margin-top: 3px;">
+                            (Opens authentication in a secure separate browser tab outside the Streamlit iframe)
                         </div>
-                    </a>
+                    </div>
                     """, unsafe_allow_html=True)
                 except Exception as flow_err:
                     st.error(f"Could not initialize Google OAuth flow: {flow_err}")
